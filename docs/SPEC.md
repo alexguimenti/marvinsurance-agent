@@ -30,7 +30,8 @@ For each claim the agent reads:
 |---|---|
 | The claim: story, items, amounts, supporting documents (as text) | `data/claims.json` |
 | The policy for the trip: plan, add-ons, purchase date, trip dates, travelers | `data/policies.json` |
-| The customer: contact details and claim history | `data/customers.json` |
+| The customer's claim history (the agent does not see contact details) | `data/customers.json` |
+| Public facts (events, products, places) for "publicly known before purchase" | `data/knowledge.json` |
 | The plan limits, waiting periods, deductibles and add-on effects | `data/plans.json` |
 | Company settings (approval limit, filing window, look-back) | `data/company.json` |
 | The policy wording | `data/policy_wording.md` |
