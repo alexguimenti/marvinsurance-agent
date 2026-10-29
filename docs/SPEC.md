@@ -105,11 +105,14 @@ Evaluation scores two things per claim: the decision, and the payout.
 - **Real payments.** Payments are simulated.
 - **Messages to customers.**
 
-## 9. Open questions
+## 9. Decisions made in the pilot
 
-To settle as the build progresses:
+- **Trigger:** a "Run queue" button runs every waiting claim, one at a time; each claim also has a "Run this claim" button. Hosting is local only.
+- **Approver:** with no sign-in, the person approving picks their name from the handlers who may approve over the limit. That handler is stored on the payment.
+- **Referred claims:** a `refer` is a finished decision with no owner and no hand-off screen. It is `decided` and shows in the queue.
+- **Failures:** if the model errors, or asks to pay an amount that differs from its decision, the claim becomes a `refer` and the reason is in the activity trace.
 
-- Hosting and how the agent is run. The stack itself is in `TECH_STACK.md`.
-- How the agent is triggered: process the whole queue at once, claim by claim, or continuously.
-- Who is recorded as the approver of an over-limit payment, given there is no sign-in.
-- Whether a referred claim has an owner or a hand-off screen in the pilot.
+## 10. Open questions
+
+- How a referred claim should reach a person (owner, notification, queue).
+- Applying the claims manual, once the pilot moves past the policy wording alone.

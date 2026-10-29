@@ -90,3 +90,25 @@ def test_instructions_endpoint_matches_file(client):
 ])
 def test_no_route_serves_evals(client, path):
     assert client.get(path).status_code == 404
+
+
+def test_claims_left_in_progress_by_a_crash_go_back_to_waiting(db_path, data_dir):
+    import json
+
+    from app.db import connect, init_schema
+
+    settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
+    with TestClient(create_app(settings)):
+        pass
+    conn = connect(db_path)
+    conn.execute("UPDATE claims SET status='in_progress' WHERE claim_id='CLM-1001'")
+    conn.execute("INSERT INTO trace_events (claim_id, seq, kind, content) VALUES ('CLM-1001', 1, 'status', ?)",
+                 (json.dumps({"status": "in_progress"}),))
+    conn.commit()
+    conn.close()
+
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/claims").json()[0]["status"] == "waiting"
+        assert client.get("/claims/CLM-1001/trace").json() == []
+        assert client.post("/claims/CLM-1001/run").status_code == 202
+        assert client.get("/claims/CLM-1001").json()["status"] == "decided"

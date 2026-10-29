@@ -54,9 +54,13 @@ Everything we implement must come with **unit tests and end-to-end (e2e) tests**
 - Tests must not read `data/evals/`. Scoring the agent against the handlers' decisions is a separate evaluation, not part of the test suite.
 - New code and bug fixes ship with their tests in the same change.
 
+## Decisions made in the pilot
+
+- Python 3.11+ (built on 3.13), dependencies in `backend/pyproject.toml`.
+- Frontend: Vite, TypeScript, React Router. The activity view polls the API every second while a claim is in progress.
+- Tests: pytest (backend), Vitest with Testing Library (frontend), Playwright (end-to-end, scripted agent and a throwaway database).
+- The agent is a LangChain `create_agent` with a structured `Decision` output, calling OpenRouter through `ChatOpenAI` with the OpenRouter base URL.
+
 ## Open items
 
-- Frontend tooling (for example Vite and TypeScript).
-- Live update transport for the activity view.
-- Python version and dependency management.
-- Test tools for unit and e2e tests (for example pytest for the backend, and a browser test runner for e2e).
+- Server-sent events instead of polling, if the activity view needs to feel more live.

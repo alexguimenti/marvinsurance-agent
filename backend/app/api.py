@@ -44,6 +44,12 @@ def create_app(settings: Settings) -> FastAPI:
         conn = db()
         init_schema(conn)
         seed_claims(conn, ref)
+        # a crash mid-run leaves claims in_progress for good; start them again, trace and all
+        stuck = [r[0] for r in conn.execute("SELECT claim_id FROM claims WHERE status='in_progress'")]
+        for claim_id in stuck:
+            conn.execute("DELETE FROM trace_events WHERE claim_id = ?", (claim_id,))
+            conn.execute("UPDATE claims SET status='waiting' WHERE claim_id = ?", (claim_id,))
+        conn.commit()
         conn.close()
         yield
 

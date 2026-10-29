@@ -44,10 +44,3 @@ def test_missing_decision_counts_as_wrong():
 def test_tiny_filter_keeps_flagged_claims():
     exp = [expected("A", "approve", 1.0, tiny=True), expected("B", "approve", 1.0)]
     assert [e["claim_id"] for e in select_tiny(exp)] == ["A"]
-
-
-def test_tiny_subsets_have_five_claims_each():
-    import json
-    for name in ("decisions.json", "held_out_decisions.json"):
-        data = json.loads((ROOT / "data" / "evals" / name).read_text(encoding="utf-8"))
-        assert len(select_tiny(data)) == 5
