@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { listClaims, runQueue, type ClaimSummary } from '../api'
 import StatusBadge from '../components/StatusBadge'
-import { DECISION_LABEL, formatUsd, humanize } from '../format'
+import { DECISION_LABEL, STATUS_LABEL, formatUsd, humanize } from '../format'
 
 const POLL_MS = 2000
+const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'decided'] as const
 
 export default function Queue() {
   const [claims, setClaims] = useState<ClaimSummary[] | null>(null)
@@ -67,21 +68,33 @@ export default function Queue() {
     <section>
       <div className="page-head">
         <div>
+          <p className="eyebrow">Claims desk</p>
           <h1>Claims queue</h1>
-          <p className="muted">
-            {claims ? `${claims.length} claims` : 'Loading'}
-            {counts.waiting ? ` · ${counts.waiting} waiting` : ''}
-            {counts.awaiting_approval ? ` · ${counts.awaiting_approval} awaiting approval` : ''}
+          <p className="lede">
+            {claims ? `${claims.length} claims on the desk` : 'Loading the desk'}. Tick the ones you want the agent to take,
+            or run them all.
           </p>
         </div>
         <button className="btn btn-primary" onClick={onRunQueue} disabled={starting || !counts.waiting}>
           {selected.size ? `Run selected (${selected.size})` : 'Run queue'}
         </button>
       </div>
+
+      {claims && (
+        <div className="tiles">
+          {STATUS_ORDER.map((status) => (
+            <div key={status} className={`tile tile-${status}`} role="group" aria-label={STATUS_LABEL[status]}>
+              <span className="tile-n">{counts[status] ?? 0}</span>
+              <span className="tile-l">{STATUS_LABEL[status]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {error && <p className="error">{error}</p>}
       {claims && (
         <div className="card">
-          <table>
+          <table className="queue">
             <thead>
               <tr>
                 <th className="check">
@@ -103,8 +116,8 @@ export default function Queue() {
               </tr>
             </thead>
             <tbody>
-              {claims.map((c) => (
-                <tr key={c.claim_id}>
+              {claims.map((c, i) => (
+                <tr key={c.claim_id} style={{ '--i': i } as CSSProperties}>
                   <td className="check">
                     {c.status === 'waiting' && (
                       <input
@@ -116,16 +129,24 @@ export default function Queue() {
                     )}
                   </td>
                   <td>
-                    <Link to={`/claims/${c.claim_id}`}>{c.claim_id}</Link>
+                    <Link className="case-id" to={`/claims/${c.claim_id}`}>
+                      {c.claim_id}
+                    </Link>
                     <div className="muted small">{c.summary}</div>
                   </td>
                   <td>{c.customer_name}</td>
-                  <td>{humanize(c.claim_type)}</td>
+                  <td className="muted">{humanize(c.claim_type)}</td>
                   <td className="num mono">{formatUsd(c.amount_claimed)}</td>
                   <td>
                     <StatusBadge status={c.status} />
                   </td>
-                  <td>{c.decision ? DECISION_LABEL[c.decision] : <span className="muted">—</span>}</td>
+                  <td>
+                    {c.decision ? (
+                      <span className={`stamp stamp-${c.decision}`}>{DECISION_LABEL[c.decision]}</span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td className="num mono">{c.payout ? formatUsd(c.payout) : <span className="muted">—</span>}</td>
                 </tr>
               ))}

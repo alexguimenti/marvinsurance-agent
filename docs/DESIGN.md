@@ -436,3 +436,35 @@ module.exports = {
 - Don't use bold (700) headlines or uppercase headings.
 - Don't add heavy borders; prefer 1px `--border-subtle` or no border.
 - Don't use the brand logo, mascot, or copy from the reference site; this system covers visual style only.
+
+---
+
+## 14. Claims desk addendum (what the app actually does)
+
+The app keeps this system's palette, spacing, radius and shadows, and adds a point of view: **a warm paper case file**. Where this section differs from the sections above, this section wins for the app.
+
+**Type**
+- Headlines and card titles: **Fraunces** (variable, optical size), weight 380 to 460. Body and UI: **Geist**. Case numbers, code and tables of figures: **Geist Mono**.
+- Big numbers (counters, payout, amounts) are light **Geist**, not Fraunces: the bundled Fraunces only has old-style figures, which make "1" read as "I".
+- Eyebrows above titles are small mono text in the strong accent, sentence case ("Case file", "Claims desk").
+
+**Atmosphere**
+- Page: warm off-white with paper grain (an SVG noise layer) and two faint glows, one orange and one maroon, in the top corners.
+- Nav: a floating frosted pill. The active link has an orange underline. The Approvals link carries an orange count of payouts waiting for a person.
+
+**Signature elements**
+- **Stamps** for decisions (approve, decline, refer): double-ruled, mono, uppercase, tilted about 2.5 degrees. On a claim, the stamp lands with a short "thunk" animation.
+- **Receipt** for the payout calculation: dotted leaders between step and amount, a solid rule above the total.
+- **Timeline** for agent activity: a vertical line with a dot per step. Tool calls and results are blue-violet, warnings and errors are red, the decision is tinted orange, and the cost sits at the end after a dashed rule.
+- **Status tiles** on the queue, one per status, tinted like their badges.
+- Status badges carry a dot; "in progress" pulses.
+
+**Colors added**
+- Approve: `#2F5A1F` on `#E6F0D9`. Decline and errors: `#B93C22` on `#FBE6DF`. Refer: the lavender `--info-fg`.
+
+**Motion**
+- Cards and table rows rise in with a short stagger (about 22 ms per row). Buttons lift 1 px on hover. All motion is off under `prefers-reduced-motion`.
+
+**Layout**
+- A claim is a two-column case file: story, items and documents on the left; a sticky rail with the decision and the policy on the right; the agent activity below. It stacks under 960 px.
+

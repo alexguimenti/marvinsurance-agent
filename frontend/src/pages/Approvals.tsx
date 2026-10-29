@@ -45,8 +45,9 @@ export default function Approvals() {
     <section>
       <div className="page-head">
         <div>
+          <p className="eyebrow">Sign-off</p>
           <h1>Approvals</h1>
-          <p className="muted">Payouts above $1,000 wait here until a handler signs them off.</p>
+          <p className="lede">Payouts above $1,000 wait here until a handler signs them off.</p>
         </div>
         <div className="row">
           <label htmlFor="handler">Approve as</label>
@@ -60,7 +61,7 @@ export default function Approvals() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {approvals && approvals.length === 0 && <p className="muted">Nothing is waiting for approval.</p>}
+      {approvals && approvals.length === 0 && <p className="empty">Nothing is waiting for approval.</p>}
       {approvals && approvals.length > 0 && (
         <div className="card">
           <table>
@@ -78,12 +79,14 @@ export default function Approvals() {
               {approvals.map((a) => (
                 <tr key={a.payment_id}>
                   <td>
-                    <Link to={`/claims/${a.claim_id}`}>{a.claim_id}</Link>
+                    <Link className="case-id" to={`/claims/${a.claim_id}`}>
+                      {a.claim_id}
+                    </Link>
                   </td>
                   <td>{a.customer_name}</td>
                   <td>{humanize(a.claim_type)}</td>
                   <td className="small">{a.rationale}</td>
-                  <td className="num mono">{formatUsd(a.amount)}</td>
+                  <td className="num mono amount">{formatUsd(a.amount)}</td>
                   <td className="num">
                     <button className="btn btn-accent" onClick={() => onApprove(a.payment_id)} disabled={!handlerId}>
                       Approve payment

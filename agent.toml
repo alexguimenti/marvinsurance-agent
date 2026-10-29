@@ -4,7 +4,7 @@
 
 [agent]
 # Any model id from https://openrouter.ai/models
-model = "openai/gpt-5-nano:batch"
+model = "deepseek/deepseek-v4.1-flash"
 
 # 0 gives the most consistent decisions.
 temperature = 0

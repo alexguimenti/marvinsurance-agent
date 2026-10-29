@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { mockApi, renderAt } from '../testUtils'
@@ -74,5 +74,24 @@ describe('Queue', () => {
     expect(screen.getByRole('button', { name: 'Run selected (2)' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select all waiting claims' }))
     expect(screen.getByRole('button', { name: 'Run queue' })).toBeInTheDocument()
+  })
+
+  it('summarizes the queue in one tile per status', async () => {
+    mockApi({
+      '/api/claims': [
+        claim('CLM-1', 'waiting'),
+        claim('CLM-2', 'waiting'),
+        claim('CLM-3', 'in_progress'),
+        claim('CLM-4', 'awaiting_approval', { decision: 'approve', payout: 2000 }),
+        claim('CLM-5', 'decided', { decision: 'refer', payout: 0 }),
+      ],
+    })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-1')
+    const count = (name: string) => within(screen.getByRole('group', { name })).getByText(/^\d+$/).textContent
+    expect(count('Waiting')).toBe('2')
+    expect(count('In progress')).toBe('1')
+    expect(count('Awaiting approval')).toBe('1')
+    expect(count('Decided')).toBe('1')
   })
 })
