@@ -125,3 +125,18 @@ def test_run_queue_for_selected_claims_only(client):
 def test_run_queue_with_unknown_claim_id_404(client):
     assert client.post("/queue/run", json={"claim_ids": ["CLM-1001", "CLM-9999"]}).status_code == 404
     assert client.get("/claims").json()[0]["status"] == "waiting"
+
+
+def test_claim_detail_exposes_the_agent_usage(client, db_path):
+    import json
+
+    from app.db import connect
+
+    client.post("/claims/CLM-1001/run")
+    assert client.get("/claims/CLM-1001").json()["usage"] is None  # the scripted agent reports none
+    conn = connect(db_path)
+    usage = {"calls": 2, "input_tokens": 300, "output_tokens": 130, "reasoning_tokens": 0, "cost_usd": 0.0035}
+    conn.execute("INSERT INTO trace_events (claim_id, seq, kind, content) VALUES ('CLM-1001', 99, 'usage', ?)",
+                 (json.dumps(usage),))
+    conn.commit()
+    assert client.get("/claims/CLM-1001").json()["usage"] == usage

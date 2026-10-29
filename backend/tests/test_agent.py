@@ -143,11 +143,56 @@ def test_reasoning_effort_is_sent_to_openrouter(conn, ref):
     settings = Settings(_env_file=None, agent_provider="openrouter", openrouter_api_key="k",
                         agent_model="some/model", agent_reasoning_effort="high")
     agent = build_agent(settings, conn, ref)
-    assert agent.model.extra_body == {"reasoning": {"effort": "high"}}
+    assert agent.model.extra_body == {"reasoning": {"effort": "high"}, "usage": {"include": True}}
 
 
 def test_no_reasoning_parameter_when_not_configured(conn, ref):
     settings = Settings(_env_file=None, agent_provider="openrouter", openrouter_api_key="k",
                         agent_model="some/model", agent_reasoning_effort=None)
     agent = build_agent(settings, conn, ref)
-    assert not agent.model.extra_body
+    assert agent.model.extra_body == {"usage": {"include": True}}  # cost reporting only, no reasoning
+
+
+def ai_call(name, args, call_id, tokens_in, tokens_out, cost=None, reasoning=0):
+    from langchain_core.messages import AIMessage
+
+    meta = {"token_usage": {"cost": cost}} if cost is not None else {}
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": args, "id": call_id}],
+        usage_metadata={"input_tokens": tokens_in, "output_tokens": tokens_out,
+                        "total_tokens": tokens_in + tokens_out,
+                        "output_token_details": {"reasoning": reasoning}},
+        response_metadata=meta,
+    )
+
+
+def test_agent_totals_usage_and_cost_across_model_calls(conn, ref):
+    model = script(
+        ai_call("get_claim", {}, "c1", 100, 50, cost=0.001, reasoning=20),
+        ai_call("Decision", decision_args(), "c2", 200, 80, cost=0.0025, reasoning=30),
+    )
+    agent = LangChainAgent(model, conn, ref, "test/model")
+    agent.decide("CLM-1001", lambda *_: None)
+    assert agent.usage == {
+        "calls": 2, "input_tokens": 300, "output_tokens": 130, "reasoning_tokens": 50, "cost_usd": 0.0035,
+    }
+
+
+def test_usage_cost_is_none_when_the_provider_reports_none(conn, ref):
+    model = script(ai_call("get_claim", {}, "c1", 10, 5), ai_call("Decision", decision_args(), "c2", 10, 5))
+    agent = LangChainAgent(model, conn, ref, "test/model")
+    agent.decide("CLM-1001", lambda *_: None)
+    assert agent.usage["cost_usd"] is None and agent.usage["calls"] == 2
+
+
+def test_usage_is_reset_for_each_claim(conn, ref):
+    def run():
+        model = script(ai_call("Decision", decision_args(), "c1", 10, 5, cost=0.001))
+        agent = LangChainAgent(model, conn, ref, "test/model")
+        agent.decide("CLM-1001", lambda *_: None)
+        agent.model = script(ai_call("Decision", decision_args(), "c2", 10, 5, cost=0.001))
+        agent.decide("CLM-1002", lambda *_: None)
+        return agent.usage
+
+    assert run()["cost_usd"] == 0.001

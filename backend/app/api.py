@@ -111,6 +111,10 @@ def create_app(settings: Settings) -> FastAPI:
             row = claim_row(conn, claim_id)
             decision = conn.execute("SELECT * FROM decisions WHERE claim_id = ?", (claim_id,)).fetchone()
             payment = conn.execute("SELECT * FROM payments WHERE claim_id = ?", (claim_id,)).fetchone()
+            usage = conn.execute(
+                "SELECT content FROM trace_events WHERE claim_id = ? AND kind = 'usage' ORDER BY seq DESC LIMIT 1",
+                (claim_id,),
+            ).fetchone()
         finally:
             conn.close()
         claim = json.loads(row["payload"])
@@ -121,6 +125,7 @@ def create_app(settings: Settings) -> FastAPI:
             "customer": ref.customer(claim["customer_id"]),
             "decision": _decision(decision),
             "payment": dict(payment) if payment else None,
+            "usage": json.loads(usage["content"]) if usage else None,
         }
 
     @app.get("/claims/{claim_id}/trace")

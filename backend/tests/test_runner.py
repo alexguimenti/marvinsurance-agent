@@ -145,3 +145,20 @@ def test_run_queue_with_ids_runs_only_those_in_claim_order(conn, ref):
     assert done == ["CLM-1001", "CLM-1003"]
     assert status(conn, "CLM-1001") == "decided" and status(conn, "CLM-1003") == "decided"
     assert status(conn, "CLM-1002") == "waiting"
+
+
+def test_usage_is_the_last_trace_event_after_the_decision(conn, ref):
+    agent = FakeAgent(approve(420.0))
+    agent.usage = {"calls": 3, "input_tokens": 900, "output_tokens": 100, "reasoning_tokens": 0, "cost_usd": 0.0031}
+    run_claim(conn, ref, agent, "CLM-1001")
+    rows = conn.execute("SELECT kind, content FROM trace_events ORDER BY seq").fetchall()
+    assert [r["kind"] for r in rows][-2:] == ["decision", "usage"]
+    assert json.loads(rows[-1]["content"])["cost_usd"] == 0.0031
+
+
+def test_usage_is_recorded_even_when_the_agent_fails(conn, ref):
+    agent = FakeAgent(error=RuntimeError("model down"))
+    agent.usage = {"calls": 1, "input_tokens": 10, "output_tokens": 0, "reasoning_tokens": 0, "cost_usd": 0.0001}
+    run_claim(conn, ref, agent, "CLM-1001")
+    kinds = [r["kind"] for r in conn.execute("SELECT kind FROM trace_events ORDER BY seq")]
+    assert kinds[-1] == "usage"

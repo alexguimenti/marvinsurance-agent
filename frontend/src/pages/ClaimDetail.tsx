@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getClaim, runClaim, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import Trace from './Trace'
-import { DECISION_LABEL, formatUsd, humanize } from '../format'
+import { DECISION_LABEL, describeUsage, formatUsd, humanize } from '../format'
 
 const POLL_MS = 2000
 
@@ -98,6 +98,9 @@ export default function ClaimDetail() {
                 </table>
               )}
               <p className="muted small">Decided by {decision.model}</p>
+              {data.usage && data.usage.cost_usd !== null && (
+                <p className="muted small">Analysis cost {describeUsage(data.usage)}</p>
+              )}
             </>
           ) : (
             <p className="muted">No decision yet.</p>

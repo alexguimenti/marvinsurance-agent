@@ -53,8 +53,38 @@ def load_instructions() -> str:
     return (Path(__file__).parent / "instructions.md").read_text(encoding="utf-8")
 
 
+class Usage:
+    """Running total of what a claim cost: tokens, and dollars when the provider reports them."""
+
+    def __init__(self):
+        self.calls = self.input_tokens = self.output_tokens = self.reasoning_tokens = 0
+        self.cost_usd: float | None = None
+
+    def add(self, message: AIMessage) -> None:
+        self.calls += 1
+        meta = message.usage_metadata or {}
+        self.input_tokens += meta.get("input_tokens", 0)
+        self.output_tokens += meta.get("output_tokens", 0)
+        self.reasoning_tokens += (meta.get("output_token_details") or {}).get("reasoning", 0)
+        cost = ((message.response_metadata or {}).get("token_usage") or {}).get("cost")
+        if cost is not None:
+            self.cost_usd = round((self.cost_usd or 0.0) + cost, 8)
+
+    def as_dict(self) -> dict | None:
+        if self.calls == 0:
+            return None
+        return {
+            "calls": self.calls,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "reasoning_tokens": self.reasoning_tokens,
+            "cost_usd": self.cost_usd,
+        }
+
+
 class Agent(Protocol):
     model_id: str
+    usage: dict | None  # what the last decide() cost, or None when unknown
 
     def decide(self, claim_id: str, on_event: Emit) -> Decision: ...
 
@@ -65,6 +95,7 @@ class LangChainAgent:
         self.conn = conn
         self.ref = ref
         self.model_id = model_id
+        self.usage: dict | None = None
 
     def decide(self, claim_id: str, on_event: Emit) -> Decision:
         agent = create_agent(
@@ -75,11 +106,16 @@ class LangChainAgent:
         )
         prompt = HumanMessage(f"Decide claim {claim_id}. Start by reading it with get_claim.")
         decision: Decision | None = None
+        total = Usage()
+        self.usage = None
         for chunk in agent.stream({"messages": [prompt]}, stream_mode="updates"):
             for update in chunk.values():
                 if not update:
                     continue
                 for message in update.get("messages", []):
+                    if isinstance(message, AIMessage):
+                        total.add(message)
+                        self.usage = total.as_dict()  # kept up to date, so a failed run still reports its cost
                     self._emit_message(message, on_event)
                 if "structured_response" in update:
                     decision = update["structured_response"]
@@ -111,6 +147,7 @@ class ScriptedAgent:
     """Deterministic stand-in for tests and e2e runs. Never calls a model."""
 
     model_id = "scripted"
+    usage = None
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -158,8 +195,9 @@ def build_agent(settings: Settings, conn: sqlite3.Connection, ref: Reference) ->
         api_key=settings.openrouter_api_key,
         base_url=OPENROUTER_URL,
         temperature=settings.agent_temperature,
-        extra_body=(
-            {"reasoning": {"effort": settings.agent_reasoning_effort}} if settings.agent_reasoning_effort else None
-        ),
+        extra_body={
+            "usage": {"include": True},  # OpenRouter then reports the dollar cost of each call
+            **({"reasoning": {"effort": settings.agent_reasoning_effort}} if settings.agent_reasoning_effort else {}),
+        },
     )
     return LangChainAgent(model, conn, ref, settings.agent_model)

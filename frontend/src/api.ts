@@ -51,6 +51,15 @@ export interface ClaimDetailData {
   customer: { name: string; customer_since?: string; previous_claims: { claim_id: string; summary: string; outcome: string }[] }
   decision: Decision | null
   payment: Payment | null
+  usage: Usage | null
+}
+
+export interface Usage {
+  calls: number
+  input_tokens: number
+  output_tokens: number
+  reasoning_tokens: number
+  cost_usd: number | null
 }
 
 export interface TraceEvent {

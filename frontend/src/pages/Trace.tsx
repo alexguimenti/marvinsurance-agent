@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getTrace, type TraceEvent } from '../api'
-import { formatUsd, humanize } from '../format'
+import { describeUsage, formatUsd, humanize } from '../format'
 
 const POLL_MS = 1000
 
@@ -95,6 +95,9 @@ function Row({ event }: { event: TraceEvent }) {
           {c.decision === 'approve' && ` ${formatUsd(c.payout)}`} — {c.rationale}
         </span>
       )
+      break
+    case 'usage':
+      body = <span className="body">{describeUsage(c as Parameters<typeof describeUsage>[0])}</span>
       break
     case 'message':
       body = <span className="body">{String(c.text)}</span>

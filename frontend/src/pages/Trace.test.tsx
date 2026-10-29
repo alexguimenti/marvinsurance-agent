@@ -115,4 +115,33 @@ describe('Trace formatting', () => {
     render(<Trace claimId="CLM-1" status="decided" />)
     expect(await screen.findByText(/policy wording read/i)).toBeInTheDocument()
   })
+
+  it('shows what the analysis cost at the end of the log', async () => {
+    mockApi({
+      '/api/claims/CLM-1/trace': [
+        ...traced,
+        {
+          seq: 4,
+          kind: 'usage',
+          content: { calls: 9, input_tokens: 14200, output_tokens: 1900, reasoning_tokens: 1200, cost_usd: 0.0031 },
+          created_at: '',
+        },
+      ],
+    })
+    render(<Trace claimId="CLM-1" status="decided" />)
+    expect(await screen.findByText(/\$0\.0031/)).toBeInTheDocument()
+    expect(screen.getByText(/14,200 tokens in/)).toBeInTheDocument()
+    expect(screen.getByText(/1,900 out/)).toBeInTheDocument()
+    expect(screen.getByText(/9 model calls/)).toBeInTheDocument()
+  })
+
+  it('says so when the provider reports no cost', async () => {
+    mockApi({
+      '/api/claims/CLM-1/trace': [
+        { seq: 1, kind: 'usage', content: { calls: 1, input_tokens: 5, output_tokens: 5, reasoning_tokens: 0, cost_usd: null }, created_at: '' },
+      ],
+    })
+    render(<Trace claimId="CLM-1" status="decided" />)
+    expect(await screen.findByText(/cost not reported/i)).toBeInTheDocument()
+  })
 })

@@ -60,4 +60,21 @@ describe('ClaimDetail', () => {
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
     expect(await screen.findByRole('button', { name: /run this claim/i })).toBeInTheDocument()
   })
+
+  it('shows the cost of the analysis next to the decision', async () => {
+    const withUsage = {
+      ...detail('decided'),
+      usage: { calls: 9, input_tokens: 14200, output_tokens: 1900, reasoning_tokens: 0, cost_usd: 0.0031 },
+    }
+    mockApi({ '/api/claims/CLM-1011': withUsage, '/api/claims/CLM-1011/trace': [] })
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByText(/Analysis cost \$0\.0031/)).toBeInTheDocument()
+  })
+
+  it('shows no cost line when none was reported', async () => {
+    mockApi({ '/api/claims/CLM-1011': { ...detail('decided'), usage: null }, '/api/claims/CLM-1011/trace': [] })
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    await screen.findByText('Covered under section 5.')
+    expect(screen.queryByText(/Analysis cost/)).not.toBeInTheDocument()
+  })
 })

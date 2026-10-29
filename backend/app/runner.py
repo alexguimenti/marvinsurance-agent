@@ -89,6 +89,9 @@ def run_claim(conn: sqlite3.Connection, ref: Reference, agent: Agent, claim_id: 
     )
     _set_status(conn, claim_id, new_status)
     trace("decision", decision.model_dump())
+    usage = getattr(agent, "usage", None)
+    if usage:
+        trace("usage", usage)
     return decision
 
 
