@@ -111,3 +111,29 @@ def test_openrouter_provider_uses_configured_model(conn, ref):
                         openrouter_api_key="k", agent_model="some/model")
     agent = build_agent(settings, conn, ref)
     assert agent.model_id == "some/model"
+
+
+def test_policy_wording_is_not_dumped_into_the_trace(conn, ref):
+    model = script(
+        tool_call("get_policy_wording", {}, "c1"),
+        tool_call("Decision", decision_args(), "c2"),
+    )
+    results = []
+    LangChainAgent(model, conn, ref, "test/model").decide(
+        "CLM-1001", lambda kind, content: results.append(content) if kind == "tool_result" else None
+    )
+    assert results and results[0]["name"] == "get_policy_wording"
+    assert len(results[0]["content"]) < 200
+
+
+def test_long_json_tool_results_are_kept_whole_for_the_trace(conn, ref):
+    model = script(
+        tool_call("get_claim", {}, "c1"),
+        tool_call("Decision", decision_args(), "c2"),
+    )
+    results = []
+    LangChainAgent(model, conn, ref, "test/model").decide(
+        "CLM-1001", lambda kind, content: results.append(content) if kind == "tool_result" else None
+    )
+    body = results[0]["content"].removeprefix("<claim_data>").removesuffix("</claim_data>")
+    json.loads(body)  # the whole document, so the screen can pretty-print it

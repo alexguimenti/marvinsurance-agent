@@ -97,7 +97,10 @@ class LangChainAgent:
             if message.content and not message.tool_calls:
                 on_event("message", {"text": str(message.content)})
         elif isinstance(message, ToolMessage) and message.name != "Decision":
-            on_event("tool_result", {"name": message.name, "content": str(message.content)[:2000]})
+            content = str(message.content)
+            if message.name == "get_policy_wording":
+                content = f"[policy wording, {len(content)} characters]"  # the trace is not a copy of the contract
+            on_event("tool_result", {"name": message.name, "content": content})
 
 
 # Over-limit approvals used by the scripted provider, so the approval flow can be exercised.

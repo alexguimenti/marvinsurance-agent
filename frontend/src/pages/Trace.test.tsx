@@ -1,4 +1,5 @@
 import { render, screen, waitFor, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '../testUtils'
 import Trace from './Trace'
@@ -51,5 +52,67 @@ describe('Trace', () => {
     mockApi({ '/api/claims/CLM-1/trace': [] })
     render(<Trace claimId="CLM-1" status="waiting" />)
     expect(await screen.findByText(/no activity yet/i)).toBeInTheDocument()
+  })
+})
+
+describe('Trace formatting', () => {
+  const claimJson = JSON.stringify({
+    claim_id: 'CLM-1001',
+    claim_type: 'trip_delay',
+    amount_claimed: 420,
+    items: [{ description: 'Airport hotel', amount: 245 }],
+  })
+  const traced = [
+    { seq: 1, kind: 'tool_call', content: { name: 'get_claim', args: {} }, created_at: '' },
+    {
+      seq: 2,
+      kind: 'tool_result',
+      content: { name: 'get_claim', content: `<claim_data>\n${claimJson}\n</claim_data>` },
+      created_at: '',
+    },
+    {
+      seq: 3,
+      kind: 'tool_result',
+      content: { name: 'get_policy_wording', content: '[policy wording, 9000 characters]' },
+      created_at: '',
+    },
+  ]
+
+  it('collapses and expands the whole panel', async () => {
+    mockApi({ '/api/claims/CLM-1/trace': traced })
+    render(<Trace claimId="CLM-1" status="decided" />)
+    await screen.findAllByRole('listitem')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse activity' }))
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0)
+    const expand = screen.getByRole('button', { name: 'Expand activity' })
+    expect(expand).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(expand)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('summarizes a tool result and shows it formatted on demand', async () => {
+    mockApi({ '/api/claims/CLM-1/trace': traced })
+    render(<Trace claimId="CLM-1" status="decided" />)
+
+    expect(await screen.findByText(/CLM-1001 · trip delay · \$420\.00 claimed/)).toBeInTheDocument()
+    expect(screen.queryByText(/claim_data/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Airport hotel/)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Show details' })[0])
+    const pre = document.querySelector('pre.json')
+    expect(pre?.textContent).toContain('"claim_id": "CLM-1001"')
+    expect(pre?.textContent).toContain('\n  "claim_type"')
+    expect(screen.getByText(/Airport hotel/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hide details' }))
+    expect(document.querySelector('pre.json')).toBeNull()
+  })
+
+  it('summarizes the policy wording without dumping it', async () => {
+    mockApi({ '/api/claims/CLM-1/trace': traced })
+    render(<Trace claimId="CLM-1" status="decided" />)
+    expect(await screen.findByText(/policy wording read/i)).toBeInTheDocument()
   })
 })
