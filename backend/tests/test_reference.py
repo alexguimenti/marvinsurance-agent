@@ -1,0 +1,35 @@
+import pytest
+
+from app.reference import ALLOWED_FILES, Reference
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "evals/decisions.json",
+        "security/claims.json",
+        "../data/evals/decisions.json",
+        "claims_manual.md",
+    ],
+)
+def test_reference_rejects_files_outside_whitelist(data_dir, name):
+    with pytest.raises(ValueError):
+        Reference(data_dir).read(name)
+
+
+def test_whitelist_excludes_evals_security_and_manual():
+    assert not any("evals" in f or "security" in f or "manual" in f for f in ALLOWED_FILES)
+
+
+def test_reference_lookups(data_dir):
+    ref = Reference(data_dir)
+    assert ref.policy("POL-2001")["plan"] == "premium"
+    assert ref.customer("CUS-3001")["name"] == "Maya Patel"
+    assert ref.plan("premium")["deductible"] == 50.0
+    assert ref.company["payout_approval_limit"] == 1000.0
+    assert {h["handler_id"] for h in ref.handlers} >= {"HND-01"}
+    assert "## 10. How we work out your payment" in ref.wording
+    assert len(ref.knowledge) == 33
+    assert {a["add_on"] for a in ref.add_ons} == {
+        "adventure_sports", "pre_existing_waiver", "electronics_plus"
+    }
