@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx"]
+dev = ["pytest", "httpx", "watchfiles"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

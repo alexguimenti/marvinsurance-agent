@@ -34,6 +34,8 @@ The environment overrides the file (`AGENT_MODEL`, `AGENT_TEMPERATURE`, `AGENT_R
 
 ## Run
 
+All the commands you need every day (start, auto-reload, tests, reset) are in **[COMMANDS.md](COMMANDS.md)**.
+
 ```bash
 cd backend && ./.venv/Scripts/python -m uvicorn app.main:app --port 8000
 cd frontend && npm run dev          # http://localhost:5173, proxies /api to the backend
@@ -48,6 +50,16 @@ cd backend && ./.venv/Scripts/python -m pytest        # unit tests (a real-model
 cd frontend && npm test -- --run                       # component tests
 cd e2e && npm test                                     # end-to-end, scripted agent, throwaway database
 ```
+
+## Clear the analyses and test again
+
+To forget every analysis the agent made (decisions, activity logs and payments) and put all 25 claims back in the queue, run from the repo root:
+
+```powershell
+.\backend\.venv\Scripts\python scripts\reset_db.py
+```
+
+It is safe while the backend is running: reload the page and every claim is "Waiting" again. The claims themselves are kept. To start from a completely empty database file instead, stop the backend and delete `farting.db`, `farting.db-wal` and `farting.db-shm` in the repo root; the next start recreates it.
 
 ## Score the agent
 

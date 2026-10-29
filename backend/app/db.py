@@ -46,3 +46,12 @@ def connect(db_path: str) -> sqlite3.Connection:
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     conn.commit()
+
+
+def reset_analyses(conn: sqlite3.Connection) -> None:
+    """Forget every analysis: decisions, traces and payments go, and each claim is waiting again."""
+    for table in ("trace_events", "payments", "decisions"):
+        conn.execute(f"DELETE FROM {table}")
+    conn.execute("UPDATE claims SET status = 'waiting'")
+    conn.commit()
+
