@@ -10,10 +10,18 @@ export default function Queue() {
   const [claims, setClaims] = useState<ClaimSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     try {
-      setClaims(await listClaims())
+      const list = await listClaims()
+      setClaims(list)
+      // drop ticks on claims the agent has already picked up
+      setSelected((prev) => {
+        const waiting = new Set(list.filter((c) => c.status === 'waiting').map((c) => c.claim_id))
+        const kept = [...prev].filter((id) => waiting.has(id))
+        return kept.length === prev.size ? prev : new Set(kept)
+      })
       setError(null)
     } catch {
       setError('Could not load the claims queue.')
@@ -29,13 +37,25 @@ export default function Queue() {
   async function onRunQueue() {
     setStarting(true)
     try {
-      await runQueue()
+      await runQueue(selected.size ? [...selected] : undefined)
+      setSelected(new Set())
       await load()
     } catch {
       setError('Could not start the queue.')
     } finally {
       setStarting(false)
     }
+  }
+
+  const waitingIds = (claims ?? []).filter((c) => c.status === 'waiting').map((c) => c.claim_id)
+  const allTicked = waitingIds.length > 0 && waitingIds.every((id) => selected.has(id))
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
   }
 
   const counts = (claims ?? []).reduce<Record<string, number>>((acc, c) => {
@@ -55,7 +75,7 @@ export default function Queue() {
           </p>
         </div>
         <button className="btn btn-primary" onClick={onRunQueue} disabled={starting || !counts.waiting}>
-          Run queue
+          {selected.size ? `Run selected (${selected.size})` : 'Run queue'}
         </button>
       </div>
       {error && <p className="error">{error}</p>}
@@ -64,6 +84,15 @@ export default function Queue() {
           <table>
             <thead>
               <tr>
+                <th className="check">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all waiting claims"
+                    checked={allTicked}
+                    disabled={waitingIds.length === 0}
+                    onChange={() => setSelected(allTicked ? new Set() : new Set(waitingIds))}
+                  />
+                </th>
                 <th>Claim</th>
                 <th>Customer</th>
                 <th>Type</th>
@@ -76,6 +105,16 @@ export default function Queue() {
             <tbody>
               {claims.map((c) => (
                 <tr key={c.claim_id}>
+                  <td className="check">
+                    {c.status === 'waiting' && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${c.claim_id}`}
+                        checked={selected.has(c.claim_id)}
+                        onChange={() => toggle(c.claim_id)}
+                      />
+                    )}
+                  </td>
                   <td>
                     <Link to={`/claims/${c.claim_id}`}>{c.claim_id}</Link>
                     <div className="muted small">{c.summary}</div>

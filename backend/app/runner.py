@@ -92,8 +92,14 @@ def run_claim(conn: sqlite3.Connection, ref: Reference, agent: Agent, claim_id: 
     return decision
 
 
-def run_queue(conn: sqlite3.Connection, ref: Reference, agent: Agent) -> list[str]:
+def run_queue(
+    conn: sqlite3.Connection, ref: Reference, agent: Agent, claim_ids: list[str] | None = None
+) -> list[str]:
+    """Run the waiting claims (all of them, or only claim_ids) one at a time, in claim order."""
     ids = [r["claim_id"] for r in conn.execute("SELECT claim_id FROM claims WHERE status='waiting' ORDER BY claim_id")]
+    if claim_ids is not None:
+        wanted = set(claim_ids)
+        ids = [i for i in ids if i in wanted]
     for claim_id in ids:
         run_claim(conn, ref, agent, claim_id)
     return ids

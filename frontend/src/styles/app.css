@@ -79,3 +79,6 @@ summary { cursor: pointer; font-weight: 500; font-size: 14px; }
 .trace .kind { width: 90px; flex: none; color: var(--text-muted); font-family: var(--font-mono); }
 .trace .body { overflow-wrap: anywhere; white-space: pre-wrap; }
 .instructions { white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px; line-height: 1.6; color: var(--text-body); margin: 0; }
+
+.check { width: 20px; padding-right: 0; }
+.check input { width: 16px; height: 16px; accent-color: var(--text-ink); cursor: pointer; }

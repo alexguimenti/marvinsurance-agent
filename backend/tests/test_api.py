@@ -112,3 +112,16 @@ def test_claims_left_in_progress_by_a_crash_go_back_to_waiting(db_path, data_dir
         assert client.get("/claims/CLM-1001/trace").json() == []
         assert client.post("/claims/CLM-1001/run").status_code == 202
         assert client.get("/claims/CLM-1001").json()["status"] == "decided"
+
+
+def test_run_queue_for_selected_claims_only(client):
+    resp = client.post("/queue/run", json={"claim_ids": ["CLM-1002", "CLM-1001"]})
+    assert resp.status_code == 202 and resp.json() == {"queued": 2}
+    statuses = {c["claim_id"]: c["status"] for c in client.get("/claims").json()}
+    assert statuses["CLM-1001"] == "decided" and statuses["CLM-1002"] == "decided"
+    assert statuses["CLM-1003"] == "waiting"
+
+
+def test_run_queue_with_unknown_claim_id_404(client):
+    assert client.post("/queue/run", json={"claim_ids": ["CLM-1001", "CLM-9999"]}).status_code == 404
+    assert client.get("/claims").json()[0]["status"] == "waiting"

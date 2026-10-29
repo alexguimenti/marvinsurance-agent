@@ -1,10 +1,24 @@
 import { expect, test } from '@playwright/test'
 
 // Specs share one backend and database, and run in file order: this one runs the queue first.
-test('the queue starts as 25 waiting claims and the agent works through them', async ({ page }) => {
+test('ticking claims runs only the selected ones', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('.badge-waiting')).toHaveCount(25)
+
+  await page.getByRole('checkbox', { name: 'Select CLM-1002' }).check()
+  await page.getByRole('checkbox', { name: 'Select CLM-1004' }).check()
+  await page.getByRole('button', { name: 'Run selected (2)' }).click()
+
+  await expect(page.locator('.badge-decided')).toHaveCount(2, { timeout: 30_000 })
+  await expect(page.locator('.badge-waiting')).toHaveCount(23)
+  await expect(page.getByRole('checkbox', { name: 'Select CLM-1002' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Run queue' })).toBeVisible()
+})
+
+test('the rest of the queue starts waiting and the agent works through it', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('tbody tr')).toHaveCount(25)
-  await expect(page.locator('.badge-waiting')).toHaveCount(25)
+  await expect(page.locator('.badge-waiting')).toHaveCount(23)
 
   await page.getByRole('button', { name: 'Run queue' }).click()
 

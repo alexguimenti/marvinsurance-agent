@@ -138,3 +138,10 @@ def test_decision_appears_once_in_trace(conn, ref):
     run_claim(conn, ref, Emitting(approve(420.0)), "CLM-1001")
     kinds = [r["kind"] for r in conn.execute("SELECT kind FROM trace_events")]
     assert kinds.count("decision") == 1
+
+
+def test_run_queue_with_ids_runs_only_those_in_claim_order(conn, ref):
+    done = run_queue(conn, ref, FakeAgent(approve(10.0)), ["CLM-1003", "CLM-1001"])
+    assert done == ["CLM-1001", "CLM-1003"]
+    assert status(conn, "CLM-1001") == "decided" and status(conn, "CLM-1003") == "decided"
+    assert status(conn, "CLM-1002") == "waiting"

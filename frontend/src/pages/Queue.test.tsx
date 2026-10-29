@@ -50,4 +50,29 @@ describe('Queue', () => {
     renderAt(<Queue />, '/')
     expect(await screen.findByText(/could not load/i)).toBeInTheDocument()
   })
+
+  it('lets you tick waiting claims and run only those', async () => {
+    const { calls } = mockApi({
+      '/api/claims': [claim('CLM-1', 'waiting'), claim('CLM-2', 'waiting'), claim('CLM-3', 'decided')],
+      'POST /api/queue/run': { queued: 1 },
+    })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-1')
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3) // select all + 2 waiting rows
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select CLM-2' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Run selected (1)' }))
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ claim_ids: ['CLM-2'] }),
+    )
+  })
+
+  it('select all ticks every waiting claim', async () => {
+    mockApi({ '/api/claims': [claim('CLM-1', 'waiting'), claim('CLM-2', 'waiting'), claim('CLM-3', 'decided')] })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-1')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all waiting claims' }))
+    expect(screen.getByRole('button', { name: 'Run selected (2)' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all waiting claims' }))
+    expect(screen.getByRole('button', { name: 'Run queue' })).toBeInTheDocument()
+  })
 })

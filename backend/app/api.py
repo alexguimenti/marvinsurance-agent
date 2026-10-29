@@ -19,6 +19,10 @@ class ApproveBody(BaseModel):
     handler_id: str
 
 
+class RunQueueBody(BaseModel):
+    claim_ids: list[str] | None = None
+
+
 def _decision(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None
@@ -68,10 +72,10 @@ def create_app(settings: Settings) -> FastAPI:
         finally:
             conn.close()
 
-    def run_all() -> None:
+    def run_all(claim_ids: list[str] | None = None) -> None:
         conn = db()
         try:
-            run_queue(conn, ref, build_agent(settings, conn, ref))
+            run_queue(conn, ref, build_agent(settings, conn, ref), claim_ids)
         finally:
             conn.close()
 
@@ -146,14 +150,19 @@ def create_app(settings: Settings) -> FastAPI:
         return {"claim_id": claim_id, "accepted": True}
 
     @app.post("/queue/run", status_code=202)
-    def run_queue_route(background: BackgroundTasks):
+    def run_queue_route(background: BackgroundTasks, body: RunQueueBody | None = None):
+        claim_ids = body.claim_ids if body else None
         conn = db()
         try:
-            waiting = conn.execute("SELECT COUNT(*) FROM claims WHERE status='waiting'").fetchone()[0]
+            if claim_ids is not None:
+                for claim_id in claim_ids:
+                    claim_row(conn, claim_id)
+            waiting = [r["claim_id"] for r in conn.execute("SELECT claim_id FROM claims WHERE status='waiting'")]
         finally:
             conn.close()
-        background.add_task(run_all)
-        return {"queued": waiting}
+        queued = waiting if claim_ids is None else [i for i in waiting if i in set(claim_ids)]
+        background.add_task(run_all, claim_ids)
+        return {"queued": len(queued)}
 
     @app.get("/instructions")
     def instructions():
