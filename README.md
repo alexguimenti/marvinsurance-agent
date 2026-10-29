@@ -53,9 +53,13 @@ cd e2e && npm test                                     # end-to-end, scripted ag
 
 ## Clear the analyses and test again
 
-To forget every analysis the agent made (decisions, activity logs and payments) and put all 25 claims back in the queue, run from the repo root:
+To forget every analysis the agent made (decisions, activity logs and payments) and put all 25 claims back in the queue:
 
 ```powershell
+# from the backend folder
+.\.venv\Scripts\python ..\scripts\reset_db.py
+
+# or from the repo root
 .\backend\.venv\Scripts\python scripts\reset_db.py
 ```
 

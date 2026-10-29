@@ -1,6 +1,6 @@
 # Commands
 
-Everything below is PowerShell, run from the repo root (`undercover_mex`) unless it says otherwise.
+Everything below is PowerShell. Commands start from the repo root (`undercover_mex`) unless they begin with `cd`, or say which folder they run from.
 
 ## Open the app (every time)
 
@@ -49,6 +49,14 @@ $env:AGENT_PROVIDER = "scripted"
 ## Clear the analyses and test again
 
 Puts all 25 claims back in the queue and deletes the decisions, activity logs and payments. Safe while the backend is running; reload the page afterwards.
+
+From the `backend` folder (where the backend terminal already is):
+
+```powershell
+.\.venv\Scripts\python ..\scripts\reset_db.py
+```
+
+From the repo root:
 
 ```powershell
 .\backend\.venv\Scripts\python scripts\reset_db.py
