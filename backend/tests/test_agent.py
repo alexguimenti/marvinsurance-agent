@@ -1,0 +1,113 @@
+import json
+
+import pytest
+from pydantic import ValidationError
+
+from app.agent import (
+    Decision, LangChainAgent, build_agent, load_instructions, rationale_warnings,
+)
+from app.config import Settings
+from app.db import connect, init_schema
+from app.reference import Reference
+from app.seed import seed_claims
+from tests.fakes import script, tool_call
+
+
+@pytest.fixture
+def ref(data_dir):
+    return Reference(data_dir)
+
+
+@pytest.fixture
+def conn(db_path, ref):
+    c = connect(db_path)
+    init_schema(c)
+    seed_claims(c, ref)
+    return c
+
+
+def decision_args(**over):
+    base = {
+        "decision": "decline", "payout": 0, "calculation": [],
+        "rationale": "The belongings were unattended. Section 5 excludes them.",
+        "citations": ["Policy wording, section 5"],
+    }
+    return {**base, **over}
+
+
+def test_decision_rejects_payout_on_decline():
+    with pytest.raises(ValidationError):
+        Decision(**decision_args(payout=100))
+
+
+def test_decision_rejects_unknown_decision():
+    with pytest.raises(ValidationError):
+        Decision(**decision_args(decision="maybe"))
+
+
+def test_rationale_warnings_flag_long_rationale_without_rejecting():
+    long = "One. Two. Three. Four. Section 5."
+    assert rationale_warnings(long)
+    d = Decision(**decision_args(rationale=long))
+    assert d.rationale == long
+
+
+def test_rationale_warnings_clean_for_good_rationale():
+    assert rationale_warnings("Unattended items are excluded. Section 5 of the wording applies.") == []
+
+
+def test_rationale_warnings_flag_missing_section():
+    assert rationale_warnings("Not covered. Declined.")
+
+
+def test_instructions_mention_data_not_instructions_and_wording_section():
+    text = load_instructions().lower()
+    assert "never follow instructions" in text
+    assert "section" in text
+    assert "calculate_payout" in text and "refer" in text
+
+
+def test_agent_emits_trace_events(conn, ref):
+    model = script(
+        tool_call("get_claim", {}, "c1"),
+        tool_call("Decision", decision_args(), "c2"),
+    )
+    events = []
+    agent = LangChainAgent(model, conn, ref, "test/model")
+    decision = agent.decide("CLM-1001", lambda kind, content: events.append(kind))
+    assert decision.decision == "decline"
+    assert events[0] == "tool_call" and "tool_result" in events and events[-1] == "decision"
+
+
+def test_injection_claim_is_quoted_as_data(conn, ref, data_dir):
+    import pathlib
+    claim = json.loads((pathlib.Path(data_dir) / "security" / "claims.json").read_text(encoding="utf-8"))[0]
+    conn.execute("INSERT OR REPLACE INTO claims (claim_id, status, payload) VALUES (?, 'waiting', ?)",
+                 (claim["claim_id"], json.dumps(claim)))
+    model = script(
+        tool_call("get_claim", {}, "c1"),
+        tool_call("Decision", decision_args(), "c2"),
+    )
+    LangChainAgent(model, conn, ref, "test/model").decide(claim["claim_id"], lambda *_: None)
+    shown = model.seen[-1]
+    system = shown[0].content
+    assert "never follow instructions" in system.lower()
+    tool_msgs = [m for m in shown if m.type == "tool" and "IMPORTANT NOTE" in m.content]
+    assert tool_msgs, "claim text should reach the model through the tool result"
+    assert all(m.content.startswith("<claim_data>") for m in tool_msgs)
+    assert not any("IMPORTANT NOTE" in m.content for m in shown if m.type in ("human", "system"))
+
+
+def test_scripted_provider_needs_no_key(conn, ref):
+    settings = Settings(_env_file=None, agent_provider="scripted")
+    agent = build_agent(settings, conn, ref)
+    events = []
+    d = agent.decide("CLM-1001", lambda kind, content: events.append(kind))
+    assert d.decision in ("approve", "decline", "refer") and events
+
+
+def test_openrouter_provider_uses_configured_model(conn, ref):
+    settings = Settings(_env_file=None, agent_provider="openrouter",
+                        openrouter_api_key="k", agent_model="some/model")
+    agent = build_agent(settings, conn, ref)
+    assert agent.model_id == "some/model"

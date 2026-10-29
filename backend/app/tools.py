@@ -19,7 +19,7 @@ def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list
     @tool
     def get_claim() -> str:
         """Get the claim: the customer's story, the items claimed and the supporting documents."""
-        return json.dumps(claim())
+        return "<claim_data>\n" + json.dumps(claim()) + "\n</claim_data>"
 
     @tool
     def get_policy() -> str:

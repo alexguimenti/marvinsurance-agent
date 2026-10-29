@@ -26,6 +26,11 @@ def conn(db_path, ref):
     return c
 
 
+def unwrap(text: str) -> dict:
+    assert text.startswith("<claim_data>") and text.rstrip().endswith("</claim_data>")
+    return json.loads(text.removeprefix("<claim_data>").rstrip().removesuffix("</claim_data>"))
+
+
 def tools_for(conn, ref, claim_id="CLM-1001"):
     return {t.name: t for t in build_tools(conn, ref, claim_id)}
 
@@ -41,7 +46,7 @@ def test_tools_expose_no_file_or_eval_access(conn, ref):
 
 
 def test_get_claim_returns_only_bound_claim(conn, ref):
-    claim = json.loads(tools_for(conn, ref, "CLM-1002")["get_claim"].invoke({}))
+    claim = unwrap(tools_for(conn, ref, "CLM-1002")["get_claim"].invoke({}))
     assert claim["claim_id"] == "CLM-1002"
 
 
@@ -56,7 +61,7 @@ def test_customer_history_has_no_contact_or_birth_data(conn, ref):
 
 
 def test_get_plan_includes_policy_add_ons(conn, ref):
-    policy = ref.policy(json.loads(tools_for(conn, ref)["get_claim"].invoke({}))["policy_id"])
+    policy = ref.policy(unwrap(tools_for(conn, ref)["get_claim"].invoke({}))["policy_id"])
     plan = json.loads(tools_for(conn, ref)["get_plan"].invoke({}))
     assert plan["plan"]["plan"] == policy["plan"]
     assert isinstance(plan["add_ons"], list)
