@@ -13,7 +13,8 @@ export function mockApi(routes: Record<string, Route>) {
     calls.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : undefined })
     const key = method === 'GET' ? url : `${method} ${url}`
     if (!(key in routes)) throw new Error(`unmocked request: ${key}`)
-    const entry = routes[key] as { status?: number; body?: unknown } | null
+    const raw = routes[key]
+    const entry = (typeof raw === 'function' ? raw() : raw) as { status?: number; body?: unknown } | null
     const wrapped = entry && typeof entry === 'object' && 'status' in entry && 'body' in entry
     const status = wrapped ? (entry!.status as number) : 200
     const body = wrapped ? entry!.body : entry

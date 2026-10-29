@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getClaim, runClaim, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
+import Trace from './Trace'
 import { DECISION_LABEL, formatUsd, humanize } from '../format'
 
 const POLL_MS = 2000
@@ -117,6 +118,8 @@ export default function ClaimDetail() {
           </p>
         </div>
       </div>
+
+      <Trace claimId={id} status={data.status} />
 
       <div className="card pad">
         <h3>The customer's story</h3>
