@@ -34,3 +34,13 @@ export function describeUsage(u: {
   const calls = `${u.calls} model call${u.calls === 1 ? '' : 's'}`
   return `${cost} · ${num(u.input_tokens)} tokens in · ${num(u.output_tokens)} out${reasoning} · ${calls}`
 }
+
+/**
+ * The stamp for a claim. An approval above the limit is only the agent's opinion until a handler
+ * signs it off, so it must not read APPROVE while the payment is still held.
+ */
+export function stampFor(status: string, decision: 'approve' | 'decline' | 'refer'): { key: string; label: string } {
+  if (status === 'awaiting_approval' && decision === 'approve') return { key: 'pending', label: 'Pending sign-off' }
+  return { key: decision, label: DECISION_LABEL[decision] }
+}
+

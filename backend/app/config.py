@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, InitSettingsSource, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
     agent_model: str = "openai/gpt-4o-mini"
     agent_temperature: float = 0.0
     agent_reasoning_effort: Literal["low", "medium", "high"] | None = None
+    agent_max_attempts: int = Field(default=3, ge=1, le=10)
     agent_provider: Literal["openrouter", "scripted"] = "openrouter"
     db_path: str = str(ROOT / "farting.db")
     data_dir: str = str(ROOT / "data")

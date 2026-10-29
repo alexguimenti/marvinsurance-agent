@@ -77,4 +77,20 @@ describe('ClaimDetail', () => {
     await screen.findByText('Covered under section 5.')
     expect(screen.queryByText(/Analysis cost/)).not.toBeInTheDocument()
   })
+
+  it('shows "Pending sign-off", not an Approve stamp, while the payment is held', async () => {
+    mockApi(routes('awaiting_approval', { payment_id: 'PAY-1', status: 'held', amount: 1150 }))
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    await screen.findByText(/held for approval/i)
+    expect(screen.getByText('Pending sign-off')).toBeInTheDocument()
+    expect(screen.queryByText('Approve')).not.toBeInTheDocument()
+    expect(document.querySelector('.decision-approve')).toBeNull()
+  })
+
+  it('stamps Approve once the claim is decided', async () => {
+    mockApi(routes('decided', { payment_id: 'PAY-1', status: 'paid', amount: 1150 }))
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByText('Approve')).toBeInTheDocument()
+    expect(screen.queryByText('Pending sign-off')).not.toBeInTheDocument()
+  })
 })

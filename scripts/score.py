@@ -75,7 +75,7 @@ def _run_agent(claims: list[dict], settings) -> list[dict]:
         agent = build_agent(settings, conn, ref)
         for claim in claims:
             print(f"running {claim['claim_id']} ...", file=sys.stderr)
-            run_claim(conn, ref, agent, claim["claim_id"])
+            run_claim(conn, ref, agent, claim["claim_id"], settings.agent_max_attempts, 1.0)
         result = _decisions_from(conn, {c["claim_id"] for c in claims})
         conn.close()
         return result

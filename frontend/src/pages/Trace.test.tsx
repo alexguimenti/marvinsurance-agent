@@ -144,4 +144,20 @@ describe('Trace formatting', () => {
     render(<Trace claimId="CLM-1" status="decided" />)
     expect(await screen.findByText(/cost not reported/i)).toBeInTheDocument()
   })
+
+  it('shows a retry in the log with the reason and the attempt', async () => {
+    mockApi({
+      '/api/claims/CLM-1/trace': [
+        {
+          seq: 1,
+          kind: 'retry',
+          content: { message: 'Attempt 1 of 3 failed (ValueError: the agent finished without a decision). Trying again.' },
+          created_at: '',
+        },
+      ],
+    })
+    render(<Trace claimId="CLM-1" status="decided" />)
+    expect(await screen.findByText(/Attempt 1 of 3 failed/)).toBeInTheDocument()
+    expect(screen.getByText('retry')).toBeInTheDocument()
+  })
 })

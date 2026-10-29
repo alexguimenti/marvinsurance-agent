@@ -110,7 +110,7 @@ Evaluation scores two things per claim: the decision, and the payout.
 - **Trigger:** a "Run queue" button runs every waiting claim, one at a time; each claim also has a "Run this claim" button. Hosting is local only.
 - **Approver:** with no sign-in, the person approving picks their name from the handlers who may approve over the limit. That handler is stored on the payment.
 - **Referred claims:** a `refer` is a finished decision with no owner and no hand-off screen. It is `decided` and shows in the queue.
-- **Failures:** if the model errors, or asks to pay an amount that differs from its decision, the claim becomes a `refer` and the reason is in the activity trace.
+- **Failures:** if the model errors or ends without a decision, the agent tries again (3 attempts in all, set by `max_attempts` in `agent.toml`; each retry shows in the activity trace). Only when the last attempt fails, or when the agent asks to pay an amount that differs from its decision, does the claim become a `refer`.
 
 ## 10. Open questions
 

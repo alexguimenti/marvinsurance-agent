@@ -12,6 +12,9 @@ test('an over-limit payout stays held until a handler approves it', async ({ pag
   await page.goto('/claims/CLM-1003')
   await expect(page.getByText(/held for approval/i)).toBeVisible()
   await expect(page.locator('.badge-awaiting_approval')).toBeVisible()
+  // the agent said approve, but nobody has signed off yet: no APPROVE stamp
+  await expect(page.getByText('Pending sign-off')).toBeVisible()
+  await expect(page.locator('.decision-approve')).toHaveCount(0)
 
   await page.goto('/approvals')
   await expect(page.locator('tbody tr')).toHaveCount(3)
@@ -27,10 +30,14 @@ test('an over-limit payout stays held until a handler approves it', async ({ pag
   await page.goto('/claims/CLM-1003')
   await expect(page.locator('.badge-decided')).toBeVisible()
   await expect(page.getByText(/held for approval/i)).toHaveCount(0)
+  await expect(page.locator('.decision-approve')).toBeVisible()
+  await expect(page.getByText('Pending sign-off')).toHaveCount(0)
 })
 
 test('approving the rest empties the approvals list', async ({ page }) => {
   await page.goto('/approvals')
+  // wait for the list to load: counting rows right after goto() would see zero and skip the loop
+  await expect(page.locator('tbody tr')).not.toHaveCount(0)
   while ((await page.locator('tbody tr').count()) > 0) {
     const before = await page.locator('tbody tr').count()
     await page.getByRole('button', { name: 'Approve payment' }).first().click()

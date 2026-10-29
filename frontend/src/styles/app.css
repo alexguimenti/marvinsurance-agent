@@ -194,6 +194,9 @@ select { height: 42px; padding: 0 12px; border-radius: var(--radius-md); border:
 .stamp-approve { color: var(--ok); }
 .stamp-decline { color: var(--no); }
 .stamp-refer { color: var(--info-fg); }
+/* the agent approved, but a person has not yet: dashed and orange, not the green of a finished approval */
+.stamp-pending { color: var(--accent-strong); border-style: dashed; box-shadow: none; }
+.stamp { white-space: nowrap; }
 .decision.stamp { font-size: 15px; padding: 6px 16px; animation: thunk 460ms var(--ease) 200ms both; }
 
 .notice {
@@ -210,7 +213,7 @@ select { height: 42px; padding: 0 12px; border-radius: var(--radius-md); border:
 .case-rail { position: sticky; top: 92px; }
 .story { font: 400 18px/1.6 var(--font-display); font-variation-settings: 'opsz' 18; color: var(--text-ink); margin: 0 0 20px; }
 .verdict { background: linear-gradient(180deg, var(--bg-elevated), var(--bg-surface)); }
-.verdict-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.verdict-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; margin-bottom: 18px; }
 .payout { font: 380 52px/1 var(--font-display); font-variation-settings: 'opsz' 144; letter-spacing: -0.04em; color: var(--text-heading); }
 table.calc { margin: 16px 0; }
 table.calc td { padding: 6px 0; font-size: 13px; border-bottom: 1px dotted var(--border-strong); }
@@ -238,6 +241,8 @@ details[open] > summary::before { content: '–'; }
 .trace-tool_result::before { background: var(--info-bg) !important; border-color: var(--info-fg) !important; }
 .trace-warning::before, .trace-error::before { border-color: var(--no) !important; background: var(--no-tint) !important; }
 .trace-warning .body, .trace-error .body { color: var(--no); }
+.trace-retry::before { border-color: var(--accent) !important; background: var(--accent-tint) !important; }
+.trace-retry .body { color: var(--accent-deep); }
 .trace .trace-decision { margin: 8px 0 8px -12px; padding: 12px 16px 12px 12px; background: var(--accent-tint); border-radius: var(--radius-md); }
 .trace .trace-decision::before { left: -14px; top: 19px; background: var(--accent) !important; border-color: var(--accent) !important; }
 .trace .trace-usage { margin-top: 8px; padding-top: 14px; border-top: 1px dashed var(--border-strong); font-family: var(--font-mono); font-size: 12.5px; color: var(--text-secondary); }

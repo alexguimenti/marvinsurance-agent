@@ -12,3 +12,7 @@ temperature = 0
 # How hard a reasoning model thinks: "low", "medium" or "high".
 # Leave it commented out for models without reasoning, or to use the model's own default.
 reasoning_effort = "high"
+
+# If the agent fails on a claim (for example the model ends without a decision), try again.
+# This is the total number of attempts per claim, so 3 means the first try plus two retries.
+max_attempts = 3

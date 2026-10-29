@@ -15,6 +15,9 @@ from app.runner import run_claim, run_queue
 from app.seed import seed_claims
 
 
+RETRY_DELAY_S = 1.0  # pause between attempts when the agent fails
+
+
 class ApproveBody(BaseModel):
     handler_id: str
 
@@ -68,14 +71,14 @@ def create_app(settings: Settings) -> FastAPI:
     def run_one(claim_id: str) -> None:
         conn = db()
         try:
-            run_claim(conn, ref, build_agent(settings, conn, ref), claim_id)
+            run_claim(conn, ref, build_agent(settings, conn, ref), claim_id, settings.agent_max_attempts, RETRY_DELAY_S)
         finally:
             conn.close()
 
     def run_all(claim_ids: list[str] | None = None) -> None:
         conn = db()
         try:
-            run_queue(conn, ref, build_agent(settings, conn, ref), claim_ids)
+            run_queue(conn, ref, build_agent(settings, conn, ref), claim_ids, settings.agent_max_attempts, RETRY_DELAY_S)
         finally:
             conn.close()
 

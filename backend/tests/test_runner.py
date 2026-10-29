@@ -162,3 +162,74 @@ def test_usage_is_recorded_even_when_the_agent_fails(conn, ref):
     run_claim(conn, ref, agent, "CLM-1001")
     kinds = [r["kind"] for r in conn.execute("SELECT kind FROM trace_events ORDER BY seq")]
     assert kinds[-1] == "usage"
+
+
+class FlakyAgent:
+    """Fails the first `failures` times, then decides. Each attempt reports its own usage."""
+
+    model_id = "flaky/model"
+
+    def __init__(self, decision, failures, conn=None, pay_on_failure=None):
+        self.decision, self.failures, self.conn, self.pay_on_failure = decision, failures, conn, pay_on_failure
+        self.calls = 0
+        self.usage = None
+
+    def decide(self, claim_id, on_event):
+        self.calls += 1
+        self.usage = {"calls": 2, "input_tokens": 100, "output_tokens": 10, "reasoning_tokens": 5, "cost_usd": 0.001}
+        on_event("tool_call", {"name": "get_claim", "args": {}})
+        if self.calls <= self.failures:
+            if self.pay_on_failure is not None:
+                request_payment(self.conn, claim_id, self.pay_on_failure, 1000.0)
+            raise ValueError("the agent finished without a decision")
+        return self.decision
+
+
+def kinds(conn):
+    return [r["kind"] for r in conn.execute("SELECT kind FROM trace_events ORDER BY seq")]
+
+
+def test_a_failed_attempt_is_retried_and_can_succeed(conn, ref):
+    agent = FlakyAgent(approve(420.0), failures=1)
+    d = run_claim(conn, ref, agent, "CLM-1001", max_attempts=3)
+    assert d.decision == "approve" and agent.calls == 2
+    assert status(conn) == "decided"
+    assert [p["status"] for p in payments(conn)] == ["paid"]
+    assert "retry" in kinds(conn) and "error" not in kinds(conn)
+
+
+def test_it_gives_up_after_max_attempts_and_refers(conn, ref):
+    agent = FlakyAgent(approve(420.0), failures=99)
+    d = run_claim(conn, ref, agent, "CLM-1001", max_attempts=3)
+    assert d.decision == "refer" and agent.calls == 3
+    assert status(conn) == "decided"
+    assert kinds(conn).count("retry") == 2 and kinds(conn).count("error") == 1
+    assert payments(conn) == []
+
+
+def test_the_default_is_a_single_attempt(conn, ref):
+    agent = FlakyAgent(approve(420.0), failures=99)
+    d = run_claim(conn, ref, agent, "CLM-1001")
+    assert d.decision == "refer" and agent.calls == 1
+    assert "retry" not in kinds(conn)
+
+
+def test_a_payment_made_by_a_failed_attempt_does_not_block_the_retry(conn, ref):
+    agent = FlakyAgent(approve(500.0), failures=1, conn=conn, pay_on_failure=300.0)
+    d = run_claim(conn, ref, agent, "CLM-1001", max_attempts=2)
+    assert d.decision == "approve"
+    assert [(p["amount"], p["status"]) for p in payments(conn)] == [(500.0, "paid")]
+
+
+def test_usage_is_summed_over_all_attempts(conn, ref):
+    agent = FlakyAgent(approve(420.0), failures=2)
+    run_claim(conn, ref, agent, "CLM-1001", max_attempts=3)
+    usage = json.loads(conn.execute("SELECT content FROM trace_events WHERE kind='usage'").fetchone()[0])
+    assert usage["calls"] == 6 and usage["input_tokens"] == 300 and usage["reasoning_tokens"] == 15
+    assert usage["cost_usd"] == 0.003
+
+
+def test_the_retry_event_says_which_attempt_failed_and_why(conn, ref):
+    run_claim(conn, ref, FlakyAgent(approve(420.0), failures=1), "CLM-1001", max_attempts=3)
+    retry = json.loads(conn.execute("SELECT content FROM trace_events WHERE kind='retry'").fetchone()[0])
+    assert "Attempt 1 of 3" in retry["message"] and "finished without a decision" in retry["message"]

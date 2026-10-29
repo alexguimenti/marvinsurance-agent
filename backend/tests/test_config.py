@@ -65,3 +65,21 @@ def test_repo_agent_toml_is_valid(monkeypatch):
     table = tomllib.loads(CONFIG_FILE.read_text(encoding="utf-8"))["agent"]
     assert table["model"]
     assert Settings(_env_file=None).agent_model == table["model"]
+
+
+def test_max_attempts_defaults_to_three_and_is_read_from_agent_toml(monkeypatch, tmp_path):
+    for var in ("AGENT_MAX_ATTEMPTS",):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("AGENT_CONFIG_FILE", str(tmp_path / "none.toml"))
+    assert Settings(_env_file=None).agent_max_attempts == 3
+    monkeypatch.setenv("AGENT_CONFIG_FILE", write_toml(tmp_path, "[agent]\nmax_attempts = 5\n"))
+    assert Settings(_env_file=None).agent_max_attempts == 5
+
+
+def test_max_attempts_must_be_at_least_one(monkeypatch, tmp_path):
+    import pytest
+    from pydantic import ValidationError
+
+    monkeypatch.setenv("AGENT_CONFIG_FILE", write_toml(tmp_path, "[agent]\nmax_attempts = 0\n"))
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

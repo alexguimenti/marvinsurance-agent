@@ -140,3 +140,31 @@ def test_claim_detail_exposes_the_agent_usage(client, db_path):
                  (json.dumps(usage),))
     conn.commit()
     assert client.get("/claims/CLM-1001").json()["usage"] == usage
+
+
+def test_a_flaky_agent_is_retried_by_the_api(db_path, data_dir, monkeypatch):
+    import app.api as api_module
+    from app.agent import Decision
+
+    class FlakyOnce:
+        model_id = "flaky/model"
+        usage = None
+        calls = 0
+
+        def decide(self, claim_id, on_event):
+            FlakyOnce.calls += 1
+            if FlakyOnce.calls == 1:
+                raise ValueError("the agent finished without a decision")
+            return Decision(decision="approve", payout=100.0,
+                            rationale="The loss is covered. Section 10 sets the payment.")
+
+    monkeypatch.setattr(api_module, "build_agent", lambda settings, conn, ref: FlakyOnce())
+    monkeypatch.setattr(api_module, "RETRY_DELAY_S", 0.0)
+    settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir,
+                        agent_max_attempts=2)
+    with TestClient(create_app(settings)) as client:
+        client.post("/claims/CLM-1001/run")
+        detail = client.get("/claims/CLM-1001").json()
+        assert detail["decision"]["decision"] == "approve"
+        assert FlakyOnce.calls == 2
+        assert any(e["kind"] == "retry" for e in client.get("/claims/CLM-1001/trace").json())

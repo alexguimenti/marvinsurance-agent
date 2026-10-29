@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { listClaims, runQueue, type ClaimSummary } from '../api'
 import StatusBadge from '../components/StatusBadge'
-import { DECISION_LABEL, STATUS_LABEL, formatUsd, humanize } from '../format'
+import { STATUS_LABEL, formatUsd, humanize, stampFor } from '../format'
 
 const POLL_MS = 2000
 const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'decided'] as const
@@ -142,7 +142,9 @@ export default function Queue() {
                   </td>
                   <td>
                     {c.decision ? (
-                      <span className={`stamp stamp-${c.decision}`}>{DECISION_LABEL[c.decision]}</span>
+                      <span className={`stamp stamp-${stampFor(c.status, c.decision).key}`}>
+                        {stampFor(c.status, c.decision).label}
+                      </span>
                     ) : (
                       <span className="muted">—</span>
                     )}

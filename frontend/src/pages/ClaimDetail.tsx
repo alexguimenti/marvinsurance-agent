@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getClaim, runClaim, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
-import { DECISION_LABEL, describeUsage, formatUsd, humanize } from '../format'
+import { describeUsage, formatUsd, humanize, stampFor } from '../format'
 import Trace from './Trace'
 
 const POLL_MS = 2000
@@ -125,8 +125,10 @@ export default function ClaimDetail() {
             {decision ? (
               <>
                 <div className="verdict-top">
-                  <span className={`decision decision-${decision.decision} stamp stamp-${decision.decision}`}>
-                    {DECISION_LABEL[decision.decision]}
+                  <span
+                    className={`decision decision-${stampFor(data.status, decision.decision).key} stamp stamp-${stampFor(data.status, decision.decision).key}`}
+                  >
+                    {stampFor(data.status, decision.decision).label}
                   </span>
                   <span className="payout mono">{formatUsd(decision.payout)}</span>
                 </div>

@@ -94,4 +94,21 @@ describe('Queue', () => {
     expect(count('Awaiting approval')).toBe('1')
     expect(count('Decided')).toBe('1')
   })
+
+  it('does not stamp APPROVE on a claim that still waits for a handler', async () => {
+    mockApi({
+      '/api/claims': [
+        claim('CLM-1', 'awaiting_approval', { decision: 'approve', payout: 2000 }),
+        claim('CLM-2', 'decided', { decision: 'approve', payout: 300 }),
+      ],
+    })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-1')
+    const held = within(screen.getByText('CLM-1').closest('tr')!)
+    expect(held.queryByText('Approve')).not.toBeInTheDocument()
+    expect(held.getByText('Pending sign-off')).toBeInTheDocument()
+    const paid = within(screen.getByText('CLM-2').closest('tr')!)
+    expect(paid.getByText('Approve')).toBeInTheDocument()
+    expect(paid.queryByText('Pending sign-off')).not.toBeInTheDocument()
+  })
 })

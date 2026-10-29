@@ -28,6 +28,7 @@ The model and how it thinks are set in **`agent.toml`** at the repo root (commit
 model = "openai/gpt-4o-mini"      # any OpenRouter model id
 temperature = 0
 # reasoning_effort = "medium"     # "low", "medium" or "high"; leave commented for non-reasoning models
+max_attempts = 3                  # tries per claim when the agent fails, before it is referred to a person
 ```
 
 The environment overrides the file (`AGENT_MODEL`, `AGENT_TEMPERATURE`, `AGENT_REASONING_EFFORT`, also usable in `.env`), so a value left in `.env` hides the one in `agent.toml`. `AGENT_PROVIDER=scripted` swaps the model for a deterministic fake (used by the tests). `DB_PATH` and `DATA_DIR` are optional.
