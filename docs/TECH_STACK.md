@@ -44,8 +44,19 @@ Each recorded decision stores the model ID that produced it, so results can be c
 - It talks to the FastAPI backend over HTTP and follows `DESIGN.md` for tokens, type and components.
 - Agent activity is shown live while a claim is in progress. The transport (polling or server-sent events) is still open.
 
+## Testing
+
+Everything we implement must come with **unit tests and end-to-end (e2e) tests**. A feature is not done until both pass.
+
+- **Unit tests** cover the logic in isolation: backend functions and API routes, the payout calculation, the $1,000 approval-limit block, status transitions, the agent's tools and the React components. Unit tests never call a real model; the model is replaced with a fake.
+- **E2E tests** cover whole flows through the running app, from the React screens through the API to SQLite. For example: a claim moves from waiting to decided, and a payout over $1,000 stays blocked until a handler approves it.
+- Tests run against a throwaway SQLite database, never the working one.
+- Tests must not read `data/evals/`. Scoring the agent against the handlers' decisions is a separate evaluation, not part of the test suite.
+- New code and bug fixes ship with their tests in the same change.
+
 ## Open items
 
 - Frontend tooling (for example Vite and TypeScript).
 - Live update transport for the activity view.
-- Python version, dependency management and test tooling.
+- Python version and dependency management.
+- Test tools for unit and e2e tests (for example pytest for the backend, and a browser test runner for e2e).
