@@ -137,3 +137,17 @@ def test_long_json_tool_results_are_kept_whole_for_the_trace(conn, ref):
     )
     body = results[0]["content"].removeprefix("<claim_data>").removesuffix("</claim_data>")
     json.loads(body)  # the whole document, so the screen can pretty-print it
+
+
+def test_reasoning_effort_is_sent_to_openrouter(conn, ref):
+    settings = Settings(_env_file=None, agent_provider="openrouter", openrouter_api_key="k",
+                        agent_model="some/model", agent_reasoning_effort="high")
+    agent = build_agent(settings, conn, ref)
+    assert agent.model.extra_body == {"reasoning": {"effort": "high"}}
+
+
+def test_no_reasoning_parameter_when_not_configured(conn, ref):
+    settings = Settings(_env_file=None, agent_provider="openrouter", openrouter_api_key="k",
+                        agent_model="some/model", agent_reasoning_effort=None)
+    agent = build_agent(settings, conn, ref)
+    assert not agent.model.extra_body

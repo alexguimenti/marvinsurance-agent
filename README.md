@@ -15,15 +15,22 @@ cd ../frontend && npm install
 cd ../e2e && npm install && npx playwright install chromium
 ```
 
-Create a `.env` in the repo root (it is git-ignored):
+Create a `.env` in the repo root (git-ignored) with your key:
 
 ```
 OPENROUTER_API_KEY=...
-AGENT_MODEL=openai/gpt-4o-mini     # any OpenRouter model id; change it to switch models
-AGENT_TEMPERATURE=0
 ```
 
-`AGENT_PROVIDER=scripted` swaps the model for a deterministic fake (used by the tests). `DB_PATH` and `DATA_DIR` are optional.
+The model and how it thinks are set in **`agent.toml`** at the repo root (committed, no secrets):
+
+```toml
+[agent]
+model = "openai/gpt-4o-mini"      # any OpenRouter model id
+temperature = 0
+# reasoning_effort = "medium"     # "low", "medium" or "high"; leave commented for non-reasoning models
+```
+
+The environment overrides the file (`AGENT_MODEL`, `AGENT_TEMPERATURE`, `AGENT_REASONING_EFFORT`, also usable in `.env`), so a value left in `.env` hides the one in `agent.toml`. `AGENT_PROVIDER=scripted` swaps the model for a deterministic fake (used by the tests). `DB_PATH` and `DATA_DIR` are optional.
 
 ## Run
 

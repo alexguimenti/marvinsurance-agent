@@ -158,5 +158,8 @@ def build_agent(settings: Settings, conn: sqlite3.Connection, ref: Reference) ->
         api_key=settings.openrouter_api_key,
         base_url=OPENROUTER_URL,
         temperature=settings.agent_temperature,
+        extra_body=(
+            {"reasoning": {"effort": settings.agent_reasoning_effort}} if settings.agent_reasoning_effort else None
+        ),
     )
     return LangChainAgent(model, conn, ref, settings.agent_model)

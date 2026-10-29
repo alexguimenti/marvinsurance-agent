@@ -1,0 +1,14 @@
+# Which model the Farting Agent uses, and how it thinks.
+# Safe to commit: no secrets here (the API key lives in .env).
+# Environment variables win over this file: AGENT_MODEL, AGENT_TEMPERATURE, AGENT_REASONING_EFFORT.
+
+[agent]
+# Any model id from https://openrouter.ai/models
+model = "openai/gpt-4o-mini"
+
+# 0 gives the most consistent decisions.
+temperature = 0
+
+# How hard a reasoning model thinks: "low", "medium" or "high".
+# Leave it commented out for models without reasoning, or to use the model's own default.
+# reasoning_effort = "medium"
