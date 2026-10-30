@@ -24,10 +24,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
     openrouter_api_key: str | None = None
-    agent_model: str = "openai/gpt-4o-mini"
+    agent_model: str = "deepseek/deepseek-v4.1-flash"
     agent_temperature: float = 0.0
-    agent_reasoning_effort: Literal["low", "medium", "high"] | None = None
-    agent_max_attempts: int = Field(default=3, ge=1, le=10)
+    agent_reasoning_effort: Literal["low", "medium", "high"] | None = "low"
+    agent_max_attempts: int = Field(default=2, ge=1, le=10)  # attempts per claim before it is left for a handler
+    agent_step_retries: int = Field(default=2, ge=0, le=5)  # retries of one model call (timeout, 429, 5xx)
+    agent_claim_timeout_s: float = Field(default=300, gt=0)  # wall-clock limit for one claim attempt
+    agent_max_steps: int = Field(default=40, ge=5)  # graph steps for one claim
+    agent_run_max_steps: int = Field(default=400, ge=10)  # graph steps for the whole run
     agent_provider: Literal["openrouter", "scripted"] = "openrouter"
     db_path: str = str(ROOT / "farting.db")
     data_dir: str = str(ROOT / "data")

@@ -33,10 +33,10 @@ def test_environment_overrides_agent_toml(monkeypatch, tmp_path):
     assert Settings(_env_file=None).agent_model == "from/env"
 
 
-def test_reasoning_is_off_when_not_configured(monkeypatch, tmp_path):
+def test_reasoning_defaults_to_low_when_not_configured(monkeypatch, tmp_path):
     monkeypatch.setenv("AGENT_CONFIG_FILE", write_toml(tmp_path, '[agent]\nmodel = "m/x"\n'))
     monkeypatch.delenv("AGENT_REASONING_EFFORT", raising=False)
-    assert Settings(_env_file=None).agent_reasoning_effort is None
+    assert Settings(_env_file=None).agent_reasoning_effort == "low"
 
 
 def test_missing_agent_toml_falls_back_to_defaults(monkeypatch, tmp_path):
@@ -67,11 +67,11 @@ def test_repo_agent_toml_is_valid(monkeypatch):
     assert Settings(_env_file=None).agent_model == table["model"]
 
 
-def test_max_attempts_defaults_to_three_and_is_read_from_agent_toml(monkeypatch, tmp_path):
+def test_max_attempts_defaults_to_two_and_is_read_from_agent_toml(monkeypatch, tmp_path):
     for var in ("AGENT_MAX_ATTEMPTS",):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("AGENT_CONFIG_FILE", str(tmp_path / "none.toml"))
-    assert Settings(_env_file=None).agent_max_attempts == 3
+    assert Settings(_env_file=None).agent_max_attempts == 2
     monkeypatch.setenv("AGENT_CONFIG_FILE", write_toml(tmp_path, "[agent]\nmax_attempts = 5\n"))
     assert Settings(_env_file=None).agent_max_attempts == 5
 
@@ -83,3 +83,32 @@ def test_max_attempts_must_be_at_least_one(monkeypatch, tmp_path):
     monkeypatch.setenv("AGENT_CONFIG_FILE", write_toml(tmp_path, "[agent]\nmax_attempts = 0\n"))
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_defaults_without_toml(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_CONFIG_FILE", str(tmp_path / "none.toml"))
+    for var in ("AGENT_MODEL", "AGENT_REASONING_EFFORT", "AGENT_MAX_ATTEMPTS"):
+        monkeypatch.delenv(var, raising=False)
+    s = Settings(_env_file=None)
+    assert s.agent_model == "deepseek/deepseek-v4.1-flash"
+    assert s.agent_reasoning_effort == "low"
+    assert s.agent_max_attempts == 2
+    assert s.agent_step_retries == 2
+    assert s.agent_claim_timeout_s == 300
+    assert s.agent_max_steps == 40
+    assert s.agent_run_max_steps == 400
+
+
+def test_repo_agent_toml_uses_default_model(monkeypatch):
+    from app.config import _agent_toml
+
+    monkeypatch.delenv("AGENT_CONFIG_FILE", raising=False)
+    table = _agent_toml()
+    assert table["agent_model"] == "deepseek/deepseek-v4.1-flash"
+    assert table["agent_reasoning_effort"] == "low"
+
+
+def test_env_overrides_toml_model(monkeypatch):
+    monkeypatch.delenv("AGENT_CONFIG_FILE", raising=False)
+    monkeypatch.setenv("AGENT_MODEL", "x/y")
+    assert Settings(_env_file=None).agent_model == "x/y"
