@@ -9,7 +9,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from app import runs
-from app.agent import load_instructions
+from app.agent import claim_prompt, load_instructions
 from app.config import Settings
 from app.db import connect, init_schema
 from app.documents import documents_for
@@ -196,7 +196,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/instructions")
     def instructions():
-        return {"run": load_instructions("run"), "claim": load_instructions("claim")}
+        return {"run": load_instructions("run"), "claim": claim_prompt(ref)}
 
     @app.get("/approvals")
     def approvals(conn: Conn):

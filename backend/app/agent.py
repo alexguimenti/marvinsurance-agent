@@ -101,13 +101,16 @@ class LangChainAgent:
         self.usage: dict | None = None
 
     def decide(self, claim_id: str, on_event: Emit) -> Decision:
+        tools = {t.name: t for t in build_tools(self.conn, self.ref, claim_id)}
         agent = create_agent(
             self.model,
-            build_tools(self.conn, self.ref, claim_id),
-            system_prompt=load_instructions("claim"),
+            [t for name, t in tools.items() if name not in PREFETCHED and name != "list_sections"],
+            system_prompt=claim_prompt(self.ref),
             response_format=ToolStrategy(Decision),
         )
-        prompt = f"Decide claim {claim_id}. Start by reading it with get_claim."
+        prompt = [HumanMessage(f"Decide claim {claim_id}."), *_prefetch(tools)]
+        for message in prompt[1:]:
+            _emit_message(message, on_event, {})
         self.usage = None
 
         def keep_usage(usage: dict) -> None:
@@ -118,6 +121,38 @@ class LangChainAgent:
             raise ValueError("the agent finished without a decision")
         on_event("decision", decision.model_dump())
         return decision
+
+
+# Facts every claim needs. They are handed to the agent as the results of tool calls it did not have to
+# make, which saves a model round trip each and keeps customer text inside tool results.
+PREFETCHED = ("get_claim", "get_policy", "get_plan", "get_customer_history")
+
+
+def _prefetch(tools: dict) -> list:
+    def fetch(name: str) -> str:
+        try:
+            return tools[name].invoke({})
+        except LookupError as exc:  # a fact that is missing is reported, as a tool call would report it
+            return f"Error: {exc}"
+
+    call = AIMessage(content="", tool_calls=[{"name": n, "args": {}, "id": f"prefetch-{n}"} for n in PREFETCHED])
+    return [call, *(ToolMessage(fetch(n), name=n, tool_call_id=f"prefetch-{n}") for n in PREFETCHED)]
+
+
+def claim_prompt(ref: Reference) -> str:
+    """What the claim agent is told: its instructions, then the sections it can read."""
+    return f"{load_instructions('claim')}\n\n{section_index(ref)}"
+
+
+def section_index(ref: Reference) -> str:
+    """The numbered sections of both documents, so the agent can go straight to the one it needs."""
+    from app.documents import documents_for  # documents imports reference; keep agent importable first
+
+    docs = documents_for(ref)
+    lines = ["## Sections you can read with read_section"]
+    for document, label in (("policy_wording", "Policy wording"), ("claims_manual", "Claims manual")):
+        lines.append(f"{label}: " + "; ".join(f"{s.number}. {s.title}" for s in docs.sections(document)))
+    return "\n".join(lines)
 
 
 def _emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
@@ -136,16 +171,18 @@ def _emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
         on_event("tool_result", {"name": message.name, "content": content})
 
 
-def run_graph(graph, message: str, max_steps: int, on_event: Emit,
+def run_graph(graph, messages: str | list, max_steps: int, on_event: Emit,
               on_usage: Callable[[dict | None], None], timeout_s: float | None = None):
-    """Stream a LangChain agent from one request, tracing every message and keeping its usage up to date.
-    Returns its structured response, or None when it has none."""
+    """Stream a LangChain agent from a request (text, or the opening messages), tracing every new message
+    and keeping its usage up to date. Returns its structured response, or None when it has none."""
+    if isinstance(messages, str):
+        messages = [HumanMessage(messages)]
     total = Usage()
     calls: dict[str, dict] = {}  # tool call id -> its arguments, to describe the result
     deadline = time.monotonic() + timeout_s if timeout_s else None
     result = None
     config = {"recursion_limit": max_steps}
-    for chunk in graph.stream({"messages": [HumanMessage(message)]}, stream_mode="updates", config=config):
+    for chunk in graph.stream({"messages": messages}, stream_mode="updates", config=config):
         if deadline and time.monotonic() > deadline:
             raise TimeoutError(f"the agent took longer than {timeout_s:g} seconds")
         for update in chunk.values():

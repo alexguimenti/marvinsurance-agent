@@ -208,8 +208,11 @@ def test_handlers_lists_approvers(client):
     assert ids == ["HND-01", "HND-02", "HND-03"]
 
 
-def test_instructions_returns_both(client):
-    assert client.get("/instructions").json() == {"run": load_instructions("run"), "claim": load_instructions("claim")}
+def test_instructions_returns_both_as_the_agents_receive_them(client):
+    got = client.get("/instructions").json()
+    assert got["run"] == load_instructions("run")
+    assert got["claim"].startswith(load_instructions("claim"))
+    assert "Claims manual: 1. Purpose and scope" in got["claim"]  # the section index the claim agent is given
 
 
 def test_old_run_routes_are_gone(client):

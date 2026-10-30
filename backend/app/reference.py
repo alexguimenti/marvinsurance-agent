@@ -32,10 +32,16 @@ class Reference:
         return self._cache[name]
 
     def policy(self, policy_id: str) -> dict:
-        return next(p for p in self.read("policies.json") if p["policy_id"] == policy_id)
+        return self._find("policies.json", "policy_id", policy_id)
 
     def customer(self, customer_id: str) -> dict:
-        return next(c for c in self.read("customers.json") if c["customer_id"] == customer_id)
+        return self._find("customers.json", "customer_id", customer_id)
+
+    def _find(self, name: str, key: str, value: str) -> dict:
+        for row in self.read(name):
+            if row[key] == value:
+                return row
+        raise LookupError(f"no {key} {value} in {name}")
 
     def plan(self, name: str) -> dict:
         return next(p for p in self.read("plans.json")["plans"] if p["plan"] == name)

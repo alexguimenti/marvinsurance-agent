@@ -142,7 +142,7 @@ def subagent(conn, ref, *claims):
     """A LangChainAgent over a fake model that reads each claim and then declines it."""
     messages = []
     for i, _ in enumerate(claims):
-        messages += [tool_call("get_claim", {}, f"g{i}"), tool_call("Decision", DECISION, f"d{i}")]
+        messages += [tool_call("Decision", DECISION, f"d{i}")]
     model = script(*messages)
     return LangChainAgent(model, conn, ref, "fake/sub"), model
 
@@ -168,9 +168,10 @@ def test_each_claim_gets_a_fresh_subagent(conn, ref, settings):
     agent, sub = subagent(conn, ref, "CLM-1001", "CLM-1002")
     run_id = runs.start_run(conn, "scripted", scope=["CLM-1001", "CLM-1002"])
     run_harness(conn, ref, settings, run_id, ScriptedOrchestrator(), agent)
-    first_call_of_second_claim = sub.seen[2]
-    assert len(first_call_of_second_claim) == 2  # the system prompt and the request, nothing from CLM-1001
+    first_call_of_second_claim = sub.seen[1]
+    # the system prompt, the request and the facts fetched for it: nothing from CLM-1001
     assert "CLM-1002" in first_call_of_second_claim[1].content
+    assert not any("CLM-1001" in str(m.content) for m in first_call_of_second_claim)
 
 
 class Exploding:

@@ -37,3 +37,11 @@ def test_reference_lookups(data_dir):
     assert {a["add_on"] for a in ref.add_ons} == {
         "adventure_sports", "pre_existing_waiver", "electronics_plus"
     }
+
+
+def test_unknown_policy_or_customer_is_a_clear_lookup_error(data_dir):
+    ref = Reference(data_dir)
+    with pytest.raises(LookupError, match="POL-0000"):
+        ref.policy("POL-0000")
+    with pytest.raises(LookupError, match="CUS-0000"):
+        ref.customer("CUS-0000")

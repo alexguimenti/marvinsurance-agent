@@ -69,7 +69,7 @@ def test_instructions_mention_data_not_instructions_and_wording_section():
 
 def test_agent_emits_trace_events(conn, ref):
     model = script(
-        tool_call("get_claim", {}, "c1"),
+        tool_call("read_section", {"document": "policy_wording", "section": 5}, "c1"),
         tool_call("Decision", decision_args(), "c2"),
     )
     events = []
@@ -84,10 +84,7 @@ def test_injection_claim_is_quoted_as_data(conn, ref, data_dir):
     claim = json.loads((pathlib.Path(data_dir) / "security" / "claims.json").read_text(encoding="utf-8"))[0]
     conn.execute("INSERT OR REPLACE INTO claims (claim_id, status, payload) VALUES (?, 'waiting', ?)",
                  (claim["claim_id"], json.dumps(claim)))
-    model = script(
-        tool_call("get_claim", {}, "c1"),
-        tool_call("Decision", decision_args(), "c2"),
-    )
+    model = script(tool_call("Decision", decision_args(), "c2"))
     LangChainAgent(model, conn, ref, "test/model").decide(claim["claim_id"], lambda *_: None)
     shown = model.seen[-1]
     system = shown[0].content
@@ -124,15 +121,13 @@ def test_section_text_is_not_copied_to_the_trace(conn, ref):
     LangChainAgent(model, conn, ref, "test/model").decide(
         "CLM-1001", lambda kind, content: results.append(content) if kind == "tool_result" else None
     )
-    assert results and results[0]["name"] == "read_section"
-    assert re.fullmatch(r"\[claims_manual section 7: Interpretation notes, \d+ characters\]", results[0]["content"])
+    read = [r for r in results if r["name"] == "read_section"]
+    assert len(read) == 1
+    assert re.fullmatch(r"\[claims_manual section 7: Interpretation notes, \d+ characters\]", read[0]["content"])
 
 
 def test_long_json_tool_results_are_kept_whole_for_the_trace(conn, ref):
-    model = script(
-        tool_call("get_claim", {}, "c1"),
-        tool_call("Decision", decision_args(), "c2"),
-    )
+    model = script(tool_call("Decision", decision_args(), "c2"))
     results = []
     LangChainAgent(model, conn, ref, "test/model").decide(
         "CLM-1001", lambda kind, content: results.append(content) if kind == "tool_result" else None
@@ -247,7 +242,8 @@ def test_langchain_agent_times_out(conn, ref):
             time.sleep(0.1)
             return super()._generate(messages, *args, **kwargs)
 
-    model = SlowModel(messages=iter([tool_call("get_claim", {}, "c1"), tool_call("get_claim", {}, "c2"),
+    model = SlowModel(messages=iter([tool_call("search_documents", {"query": "delay"}, "c1"),
+                                     tool_call("search_documents", {"query": "meals"}, "c2"),
                                      tool_call("Decision", decision_args(), "c3")]), seen=[])
     with pytest.raises(TimeoutError):
         LangChainAgent(model, conn, ref, "test/model", timeout_s=0.05).decide("CLM-1001", lambda *_: None)
@@ -259,3 +255,51 @@ def test_build_agent_passes_step_limit_and_timeout(conn, ref):
     agent = build_agent(settings, conn, ref)
     assert (agent.max_steps, agent.timeout_s) == (17, 9)
     assert agent.model.max_retries == settings.agent_step_retries
+
+
+PREFETCHED = {"get_claim", "get_policy", "get_plan", "get_customer_history"}
+
+
+def test_claim_facts_arrive_as_tool_results_before_the_first_model_call(conn, ref):
+    model = script(tool_call("Decision", decision_args(), "d1"))
+    LangChainAgent(model, conn, ref, "test/model").decide("CLM-1001", lambda *_: None)
+    first = model.seen[0]
+    assert len(model.seen) == 1  # the agent decided in one model call
+    results = {m.name: m.content for m in first if m.type == "tool"}
+    assert set(results) == PREFETCHED
+    assert results["get_claim"].startswith("<claim_data>")
+    assert '"policy_id": "POL-2001"' in results["get_policy"]
+    assert not any('"claim_id": "CLM-1001"' in str(m.content) for m in first if m.type in ("human", "system"))
+
+
+def test_claim_agent_is_offered_only_the_tools_it_still_needs(conn, ref, monkeypatch):
+    import app.agent as agent_module
+
+    offered = {}
+    real = agent_module.create_agent
+
+    def spy(model, tools, **kwargs):
+        offered["names"] = {t.name for t in tools}
+        return real(model, tools, **kwargs)
+
+    monkeypatch.setattr(agent_module, "create_agent", spy)
+    LangChainAgent(script(tool_call("Decision", decision_args(), "d1")), conn, ref, "test/model").decide(
+        "CLM-1001", lambda *_: None)
+    assert offered["names"] == {"read_section", "search_documents", "lookup_knowledge",
+                                "calculate_payout", "request_payment"}
+
+
+def test_system_prompt_lists_the_sections_of_both_documents(conn, ref):
+    model = script(tool_call("Decision", decision_args(), "d1"))
+    LangChainAgent(model, conn, ref, "test/model").decide("CLM-1001", lambda *_: None)
+    system = model.seen[0][0].content
+    assert "Policy wording: 1. Your plan" in system and "10. How we work out your payment" in system
+    assert "Claims manual: 1. Purpose and scope" in system and "7. Interpretation notes" in system
+
+
+def test_prefetched_facts_are_traced(conn, ref):
+    events = []
+    LangChainAgent(script(tool_call("Decision", decision_args(), "d1")), conn, ref, "test/model").decide(
+        "CLM-1001", lambda kind, content: events.append((kind, content.get("name"))))
+    assert events[0] == ("tool_call", "get_claim")
+    assert {name for kind, name in events if kind == "tool_result"} >= PREFETCHED
