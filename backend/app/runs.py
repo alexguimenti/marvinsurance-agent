@@ -94,6 +94,7 @@ def todo_for_claim(conn: sqlite3.Connection, run_id: int, claim_id: str, status:
     else:
         conn.execute("UPDATE todo_items SET status = ?, note = ? WHERE item_id = ?", (status, note, item["item_id"]))
     conn.commit()
+    run_event(conn, run_id, "todo", {"action": "claim", "claim_id": claim_id, "status": status})
 
 
 # --- scope, cap and the missed-claim check -------------------------------------

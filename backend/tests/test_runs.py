@@ -179,3 +179,10 @@ def test_decided_claims_keep_their_decision_after_recovery(conn, ref):
     work_claim(conn, ref, StubAgent({"CLM-1001": [Decision(decision="decline", rationale=GOOD)]}), "CLM-1001", run_id)
     runs.recover_after_restart(conn)
     assert status(conn, "CLM-1001") == "decided"
+
+
+def test_todo_changes_made_by_work_claim_are_run_events(conn, ref):
+    run_id = runs.start_run(conn, "m")
+    work_claim(conn, ref, StubAgent(), "CLM-1001", run_id)
+    todo = [e["content"] for e in runs.run_events(conn, run_id) if e["kind"] == "todo"]
+    assert [(t["claim_id"], t["status"]) for t in todo] == [("CLM-1001", "in_progress"), ("CLM-1001", "done")]
