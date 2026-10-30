@@ -24,7 +24,7 @@ Technology choices for the Farting Agent pilot. See `SPEC.md` for what we are bu
 
 - LangChain builds the Farting Agent in two roles, both with `create_agent` and no other agent framework:
   - The **orchestrator** runs the queue. Its tools list the waiting claims, write and update the to-do list, hand a claim to a claim agent and finish the run. Its instructions are `backend/app/instructions_run.md`.
-  - The **claim agent** works one claim from a clean start, so each claim's work stays focused and the run does not get more expensive as it goes. Its tools read the claim, policy, customer history and plan, look up sections of the policy wording and the claims manual, calculate the payout and request payment. It returns a structured `Decision`. Its instructions are `backend/app/instructions_claim.md`.
+  - The **claim agent** works one claim from a clean start, so each claim's work stays focused and the run does not get more expensive as it goes. It starts with the claim, policy, plan and customer history already in its conversation (as results of tool calls it did not have to make) and the section index of both documents in its prompt. Its tools read and search sections of the policy wording and the claims manual (at most 8 per claim, no rereads), look up public facts, calculate the payout and request payment. It returns a structured `Decision`. Its instructions are `backend/app/instructions_claim.md`.
 - Our code, not the model, enforces the run's cap and scope, the attempt rules, the $1,000 limit and the missed-claim check (`backend/app/runner.py`, `runs.py`, `orchestrator.py`).
 - OpenRouter is the single gateway to models, called through LangChain's OpenAI-compatible chat model with the OpenRouter base URL.
 - **The model is configurable.** The model ID is a setting, never hardcoded in the agent code. Switching models, or comparing two on the same claims, means changing configuration only. The default is DeepSeek V4.1 Flash (`deepseek/deepseek-v4.1-flash`) with low reasoning effort, set in `agent.toml`; both roles use the same model.
@@ -66,7 +66,7 @@ Everything we implement must come with **unit tests and end-to-end (e2e) tests**
 - Tests: pytest (backend), Vitest with Testing Library (frontend), Playwright (end-to-end, scripted agent and a throwaway database).
 - The agent is a LangChain `create_agent` with a structured `Decision` output, calling OpenRouter through `ChatOpenAI` with the OpenRouter base URL.
 - The harness adds an orchestrator on the same model, a fresh claim agent per claim, and runs and to-do items in SQLite. The queue page polls the latest run every 2 seconds.
-- `npm run check` at the repo root runs every suite: pytest, Vitest, the TypeScript check and Playwright. The live OpenRouter smoke test runs only with `RUN_LIVE_SMOKE=1`.
+- `npm run check` at the repo root runs every suite: pytest, Vitest, the TypeScript check, oxlint (no warnings allowed) and Playwright. The live OpenRouter smoke test runs only with `RUN_LIVE_SMOKE=1`.
 
 ## Open items
 

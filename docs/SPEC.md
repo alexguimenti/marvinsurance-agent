@@ -37,7 +37,7 @@ For each claim the agent reads:
 | The policy wording, looked up section by section | `data/policy_wording.md` |
 | The claims manual, looked up section by section | `data/claims_manual.md` |
 
-The agent is not handed whole documents. It finds sections with `search_documents` and `list_sections` and reads them with `read_section`, and the claim page lists what it read. `data/policy_wording_short.md` also exists and is not used.
+The agent is not handed whole documents. It gets the index of both documents' sections, finds sections with `search_documents` and reads them with `read_section` (at most 8 per claim), and the claim page lists what it read. `data/policy_wording_short.md` also exists and is not used.
 
 ### 3.2 Outputs
 
