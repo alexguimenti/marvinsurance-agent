@@ -16,7 +16,7 @@ const held = (id: string) => ({
 
 describe('App navigation', () => {
   it('shows how many payments wait for approval next to the Approvals link', async () => {
-    mockApi({ '/api/claims': [], '/api/approvals': [held('CLM-1'), held('CLM-2'), held('CLM-3')] })
+    mockApi({ '/api/claims': [], '/api/runs/latest': { run: null, todo: [] }, '/api/approvals': [held('CLM-1'), held('CLM-2'), held('CLM-3')] })
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />
@@ -27,8 +27,21 @@ describe('App navigation', () => {
     expect(link).toHaveAttribute('href', '/approvals')
   })
 
+  it('still renders with a claim left for a handler', async () => {
+    const stuck = { claim_id: 'CLM-9', claim_type: 'baggage', summary: 's', customer_name: 'Maya Patel',
+      amount_claimed: 10, status: 'needs_handler', decision: null, payout: null, attempts: 2 }
+    mockApi({ '/api/claims': [stuck], '/api/runs/latest': { run: null, todo: [] }, '/api/approvals': [] })
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('CLM-9')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Approvals' })).toBeInTheDocument()
+  })
+
   it('shows no count when nothing waits', async () => {
-    mockApi({ '/api/claims': [], '/api/approvals': [] })
+    mockApi({ '/api/claims': [], '/api/runs/latest': { run: null, todo: [] }, '/api/approvals': [] })
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />

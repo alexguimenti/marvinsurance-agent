@@ -77,12 +77,12 @@ function renderMarkdown(text: string): ReactNode[] {
 }
 
 export default function Instructions() {
-  const [text, setText] = useState<string | null>(null)
+  const [texts, setTexts] = useState<{ run: string; claim: string } | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
     getInstructions()
-      .then((r) => setText(r.text))
+      .then(setTexts)
       .catch(() => setError(true))
   }, [])
 
@@ -92,11 +92,20 @@ export default function Instructions() {
         <div>
           <p className="eyebrow">Standing orders</p>
           <h1>Agent instructions</h1>
-          <p className="lede">The brief the Farting Agent reads before every claim.</p>
+          <p className="lede">
+            The briefs the Farting Agent works from: one for running the queue, one for each claim it is handed.
+          </p>
         </div>
       </div>
       {error && <p className="error">Could not load the instructions.</p>}
-      {text !== null && <article className="card pad instructions">{renderMarkdown(text)}</article>}
+      {texts !== null && (
+        <>
+          <h2 className="section-title">Running the queue</h2>
+          <article className="card pad instructions">{renderMarkdown(texts.run)}</article>
+          <h2 className="section-title">Working a claim</h2>
+          <article className="card pad instructions">{renderMarkdown(texts.claim)}</article>
+        </>
+      )}
     </section>
   )
 }

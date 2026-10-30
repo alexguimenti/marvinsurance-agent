@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { listClaims, runQueue, type ClaimSummary } from '../api'
+import { ApiError, getLatestRun, listClaims, startRun, type ClaimSummary, type LatestRun } from '../api'
 import StatusBadge from '../components/StatusBadge'
+import TodoPanel from '../components/TodoPanel'
 import { STATUS_LABEL, formatUsd, humanize, stampFor } from '../format'
 
 const POLL_MS = 2000
-const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'decided'] as const
+const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'decided', 'needs_handler'] as const
 
 export default function Queue() {
   const [claims, setClaims] = useState<ClaimSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [latest, setLatest] = useState<LatestRun | null>(null)
+  const [limit, setLimit] = useState('')
 
   const load = useCallback(async () => {
     try {
-      const list = await listClaims()
+      const [list, run] = await Promise.all([listClaims(), getLatestRun()])
       setClaims(list)
+      setLatest(run)
       // drop ticks on claims the agent has already picked up
       setSelected((prev) => {
         const waiting = new Set(list.filter((c) => c.status === 'waiting').map((c) => c.claim_id))
@@ -38,16 +42,17 @@ export default function Queue() {
   async function onRunQueue() {
     setStarting(true)
     try {
-      await runQueue(selected.size ? [...selected] : undefined)
+      await startRun(selected.size ? { claimIds: [...selected] } : { limit: Number(limit) || undefined })
       setSelected(new Set())
       await load()
-    } catch {
-      setError('Could not start the queue.')
+    } catch (e) {
+      setError(e instanceof ApiError && e.status === 409 ? 'A run is already in progress.' : 'Could not start the run.')
     } finally {
       setStarting(false)
     }
   }
 
+  const running = latest?.run?.status === 'running'
   const waitingIds = (claims ?? []).filter((c) => c.status === 'waiting').map((c) => c.claim_id)
   const allTicked = waitingIds.length > 0 && waitingIds.every((id) => selected.has(id))
 
@@ -72,12 +77,27 @@ export default function Queue() {
           <h1>Claims queue</h1>
           <p className="lede">
             {claims ? `${claims.length} claims on the desk` : 'Loading the desk'}. Tick the ones you want the agent to take,
-            or run them all.
+            or run the queue, with a limit to try it on a few.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={onRunQueue} disabled={starting || !counts.waiting}>
-          {selected.size ? `Run selected (${selected.size})` : 'Run queue'}
-        </button>
+        <div className="run-controls">
+          {!selected.size && (
+            <label className="limit">
+              <span>Limit</span>
+              <input
+                type="number"
+                min={1}
+                inputMode="numeric"
+                placeholder="all"
+                value={limit}
+                onChange={(e) => setLimit(e.target.value)}
+              />
+            </label>
+          )}
+          <button className="btn btn-primary" onClick={onRunQueue} disabled={starting || running || !counts.waiting}>
+            {selected.size ? `Run selected (${selected.size})` : 'Run queue'}
+          </button>
+        </div>
       </div>
 
       {claims && (
@@ -92,6 +112,7 @@ export default function Queue() {
       )}
 
       {error && <p className="error">{error}</p>}
+      {latest && <TodoPanel run={latest.run} todo={latest.todo} />}
       {claims && (
         <div className="card">
           <table className="queue">
@@ -133,6 +154,11 @@ export default function Queue() {
                       {c.claim_id}
                     </Link>
                     <div className="muted small">{c.summary}</div>
+                    {c.status === 'waiting' && c.attempts > 0 && (
+                      <div className="retry-note small">
+                        {c.attempts} failed attempt{c.attempts === 1 ? '' : 's'}, back in the queue
+                      </div>
+                    )}
                   </td>
                   <td>{c.customer_name}</td>
                   <td className="muted">{humanize(c.claim_type)}</td>

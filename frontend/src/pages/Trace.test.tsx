@@ -73,7 +73,7 @@ describe('Trace formatting', () => {
     {
       seq: 3,
       kind: 'tool_result',
-      content: { name: 'get_policy_wording', content: '[policy wording, 9000 characters]' },
+      content: { name: 'read_section', content: '[claims_manual section 7: Interpretation notes, 3120 characters]' },
       created_at: '',
     },
   ]
@@ -110,10 +110,24 @@ describe('Trace formatting', () => {
     expect(document.querySelector('pre.json')).toBeNull()
   })
 
-  it('summarizes the policy wording without dumping it', async () => {
+  it('summarizes a section the agent read without dumping it', async () => {
     mockApi({ '/api/claims/CLM-1/trace': traced })
     render(<Trace claimId="CLM-1" status="decided" />)
-    expect(await screen.findByText(/policy wording read/i)).toBeInTheDocument()
+    expect(await screen.findByText(/claims manual §7 Interpretation notes \(3,120 characters\)/)).toBeInTheDocument()
+  })
+
+  it('names the section on a read_section call', async () => {
+    mockApi({
+      '/api/claims/CLM-1/trace': [
+        { seq: 1, kind: 'tool_call', content: { name: 'read_section', args: { document: 'claims_manual', section: 7 } }, created_at: '' },
+        { seq: 2, kind: 'tool_call', content: { name: 'search_documents', args: { query: 'wild animal' } }, created_at: '' },
+        { seq: 3, kind: 'tool_result', content: { name: 'search_documents', content: '[{"document": "claims_manual", "section": 7}]' }, created_at: '' },
+      ],
+    })
+    render(<Trace claimId="CLM-1" status="decided" />)
+    expect(await screen.findByText('Read claims manual, section 7')).toBeInTheDocument()
+    expect(screen.getByText('Search the wording and the manual for "wild animal"')).toBeInTheDocument()
+    expect(screen.getByText(/1 section found/)).toBeInTheDocument()
   })
 
   it('shows what the analysis cost at the end of the log', async () => {
@@ -145,19 +159,21 @@ describe('Trace formatting', () => {
     expect(await screen.findByText(/cost not reported/i)).toBeInTheDocument()
   })
 
-  it('shows a retry in the log with the reason and the attempt', async () => {
+  it('shows a failed attempt as an error row', async () => {
     mockApi({
       '/api/claims/CLM-1/trace': [
         {
           seq: 1,
-          kind: 'retry',
-          content: { message: 'Attempt 1 of 3 failed (ValueError: the agent finished without a decision). Trying again.' },
+          kind: 'error',
+          content: { message: 'Attempt 1 of 2 failed (ValueError: the agent finished without a decision). It goes back in the queue.' },
           created_at: '',
         },
+        { seq: 2, kind: 'status', content: { status: 'waiting', note: 'recovered after a restart' }, created_at: '' },
       ],
     })
     render(<Trace claimId="CLM-1" status="decided" />)
-    expect(await screen.findByText(/Attempt 1 of 3 failed/)).toBeInTheDocument()
-    expect(screen.getByText('retry')).toBeInTheDocument()
+    const row = (await screen.findByText(/Attempt 1 of 2 failed/)).closest('li')
+    expect(row).toHaveClass('trace-error')
+    expect(screen.getByText(/recovered after a restart/)).toBeInTheDocument()
   })
 })

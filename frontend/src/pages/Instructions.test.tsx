@@ -4,8 +4,17 @@ import { mockApi, renderAt } from '../testUtils'
 import Instructions from './Instructions'
 
 describe('Instructions', () => {
+  it('shows the instructions for running the queue and for working a claim', async () => {
+    mockApi({ '/api/instructions': { run: 'Hand each claim to a claim agent.', claim: 'Read the claim first.' } })
+    renderAt(<Instructions />, '/instructions')
+    expect(await screen.findByRole('heading', { name: 'Running the queue' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Working a claim' })).toBeInTheDocument()
+    expect(screen.getByText('Hand each claim to a claim agent.')).toBeInTheDocument()
+    expect(screen.getByText('Read the claim first.')).toBeInTheDocument()
+  })
+
   it('renders the text from the API', async () => {
-    mockApi({ '/api/instructions': { text: 'You are the Farting Agent.\nApply only the policy wording.' } })
+    mockApi({ '/api/instructions': { run: 'Plan the queue.', claim: 'You are the Farting Agent.\nApply only the policy wording.' } })
     renderAt(<Instructions />, '/instructions')
     expect(await screen.findByText(/You are the Farting Agent/)).toBeInTheDocument()
     expect(screen.getByText(/Apply only the policy wording/)).toBeInTheDocument()
@@ -23,7 +32,7 @@ describe('Instructions', () => {
       '- `approve`: covered.',
       '- `refer`: unsure.',
     ].join('\n')
-    mockApi({ '/api/instructions': { text } })
+    mockApi({ '/api/instructions': { run: '', claim: text } })
     renderAt(<Instructions />, '/instructions')
 
     expect(await screen.findByRole('heading', { name: 'How to work' })).toBeInTheDocument()
@@ -36,7 +45,7 @@ describe('Instructions', () => {
 
   it('nests an indented bullet list under its numbered item', async () => {
     const text = ['1. Decide one of:', '   - `approve`: covered.', '   - `refer`: unsure.', '2. Write it down.'].join('\n')
-    mockApi({ '/api/instructions': { text } })
+    mockApi({ '/api/instructions': { run: '', claim: text } })
     renderAt(<Instructions />, '/instructions')
     await screen.findByText(/Decide one of/)
     expect(document.querySelectorAll('ol > li')).toHaveLength(2)

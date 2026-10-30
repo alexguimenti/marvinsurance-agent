@@ -1,4 +1,4 @@
-export type Status = 'waiting' | 'in_progress' | 'awaiting_approval' | 'decided'
+export type Status = 'waiting' | 'in_progress' | 'awaiting_approval' | 'decided' | 'needs_handler'
 
 export interface ClaimSummary {
   claim_id: string
@@ -9,6 +9,7 @@ export interface ClaimSummary {
   status: Status
   decision: 'approve' | 'decline' | 'refer' | null
   payout: number | null
+  attempts: number
 }
 
 export interface CalcStep {
@@ -23,6 +24,8 @@ export interface Decision {
   rationale: string
   citations: string[]
   model: string
+  manual_version?: string | null
+  wording_version?: string | null
 }
 
 export interface Payment {
@@ -52,6 +55,41 @@ export interface ClaimDetailData {
   decision: Decision | null
   payment: Payment | null
   usage: Usage | null
+  attempts: number
+  last_error: string | null
+  read: ReadSection[]
+}
+
+export interface ReadSection {
+  document: 'policy_wording' | 'claims_manual'
+  section: number
+  title: string
+}
+
+export interface Run {
+  run_id: number
+  status: 'running' | 'finished' | 'failed'
+  cap: number | null
+  model: string
+  summary: string | null
+  error: string | null
+  usage: Usage | null
+  started_at: string
+  finished_at: string | null
+}
+
+export interface TodoItem {
+  item_id: number
+  position: number
+  title: string
+  status: 'todo' | 'in_progress' | 'done' | 'left_for_handler'
+  claim_id: string | null
+  note: string | null
+}
+
+export interface LatestRun {
+  run: Run | null
+  todo: TodoItem[]
 }
 
 export interface Usage {
@@ -118,10 +156,13 @@ const post = (body?: unknown): RequestInit => ({
 export const listClaims = () => request<ClaimSummary[]>('/claims')
 export const getClaim = (id: string) => request<ClaimDetailData>(`/claims/${id}`)
 export const getTrace = (id: string) => request<TraceEvent[]>(`/claims/${id}/trace`)
-export const runClaim = (id: string) => request<{ claim_id: string }>(`/claims/${id}/run`, post())
-export const runQueue = (claimIds?: string[]) =>
-  request<{ queued: number }>('/queue/run', post(claimIds ? { claim_ids: claimIds } : undefined))
-export const getInstructions = () => request<{ text: string }>('/instructions')
+export const startRun = ({ claimIds, limit }: { claimIds?: string[]; limit?: number } = {}) =>
+  request<{ run_id: number }>(
+    '/runs',
+    post({ ...(claimIds ? { claim_ids: claimIds } : {}), ...(limit ? { limit } : {}) }),
+  )
+export const getLatestRun = () => request<LatestRun>('/runs/latest')
+export const getInstructions = () => request<{ run: string; claim: string }>('/instructions')
 export const listApprovals = () => request<Approval[]>('/approvals')
 export const listHandlers = () => request<Handler[]>('/handlers')
 export const approvePayment = (id: string, handlerId: string) =>

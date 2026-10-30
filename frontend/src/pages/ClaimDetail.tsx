@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getClaim, runClaim, type ClaimDetailData } from '../api'
+import { ApiError, getClaim, getLatestRun, startRun, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
-import { describeUsage, formatUsd, humanize, stampFor } from '../format'
+import { DOCUMENT_LABEL, describeUsage, formatUsd, humanize, stampFor } from '../format'
 import Trace from './Trace'
 
 const POLL_MS = 2000
@@ -11,11 +11,16 @@ export default function ClaimDetail() {
   const { id = '' } = useParams()
   const [data, setData] = useState<ClaimDetailData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [running, setRunning] = useState(false)
 
   const load = useCallback(async () => {
     try {
       setData(await getClaim(id))
       setError(null)
+      // a run in progress owns the queue: no second one until it ends
+      getLatestRun()
+        .then((r) => setRunning(r.run?.status === 'running'))
+        .catch(() => {})
     } catch {
       setError('Could not load this claim.')
     }
@@ -29,10 +34,10 @@ export default function ClaimDetail() {
 
   async function onRun() {
     try {
-      await runClaim(id)
+      await startRun({ claimIds: [id] })
       await load()
-    } catch {
-      setError('Could not start this claim.')
+    } catch (e) {
+      setError(e instanceof ApiError && e.status === 409 ? 'A run is already in progress.' : 'Could not start this claim.')
     }
   }
 
@@ -57,7 +62,7 @@ export default function ClaimDetail() {
         <div className="row">
           <StatusBadge status={data.status} />
           {data.status === 'waiting' && (
-            <button className="btn btn-primary" onClick={onRun}>
+            <button className="btn btn-primary" onClick={onRun} disabled={running}>
               Run this claim
             </button>
           )}
@@ -69,6 +74,13 @@ export default function ClaimDetail() {
         <div className="notice">
           Held for approval: the payout of {formatUsd(payment.amount)} is above the $1,000 limit and waits for a handler.{' '}
           <Link to="/approvals">Go to approvals</Link>
+        </div>
+      )}
+
+      {data.status === 'needs_handler' && (
+        <div className="notice notice-handler">
+          Left for a handler: the agent failed {data.attempts} times on this claim and did not decide it.
+          {data.last_error && <span className="mono small"> Last error: {data.last_error}</span>}
         </div>
       )}
 
@@ -151,6 +163,11 @@ export default function ClaimDetail() {
                   </table>
                 )}
                 <p className="muted small">Decided by {decision.model}</p>
+                {decision.manual_version && (
+                  <p className="muted small">
+                    Claims manual {decision.manual_version} · policy wording {decision.wording_version}
+                  </p>
+                )}
                 {data.usage && data.usage.cost_usd !== null && (
                   <p className="muted small">Analysis cost {describeUsage(data.usage)}</p>
                 )}
@@ -159,6 +176,19 @@ export default function ClaimDetail() {
               <p className="muted">No decision yet.</p>
             )}
           </div>
+
+          {data.read && data.read.length > 0 && (
+            <div className="card pad">
+              <h3>What the agent read</h3>
+              <ol className="read-list">
+                {data.read.map((r) => (
+                  <li key={`${r.document}-${r.section}`}>
+                    {DOCUMENT_LABEL[r.document] ?? r.document}, section {r.section}: {r.title}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           <div className="card pad">
             <h3>Policy and customer</h3>

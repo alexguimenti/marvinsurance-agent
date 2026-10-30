@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { getTrace, type TraceEvent } from '../api'
-import { describeUsage, formatUsd, humanize } from '../format'
+import { DOCUMENT_LABEL, describeUsage, formatUsd, humanize } from '../format'
 
 const POLL_MS = 1000
 
@@ -16,10 +16,15 @@ function parseJson(raw: string): unknown | undefined {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+const docName = (doc: string) => (DOCUMENT_LABEL[doc] ?? doc).toLowerCase()
+
+/** A section the agent read is traced as "[claims_manual section 7: Interpretation notes, 3120 characters]". */
+const SECTION_READ = /^\[(\w+) section (\d+): (.+), (\d+) characters\]$/
+
 function summarize(name: string, raw: string, data: any): string {
-  if (name === 'get_policy_wording') {
-    const chars = raw.match(/(\d+) characters/)?.[1]
-    return `policy wording read${chars ? ` (${Number(chars).toLocaleString('en-US')} characters)` : ''}`
+  const read = name === 'read_section' ? raw.match(SECTION_READ) : null
+  if (read) {
+    return `${docName(read[1])} §${read[2]} ${read[3]} (${Number(read[4]).toLocaleString('en-US')} characters)`
   }
   if (data === undefined) return raw.length > 100 ? `${raw.slice(0, 100)}…` : raw
   switch (name) {
@@ -31,6 +36,10 @@ function summarize(name: string, raw: string, data: any): string {
       return `${data.name} · ${plural(data.previous_claims?.length ?? 0, 'earlier claim')}`
     case 'get_plan':
       return `${data.plan?.plan} plan limits${data.add_ons?.length ? ` + ${plural(data.add_ons.length, 'add-on')}` : ''}`
+    case 'search_documents':
+      return `${plural(Array.isArray(data) ? data.length : 0, 'section')} found`
+    case 'list_sections':
+      return plural(Array.isArray(data) ? data.length : 0, 'section')
     case 'lookup_knowledge':
       return plural(Array.isArray(data) ? data.length : 0, 'fact')
     case 'calculate_payout':
@@ -45,7 +54,7 @@ function summarize(name: string, raw: string, data: any): string {
 function ToolResult({ name, raw }: { name: string; raw: string }) {
   const [open, setOpen] = useState(false)
   const data = parseJson(raw)
-  const detailed = data !== undefined && name !== 'get_policy_wording'
+  const detailed = data !== undefined
   return (
     <span className="body">
       <span>
@@ -64,6 +73,18 @@ function ToolResult({ name, raw }: { name: string; raw: string }) {
   )
 }
 
+function describeCall(name: string, args: Record<string, any>): ReactNode {
+  if (name === 'read_section') return `Read ${docName(args.document)}, section ${args.section}`
+  if (name === 'list_sections') return `List the sections of the ${docName(args.document)}`
+  if (name === 'search_documents') return `Search the wording and the manual for "${args.query}"`
+  return (
+    <>
+      {name}
+      {Object.keys(args).length > 0 && <span className="muted"> {JSON.stringify(args)}</span>}
+    </>
+  )
+}
+
 function Row({ event }: { event: TraceEvent }) {
   const c = event.content as Record<string, any>
   const label = event.kind.replace(/_/g, ' ')
@@ -73,18 +94,15 @@ function Row({ event }: { event: TraceEvent }) {
       body = <ToolResult name={c.name} raw={String(c.content)} />
       break
     case 'tool_call':
-      body = (
-        <span className="body">
-          {c.name}
-          {Object.keys(c.args ?? {}).length > 0 && <span className="muted"> {JSON.stringify(c.args)}</span>}
-        </span>
-      )
+      body = <span className="body">{describeCall(c.name, c.args ?? {})}</span>
       break
     case 'status':
       body = (
         <span className="body">
           {String(c.status).replace(/_/g, ' ')}
+          {c.attempt > 1 && <span className="muted"> · attempt {c.attempt}</span>}
           {c.model && <span className="muted"> · model {c.model}</span>}
+          {c.note && <span className="muted"> · {c.note}</span>}
         </span>
       )
       break

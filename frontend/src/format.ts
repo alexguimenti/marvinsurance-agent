@@ -7,6 +7,25 @@ export const STATUS_LABEL: Record<string, string> = {
   in_progress: 'In progress',
   awaiting_approval: 'Awaiting approval',
   decided: 'Decided',
+  needs_handler: 'Needs a handler',
+}
+
+export const TODO_LABEL: Record<string, string> = {
+  todo: 'To do',
+  in_progress: 'In progress',
+  done: 'Done',
+  left_for_handler: 'Left for a handler',
+}
+
+export const RUN_LABEL: Record<string, string> = {
+  running: 'Running',
+  finished: 'Finished',
+  failed: 'Failed',
+}
+
+export const DOCUMENT_LABEL: Record<string, string> = {
+  policy_wording: 'Policy wording',
+  claims_manual: 'Claims manual',
 }
 
 export const DECISION_LABEL: Record<string, string> = {
