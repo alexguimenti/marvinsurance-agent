@@ -9,7 +9,8 @@ from app.tools import build_tools
 
 EXPECTED = {
     "get_claim", "get_policy", "get_customer_history", "get_plan",
-    "get_policy_wording", "lookup_knowledge", "calculate_payout", "request_payment",
+    "list_sections", "read_section", "search_documents",
+    "lookup_knowledge", "calculate_payout", "request_payment",
 }
 
 
@@ -35,7 +36,7 @@ def tools_for(conn, ref, claim_id="CLM-1001"):
     return {t.name: t for t in build_tools(conn, ref, claim_id)}
 
 
-def test_tool_names_are_exactly_the_eight(conn, ref):
+def test_tools_offer_lookups_not_whole_wording(conn, ref):
     assert set(tools_for(conn, ref)) == EXPECTED
 
 
@@ -67,8 +68,33 @@ def test_get_plan_includes_policy_add_ons(conn, ref):
     assert isinstance(plan["add_ons"], list)
 
 
-def test_get_policy_wording_contains_section_10(conn, ref):
-    assert "10. How we work out your payment" in tools_for(conn, ref)["get_policy_wording"].invoke({})
+def test_read_section_returns_text(conn, ref):
+    assert "$35" in tools_for(conn, ref)["read_section"].invoke({"document": "claims_manual", "section": 10})
+
+
+@pytest.mark.parametrize("document,section", [
+    ("claims_manual", 99),
+    ("evals", 1),
+    ("../evals/decisions.json", 1),
+])
+def test_bad_lookups_return_error_strings(conn, ref, document, section):
+    out = tools_for(conn, ref)["read_section"].invoke({"document": document, "section": section})
+    assert out.startswith("Error:")
+    assert "policy_wording" in out and "claims_manual" in out
+
+
+def test_list_sections_of_unknown_document_is_an_error(conn, ref):
+    assert tools_for(conn, ref)["list_sections"].invoke({"document": "evals"}).startswith("Error:")
+
+
+def test_list_sections_gives_numbers_and_titles(conn, ref):
+    sections = json.loads(tools_for(conn, ref)["list_sections"].invoke({"document": "policy_wording"}))
+    assert sections[2] == {"section": 3, "title": "Trip Delay"}
+
+
+def test_search_documents_returns_json_hits(conn, ref):
+    hits = json.loads(tools_for(conn, ref)["search_documents"].invoke({"query": "meals without receipts"}))
+    assert hits[0]["section"] == 10
 
 
 def test_lookup_knowledge_by_topic(conn, ref):

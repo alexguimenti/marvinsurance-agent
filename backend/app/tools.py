@@ -4,6 +4,7 @@ from dataclasses import asdict
 
 from langchain_core.tools import BaseTool, tool
 
+from app.documents import DOCUMENTS, Documents
 from app.payments import request_payment as create_payment
 from app.payout import LineItem, calculate_payout as compute_payout
 from app.reference import Reference
@@ -11,6 +12,8 @@ from app.reference import Reference
 
 def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list[BaseTool]:
     """Read-only tools bound to a single claim. None of them takes a path or a claim id."""
+    docs = Documents(ref)
+    unknown = f"Documents: {', '.join(DOCUMENTS)}."
 
     def claim() -> dict:
         row = conn.execute("SELECT payload FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()
@@ -44,9 +47,25 @@ def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list
         return json.dumps({"plan": ref.plan(policy["plan"]), "add_ons": add_ons})
 
     @tool
-    def get_policy_wording() -> str:
-        """Get the full policy wording, the contract with the customer."""
-        return ref.wording
+    def list_sections(document: str) -> str:
+        """List the numbered sections of a document: 'policy_wording' (the contract) or 'claims_manual'."""
+        try:
+            return json.dumps([{"section": s.number, "title": s.title} for s in docs.sections(document)])
+        except KeyError as exc:
+            return f"Error: {exc.args[0]}. {unknown}"
+
+    @tool
+    def read_section(document: str, section: int) -> str:
+        """Read one numbered section of 'policy_wording' or 'claims_manual'."""
+        try:
+            return docs.section(document, section).text
+        except KeyError as exc:
+            return f"Error: {exc.args[0]}. {unknown}"
+
+    @tool
+    def search_documents(query: str) -> str:
+        """Find the sections of the policy wording and the claims manual that mention a word or phrase."""
+        return json.dumps(docs.search(query))
 
     @tool
     def lookup_knowledge(topic: str) -> str:
@@ -73,5 +92,5 @@ def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list
 
     return [
         get_claim, get_policy, get_customer_history, get_plan,
-        get_policy_wording, lookup_knowledge, calculate_payout, request_payment,
+        list_sections, read_section, search_documents, lookup_knowledge, calculate_payout, request_payment,
     ]

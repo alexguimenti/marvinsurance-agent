@@ -108,6 +108,7 @@ class LangChainAgent:
         decision: Decision | None = None
         total = Usage()
         self.usage = None
+        calls: dict[str, dict] = {}  # tool call id -> its arguments, to describe the result
         for chunk in agent.stream({"messages": [prompt]}, stream_mode="updates"):
             for update in chunk.values():
                 if not update:
@@ -116,7 +117,7 @@ class LangChainAgent:
                     if isinstance(message, AIMessage):
                         total.add(message)
                         self.usage = total.as_dict()  # kept up to date, so a failed run still reports its cost
-                    self._emit_message(message, on_event)
+                    self._emit_message(message, on_event, calls)
                 if "structured_response" in update:
                     decision = update["structured_response"]
         if decision is None:
@@ -125,18 +126,26 @@ class LangChainAgent:
         return decision
 
     @staticmethod
-    def _emit_message(message, on_event: Emit) -> None:
+    def _emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
         if isinstance(message, AIMessage):
             for call in message.tool_calls:
+                calls[call["id"]] = call["args"]
                 if call["name"] != "Decision":
                     on_event("tool_call", {"name": call["name"], "args": call["args"]})
             if message.content and not message.tool_calls:
                 on_event("message", {"text": str(message.content)})
         elif isinstance(message, ToolMessage) and message.name != "Decision":
             content = str(message.content)
-            if message.name == "get_policy_wording":
-                content = f"[policy wording, {len(content)} characters]"  # the trace is not a copy of the contract
+            if message.name == "read_section" and not content.startswith("Error:"):
+                content = _section_summary(calls.get(message.tool_call_id, {}), content)  # the trace records what was read, not a copy of it
             on_event("tool_result", {"name": message.name, "content": content})
+
+
+def _section_summary(args: dict, content: str) -> str:
+    """'[claims_manual section 7: Interpretation notes, 3120 characters]' for a section the agent read."""
+    heading = content.splitlines()[0].lstrip("# ").strip()
+    title = heading.partition(". ")[2] or heading
+    return f"[{args.get('document')} section {args.get('section')}: {title}, {len(content)} characters]"
 
 
 # Over-limit approvals used by the scripted provider, so the approval flow can be exercised.

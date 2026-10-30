@@ -113,17 +113,19 @@ def test_openrouter_provider_uses_configured_model(conn, ref):
     assert agent.model_id == "some/model"
 
 
-def test_policy_wording_is_not_dumped_into_the_trace(conn, ref):
+def test_section_text_is_not_copied_to_the_trace(conn, ref):
+    import re
+
     model = script(
-        tool_call("get_policy_wording", {}, "c1"),
+        tool_call("read_section", {"document": "claims_manual", "section": 7}, "c1"),
         tool_call("Decision", decision_args(), "c2"),
     )
     results = []
     LangChainAgent(model, conn, ref, "test/model").decide(
         "CLM-1001", lambda kind, content: results.append(content) if kind == "tool_result" else None
     )
-    assert results and results[0]["name"] == "get_policy_wording"
-    assert len(results[0]["content"]) < 200
+    assert results and results[0]["name"] == "read_section"
+    assert re.fullmatch(r"\[claims_manual section 7: Interpretation notes, \d+ characters\]", results[0]["content"])
 
 
 def test_long_json_tool_results_are_kept_whole_for_the_trace(conn, ref):
