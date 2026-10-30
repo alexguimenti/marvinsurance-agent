@@ -4,26 +4,26 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.agent import build_agent, load_instructions
+from app import runs
+from app.agent import load_instructions
 from app.config import Settings
 from app.db import connect, init_schema
+from app.documents import Documents
+from app.orchestrator import run_harness
 from app.payments import approve_payment
 from app.reference import Reference
-from app.runner import work_claim
 from app.seed import seed_claims
-
-
-RETRY_DELAY_S = 1.0  # pause between attempts when the agent fails
 
 
 class ApproveBody(BaseModel):
     handler_id: str
 
 
-class RunQueueBody(BaseModel):
+class RunBody(BaseModel):
     claim_ids: list[str] | None = None
+    limit: int | None = Field(default=None, ge=1)
 
 
 def _decision(row: sqlite3.Row | None) -> dict | None:
@@ -36,12 +36,23 @@ def _decision(row: sqlite3.Row | None) -> dict | None:
         "rationale": row["rationale"],
         "citations": json.loads(row["citations"]),
         "model": row["model"],
+        "manual_version": row["manual_version"],
+        "wording_version": row["wording_version"],
         "created_at": row["created_at"],
     }
 
 
+def _run(row: sqlite3.Row | None) -> dict | None:
+    if row is None:
+        return None
+    out = {k: row[k] for k in ("run_id", "status", "cap", "model", "summary", "error", "started_at", "finished_at")}
+    out["usage"] = json.loads(row["usage"]) if row["usage"] else None
+    return out
+
+
 def create_app(settings: Settings) -> FastAPI:
     ref = Reference(settings.data_dir)
+    docs = Documents(ref)
 
     def db() -> sqlite3.Connection:
         return connect(settings.db_path)
@@ -51,12 +62,7 @@ def create_app(settings: Settings) -> FastAPI:
         conn = db()
         init_schema(conn)
         seed_claims(conn, ref)
-        # a crash mid-run leaves claims in_progress for good; start them again, trace and all
-        stuck = [r[0] for r in conn.execute("SELECT claim_id FROM claims WHERE status='in_progress'")]
-        for claim_id in stuck:
-            conn.execute("DELETE FROM trace_events WHERE claim_id = ?", (claim_id,))
-            conn.execute("UPDATE claims SET status='waiting' WHERE claim_id = ?", (claim_id,))
-        conn.commit()
+        runs.recover_after_restart(conn)  # a server stopped mid-run leaves the run and its claims hanging
         conn.close()
         yield
 
@@ -68,30 +74,41 @@ def create_app(settings: Settings) -> FastAPI:
             raise HTTPException(404, f"unknown claim {claim_id}")
         return row
 
-    def run_one(claim_id: str) -> None:
+    def work_run(run_id: int) -> None:
         conn = db()
         try:
-            work_claim(conn, ref, build_agent(settings, conn, ref), claim_id, None, settings.agent_max_attempts)
+            run_harness(conn, ref, settings, run_id)
         finally:
             conn.close()
 
-    def run_all(claim_ids: list[str] | None = None) -> None:
-        conn = db()
-        try:
-            # temporary until the run routes replace this (PLAN_HARNESS task 7)
-            agent = build_agent(settings, conn, ref)
-            waiting = [r[0] for r in conn.execute("SELECT claim_id FROM claims WHERE status='waiting' ORDER BY claim_id")]
-            for claim_id in waiting if claim_ids is None else [i for i in waiting if i in set(claim_ids)]:
-                work_claim(conn, ref, agent, claim_id, None, settings.agent_max_attempts)
-        finally:
-            conn.close()
+    def read_sections(conn: sqlite3.Connection, claim_id: str) -> list[dict]:
+        """The sections the agent read for a claim, in order, each once."""
+        rows = conn.execute(
+            "SELECT content FROM trace_events WHERE claim_id = ? AND kind = 'tool_call' ORDER BY seq", (claim_id,)
+        )
+        read, seen = [], set()
+        for r in rows:
+            call = json.loads(r["content"])
+            if call.get("name") != "read_section":
+                continue
+            args = call.get("args") or {}
+            key = (args.get("document"), args.get("section"))
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                title = docs.section(*key).title
+            except (KeyError, TypeError):
+                continue  # a lookup that failed read nothing
+            read.append({"document": key[0], "section": key[1], "title": title})
+        return read
 
     @app.get("/claims")
     def list_claims():
         conn = db()
         try:
             rows = conn.execute(
-                "SELECT c.claim_id, c.status, c.payload, d.decision, d.payout "
+                "SELECT c.claim_id, c.status, c.attempts, c.payload, d.decision, d.payout "
                 "FROM claims c LEFT JOIN decisions d USING (claim_id) ORDER BY c.claim_id"
             ).fetchall()
         finally:
@@ -106,6 +123,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "customer_name": ref.customer(claim["customer_id"])["name"],
                 "amount_claimed": claim["amount_claimed"],
                 "status": r["status"],
+                "attempts": r["attempts"],
                 "decision": r["decision"],
                 "payout": r["payout"],
             })
@@ -118,21 +136,23 @@ def create_app(settings: Settings) -> FastAPI:
             row = claim_row(conn, claim_id)
             decision = conn.execute("SELECT * FROM decisions WHERE claim_id = ?", (claim_id,)).fetchone()
             payment = conn.execute("SELECT * FROM payments WHERE claim_id = ?", (claim_id,)).fetchone()
-            usage = conn.execute(
-                "SELECT content FROM trace_events WHERE claim_id = ? AND kind = 'usage' ORDER BY seq DESC LIMIT 1",
-                (claim_id,),
-            ).fetchone()
+            usage = runs.sum_usage([json.loads(u["content"]) for u in conn.execute(
+                "SELECT content FROM trace_events WHERE claim_id = ? AND kind = 'usage'", (claim_id,))])
+            read = read_sections(conn, claim_id)
         finally:
             conn.close()
         claim = json.loads(row["payload"])
         return {
             "claim": claim,
             "status": row["status"],
+            "attempts": row["attempts"],
+            "last_error": row["last_error"],
             "policy": ref.policy(claim["policy_id"]),
             "customer": ref.customer(claim["customer_id"]),
             "decision": _decision(decision),
             "payment": dict(payment) if payment else None,
-            "usage": json.loads(usage["content"]) if usage else None,
+            "usage": usage,
+            "read": read,
         }
 
     @app.get("/claims/{claim_id}/trace")
@@ -149,36 +169,48 @@ def create_app(settings: Settings) -> FastAPI:
         return [{"seq": r["seq"], "kind": r["kind"], "content": json.loads(r["content"]),
                  "created_at": r["created_at"]} for r in rows]
 
-    @app.post("/claims/{claim_id}/run", status_code=202)
-    def run_claim_route(claim_id: str, background: BackgroundTasks):
+    @app.post("/runs", status_code=202)
+    def start_run(background: BackgroundTasks, body: RunBody | None = None):
+        body = body or RunBody()
+        model = "scripted" if settings.agent_provider == "scripted" else settings.agent_model
         conn = db()
         try:
-            row = claim_row(conn, claim_id)
+            for claim_id in body.claim_ids or []:
+                claim_row(conn, claim_id)
+            try:
+                run_id = runs.start_run(conn, model, body.limit, body.claim_ids)
+            except runs.RunActive as exc:
+                raise HTTPException(409, str(exc))
         finally:
             conn.close()
-        if row["status"] != "waiting":
-            raise HTTPException(409, f"claim is {row['status']}, not waiting")
-        background.add_task(run_one, claim_id)
-        return {"claim_id": claim_id, "accepted": True}
+        background.add_task(work_run, run_id)
+        return {"run_id": run_id}
 
-    @app.post("/queue/run", status_code=202)
-    def run_queue_route(background: BackgroundTasks, body: RunQueueBody | None = None):
-        claim_ids = body.claim_ids if body else None
+    def run_view(conn: sqlite3.Connection, row: sqlite3.Row | None) -> dict:
+        return {"run": _run(row), "todo": runs.todo_list(conn, row["run_id"]) if row else []}
+
+    @app.get("/runs/latest")
+    def latest_run():
         conn = db()
         try:
-            if claim_ids is not None:
-                for claim_id in claim_ids:
-                    claim_row(conn, claim_id)
-            waiting = [r["claim_id"] for r in conn.execute("SELECT claim_id FROM claims WHERE status='waiting'")]
+            return run_view(conn, conn.execute("SELECT * FROM runs ORDER BY run_id DESC LIMIT 1").fetchone())
         finally:
             conn.close()
-        queued = waiting if claim_ids is None else [i for i in waiting if i in set(claim_ids)]
-        background.add_task(run_all, claim_ids)
-        return {"queued": len(queued)}
+
+    @app.get("/runs/{run_id}")
+    def get_run(run_id: int):
+        conn = db()
+        try:
+            row = runs.get_run(conn, run_id)
+            if row is None:
+                raise HTTPException(404, f"unknown run {run_id}")
+            return {**run_view(conn, row), "events": runs.run_events(conn, run_id)}
+        finally:
+            conn.close()
 
     @app.get("/instructions")
     def instructions():
-        return {"text": load_instructions("claim")}
+        return {"run": load_instructions("run"), "claim": load_instructions("claim")}
 
     @app.get("/approvals")
     def approvals():
