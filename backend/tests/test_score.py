@@ -44,3 +44,16 @@ def test_missing_decision_counts_as_wrong():
 def test_tiny_filter_keeps_flagged_claims():
     exp = [expected("A", "approve", 1.0, tiny=True), expected("B", "approve", 1.0)]
     assert [e["claim_id"] for e in select_tiny(exp)] == ["A"]
+
+
+def test_run_agent_decides_each_claim_through_work_claim(data_dir):
+    import json
+
+    from app.config import Settings
+    from score import _run_agent
+
+    claims = json.loads((ROOT / "data" / "claims.json").read_text(encoding="utf-8"))
+    picked = [c for c in claims if c["claim_id"] in ("CLM-1001", "CLM-1017")]  # CLM-1017 fails once when scripted
+    settings = Settings(_env_file=None, agent_provider="scripted", data_dir=data_dir)
+    decisions = _run_agent(picked, settings)
+    assert sorted(d["claim_id"] for d in decisions) == ["CLM-1001", "CLM-1017"]

@@ -14,3 +14,11 @@ def test_no_app_code_references_evals():
                 if "evals" in text or "security/" in text:
                     offenders.append(str(path.relative_to(ROOT)))
     assert offenders == []
+
+
+def test_instructions_quote_no_claim():
+    import re
+
+    for name in ("instructions_run.md", "instructions_claim.md"):
+        text = (ROOT / "backend" / "app" / name).read_text(encoding="utf-8")
+        assert not re.search(r"CLM-\d{4}", text), name

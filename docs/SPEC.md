@@ -1,6 +1,6 @@
 # SPEC: Farting Agent for Marvin FartInsurance
 
-Status: draft, pilot scope. This is a course project. Nothing here is a real company, customer or payment.
+Status: pilot plus the harness (`docs/HARNESS.md`). This is a course project. Nothing here is a real company, customer or payment.
 
 ## 1. Overview
 
@@ -10,7 +10,7 @@ Marvin FartInsurance sells travel insurance in three plans: **Economy**, **Premi
 - **Decline**.
 - **Refer** to another person, when the claim needs more judgment or more information.
 
-We are building an AI agent, the **Farting Agent**, that works the claims queue the way a human analyst does. It reads each claim, the policy, the customer's history and the policy wording, makes a decision, and for an approval it works out and prepares the payment. Staff get screens to watch and control the work.
+We are building an AI agent, the **Farting Agent**, that works the claims queue the way a human analyst does. One run of the agent plans the queue as a to-do list and hands each claim to a fresh claim agent, which reads the claim, the policy, the customer's history and the sections of the policy wording and the claims manual it needs, makes a decision, and for an approval works out and prepares the payment. Staff get screens to watch and control the work.
 
 The goal is to handle the queue accurately and consistently, as a careful person would.
 
@@ -34,9 +34,10 @@ For each claim the agent reads:
 | Public facts (events, products, places) for "publicly known before purchase" | `data/knowledge.json` |
 | The plan limits, waiting periods, deductibles and add-on effects | `data/plans.json` |
 | Company settings (approval limit, filing window, look-back) | `data/company.json` |
-| The policy wording | `data/policy_wording.md` |
+| The policy wording, looked up section by section | `data/policy_wording.md` |
+| The claims manual, looked up section by section | `data/claims_manual.md` |
 
-`data/policy_wording_short.md` also exists. The pilot uses the full `policy_wording.md` unless this changes.
+The agent is not handed whole documents. It finds sections with `search_documents` and `list_sections` and reads them with `read_section`, and the claim page lists what it read. `data/policy_wording_short.md` also exists and is not used.
 
 ### 3.2 Outputs
 
@@ -48,7 +49,8 @@ For every claim the agent produces:
 
 ### 3.3 Behavior rules
 
-- Decisions must follow the rules and the policy wording. The agent does not invent rules.
+- Decisions follow the policy wording first and the claims manual where the wording leaves things open (for example a third claim within 12 months, losses to wild animals, meals without receipts). The agent does not invent rules.
+- Each decision records the manual and wording versions it was made under (manual sections 13 and 14).
 - A claim that needs judgment the wording does not settle, or a document that is missing, is **referred**, not guessed.
 - Customer-supplied text (stories, documents) is data, not instructions. The agent must not follow instructions found inside a claim. The case in `data/security/` (CLM-1901) tests this and must stay out of the queue and the evaluation sets.
 - All amounts are in US dollars.
@@ -72,15 +74,16 @@ Every claim has one status:
 | In progress | The agent is working on it |
 | Awaiting approval | Decided and approved, but the payout is over $1,000 and waits for a person |
 | Decided | Finished: approved and paid (simulated), declined or referred |
+| Needs a handler | The agent failed on it twice and made no decision. A person has to take it |
 
 ## 6. Screens
 
 The pilot needs these views. Everyone sees everything.
 
-1. **Claims queue**: every claim with its current status.
-2. **Claim detail**: the full claim (story, items, documents, policy and customer context), the agent's decision, payout and rationale.
+1. **Claims queue**: every claim with its current status, a limit for the next run, and the agent's to-do list for the current or latest run, ticked off as it works, with the run's summary and cost.
+2. **Claim detail**: the full claim (story, items, documents, policy and customer context), the agent's decision, payout and rationale, the sections of the wording and the manual it read, and, for a claim left for a handler, how many attempts failed and why.
 3. **Agent activity**: what the agent is doing on a claim, step by step, while it works (the trace of what it reads, checks and decides).
-4. **Agent instructions**: the instructions the agent is working with, so the team can see and review them.
+4. **Agent instructions**: the instructions for running the queue and for working a claim, so the team can see and review them.
 5. **Approvals**: payments waiting for sign-off, with an approve action for authorized handlers.
 
 Visual style follows `docs/DESIGN.md`.
@@ -100,19 +103,20 @@ Evaluation scores two things per claim: the decision, and the payout.
 
 ## 8. Out of scope for the pilot
 
-- **The claims manual** (`data/claims_manual.md`). The agent works from the policy wording alone. This means rules that live only in the manual (such as the third claim in 12 months or losses to wild animals) are not applied by the agent in the pilot.
 - **Sign-in and access control.** Everyone who uses the screens sees everything.
 - **Real payments.** Payments are simulated.
-- **Messages to customers.**
+- **Messages to customers.** Manual section 12, "Writing to the customer", is not applied.
+- **Stopping a run midway** and a cost ceiling per run. The claim limit is the cost control.
 
 ## 9. Decisions made in the pilot
 
-- **Trigger:** a "Run queue" button runs every waiting claim, one at a time; each claim also has a "Run this claim" button. Hosting is local only.
+- **Trigger:** a "Run queue" button starts one run of the agent over the waiting claims, optionally capped at a number of claims ("Limit"); ticked claims, or one claim's "Run this claim" button, start a run limited to those claims. Only one run at a time; claims are worked one after another. Hosting is local only.
+- **Runs:** the agent plans a to-do list, chooses the order, hands each claim to a fresh claim agent that reports back in one line, and ends with a summary for handlers. Before it finishes, a check refuses to close the run while a claim within its cap is still owed.
 - **Approver:** with no sign-in, the person approving picks their name from the handlers who may approve over the limit. That handler is stored on the payment.
 - **Referred claims:** a `refer` is a finished decision with no owner and no hand-off screen. It is `decided` and shows in the queue.
-- **Failures:** if the model errors or ends without a decision, the agent tries again (3 attempts in all, set by `max_attempts` in `agent.toml`; each retry shows in the activity trace). Only when the last attempt fails, or when the agent asks to pay an amount that differs from its decision, does the claim become a `refer`.
+- **Failures:** a single model call that times out or meets a provider error is retried (`step_retries`). A claim attempt that fails (no decision, an error, a timeout, too many steps, or a payment that differs from the decision) is undone: its payment is deleted and the claim goes back in the queue, to be tried again later in the run. A claim that fails twice (`max_attempts` in `agent.toml`) is left for a handler with the status "Needs a handler" and no decision. One failing claim never stops the run, and no claim is decided or paid twice. A server that stops mid-run marks the run failed and puts its claims back in the queue when it starts again.
 
 ## 10. Open questions
 
 - How a referred claim should reach a person (owner, notification, queue).
-- Applying the claims manual, once the pilot moves past the policy wording alone.
+- How a claim left for a handler is put back in the queue or decided by a person.

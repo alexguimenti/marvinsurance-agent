@@ -14,7 +14,7 @@ The data behind Marvin FartInsurance, a fictional insurer. Everything here is in
 ## The documents
 
 - `policy_wording.md`: the contract with the customer. Short enough to fit in a prompt.
-- `claims_manual.md`: the internal handling manual. Longer, and it holds rules the wording does not, such as the third claim in 12 months, losses to wild animals and meals without receipts.
+- `claims_manual.md`: the internal handling manual. Longer, and it holds rules the wording does not, such as the third claim in 12 months, losses to wild animals and meals without receipts. The agent looks up its sections, and the wording's, as it needs them.
 
 ## The evaluation set
 

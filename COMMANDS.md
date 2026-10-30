@@ -29,12 +29,12 @@ Open http://localhost:5173.
 | a `.py` file in `backend/app/` | restarts by itself |
 | `agent.toml` (model, temperature, reasoning) | restarts by itself |
 | `.env` (the API key) | restarts by itself |
-| `backend/app/instructions.md` (the agent's prompt) | **does not**: restart with Ctrl+C and run the command again |
+| `backend/app/instructions_run.md` or `instructions_claim.md` (the agent's prompts) | **does not**: restart with Ctrl+C and run the command again |
 | files in `frontend/src/` | the page updates by itself, nothing to restart |
 
 The `--reload-include` options need the `watchfiles` package, which `pip install -e ".[dev]"` installs. Without it uvicorn ignores them and only reloads `.py` files. The simple form, `python -m uvicorn app.main:app --port 8000 --reload`, reloads `.py` files only and is enough if you never touch `agent.toml`.
 
-Careful: if the server restarts while the agent is working on a claim, that claim is interrupted. On the next start it goes back to "Waiting" and you run it again.
+Careful: if the server restarts during a run, the run stops. On the next start the run is marked failed and the claim it was working on goes back to "Waiting"; claims already decided stay decided. Start a new run for the rest.
 
 ## Run without calling a model (free)
 
@@ -48,7 +48,7 @@ $env:AGENT_PROVIDER = "scripted"
 
 ## Clear the analyses and test again
 
-Puts all 25 claims back in the queue and deletes the decisions, activity logs and payments. Safe while the backend is running; reload the page afterwards.
+Puts all 25 claims back in the queue and deletes the decisions, activity logs, payments, runs and to-do lists. Safe while the backend is running; reload the page afterwards. Do this before any live run with the real model, and set **Limit** to 5 on the queue page so the trial costs little.
 
 From the `backend` folder (where the backend terminal already is):
 
@@ -65,6 +65,7 @@ From the repo root:
 ## Tests
 
 ```powershell
+npm run check                                           # all of them, from the repo root, stopping at the first failure
 cd backend;  .\.venv\Scripts\python -m pytest          # backend
 cd frontend; npm test -- --run                          # frontend
 cd e2e;      npm test                                   # end to end (own ports 8100 and 5273, own database)
