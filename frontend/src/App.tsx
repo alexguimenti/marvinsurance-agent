@@ -1,29 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { listApprovals } from './api'
 import Approvals from './pages/Approvals'
 import ClaimDetail from './pages/ClaimDetail'
 import Instructions from './pages/Instructions'
 import Queue from './pages/Queue'
+import { usePolling } from './usePolling'
 
 const POLL_MS = 3000
 
 /** How many payouts are held for a handler, so the nav can flag work waiting for a person. */
 function useHeldCount() {
   const [count, setCount] = useState(0)
-  useEffect(() => {
-    let alive = true
-    const load = () =>
+  const load = useCallback(
+    () =>
       listApprovals()
-        .then((a) => alive && setCount(a.length))
-        .catch(() => {})
-    void load()
-    const timer = setInterval(load, POLL_MS)
-    return () => {
-      alive = false
-      clearInterval(timer)
-    }
-  }, [])
+        .then((a) => setCount(a.length))
+        .catch(() => {}),
+    [],
+  )
+  usePolling(load, POLL_MS)
   return count
 }
 

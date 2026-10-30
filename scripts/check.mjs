@@ -9,6 +9,7 @@ const steps = [
   ['Backend unit tests', python, ['-m', 'pytest', '-q'], 'backend'],
   ['Front-end unit tests', 'npx', ['vitest', 'run'], 'frontend'],
   ['Front-end type check', 'npx', ['tsc', '-b'], 'frontend'],
+  ['Front-end lint', 'npx', ['oxlint', '--deny-warnings', 'src'], 'frontend'],
   ['End-to-end tests', 'npm', ['test'], 'e2e'],
 ]
 

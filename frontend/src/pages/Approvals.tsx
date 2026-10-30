@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, approvePayment, listApprovals, listHandlers, type Approval, type Handler } from '../api'
 import { formatUsd, humanize } from '../format'
+import { usePolling } from '../usePolling'
 
 export default function Approvals() {
   const [approvals, setApprovals] = useState<Approval[] | null>(null)
@@ -17,15 +18,16 @@ export default function Approvals() {
     }
   }, [])
 
+  usePolling(load, null)
+
   useEffect(() => {
-    void load()
     listHandlers()
       .then((h) => {
         setHandlers(h)
         setHandlerId((current) => current || h[0]?.handler_id || '')
       })
       .catch(() => setError('Could not load the handlers.'))
-  }, [load])
+  }, [])
 
   async function onApprove(paymentId: string) {
     setError(null)

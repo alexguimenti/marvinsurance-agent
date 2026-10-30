@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { getTrace, type TraceEvent } from '../api'
 import { DOCUMENT_LABEL, describeUsage, formatUsd, humanize } from '../format'
+import { usePolling } from '../usePolling'
 
 const POLL_MS = 1000
 
@@ -135,20 +136,16 @@ export default function Trace({ claimId, status }: { claimId: string; status: st
   const [events, setEvents] = useState<TraceEvent[] | null>(null)
   const [expanded, setExpanded] = useState(true)
 
-  useEffect(() => {
-    let alive = true
-    const load = () =>
+  const load = useCallback(
+    () =>
       getTrace(claimId)
-        .then((e) => alive && setEvents(e))
-        .catch(() => {})
-    void load()
-    // poll only while the agent is working on the claim
-    const timer = status === 'in_progress' ? setInterval(load, POLL_MS) : undefined
-    return () => {
-      alive = false
-      if (timer) clearInterval(timer)
-    }
-  }, [claimId, status])
+        .then(setEvents)
+        .catch(() => {}),
+    [claimId],
+  )
+  // poll only while the agent is working on the claim; load once more when the status changes
+  const interval = status === 'in_progress' ? POLL_MS : null
+  usePolling(load, interval)
 
   return (
     <div className="card pad">

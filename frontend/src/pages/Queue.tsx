@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, getLatestRun, listClaims, startRun, type ClaimSummary, type LatestRun } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import TodoPanel from '../components/TodoPanel'
 import { STATUS_LABEL, formatUsd, humanize, stampFor } from '../format'
+import { usePolling } from '../usePolling'
 
 const POLL_MS = 2000
 const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'decided', 'needs_handler'] as const
@@ -33,11 +34,7 @@ export default function Queue() {
     }
   }, [])
 
-  useEffect(() => {
-    void load()
-    const timer = setInterval(() => void load(), POLL_MS)
-    return () => clearInterval(timer)
-  }, [load])
+  usePolling(load, POLL_MS)
 
   async function onRunQueue() {
     setStarting(true)

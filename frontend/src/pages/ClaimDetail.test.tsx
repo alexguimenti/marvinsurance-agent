@@ -39,10 +39,6 @@ const detail = (status: string, payment: unknown = null) => ({
 })
 
 const NO_RUN = { run: null, todo: [] }
-const RUNNING = {
-  run: { run_id: 1, status: 'running', cap: null, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null },
-  todo: [],
-}
 
 function routes(status: string, payment: unknown = null) {
   return { '/api/claims/CLM-1011': detail(status, payment), '/api/claims/CLM-1011/trace': [], '/api/runs/latest': NO_RUN }
@@ -82,12 +78,23 @@ describe('ClaimDetail', () => {
     await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ claim_ids: ['CLM-1011'] }))
   })
 
-  it('cannot run a claim while a run is going', async () => {
+  it('says so when a run is already going', async () => {
     const waiting = { ...detail('waiting'), decision: null }
-    mockApi({ '/api/claims/CLM-1011': waiting, '/api/claims/CLM-1011/trace': [], '/api/runs/latest': RUNNING })
+    mockApi({
+      '/api/claims/CLM-1011': waiting,
+      '/api/claims/CLM-1011/trace': [],
+      'POST /api/runs': { status: 409, body: { detail: 'a run is already in progress' } },
+    })
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
-    const button = await screen.findByRole('button', { name: /run this claim/i })
-    await waitFor(() => expect(button).toBeDisabled())
+    await userEvent.click(await screen.findByRole('button', { name: /run this claim/i }))
+    expect(await screen.findByText('A run is already in progress.')).toBeInTheDocument()
+  })
+
+  it('does not ask for the latest run', async () => {
+    const { calls } = mockApi(routes('decided', { payment_id: 'PAY-1', status: 'paid', amount: 1150 }))
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    await screen.findByText('Covered under section 5.')
+    expect(calls.some((c) => c.url === '/api/runs/latest')).toBe(false)
   })
 
   it('lists what the agent read, and the versions it decided under', async () => {

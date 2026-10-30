@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiError, getClaim, getLatestRun, startRun, type ClaimDetailData } from '../api'
+import { ApiError, getClaim, startRun, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import { DOCUMENT_LABEL, describeUsage, formatUsd, humanize, stampFor } from '../format'
+import { usePolling } from '../usePolling'
 import Trace from './Trace'
 
 const POLL_MS = 2000
@@ -11,26 +12,17 @@ export default function ClaimDetail() {
   const { id = '' } = useParams()
   const [data, setData] = useState<ClaimDetailData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [running, setRunning] = useState(false)
 
   const load = useCallback(async () => {
     try {
       setData(await getClaim(id))
       setError(null)
-      // a run in progress owns the queue: no second one until it ends
-      getLatestRun()
-        .then((r) => setRunning(r.run?.status === 'running'))
-        .catch(() => {})
     } catch {
       setError('Could not load this claim.')
     }
   }, [id])
 
-  useEffect(() => {
-    void load()
-    const timer = setInterval(() => void load(), POLL_MS)
-    return () => clearInterval(timer)
-  }, [load])
+  usePolling(load, POLL_MS)
 
   async function onRun() {
     try {
@@ -62,7 +54,7 @@ export default function ClaimDetail() {
         <div className="row">
           <StatusBadge status={data.status} />
           {data.status === 'waiting' && (
-            <button className="btn btn-primary" onClick={onRun} disabled={running}>
+            <button className="btn btn-primary" onClick={onRun}>
               Run this claim
             </button>
           )}
