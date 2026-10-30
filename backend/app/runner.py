@@ -5,6 +5,7 @@ from app.agent import Agent, Decision, rationale_warnings
 from app.documents import Documents
 from app.payments import request_payment
 from app.reference import Reference
+from app.runs import todo_for_claim
 
 
 class _Trace:
@@ -42,7 +43,7 @@ def _check_payment(conn: sqlite3.Connection, claim_id: str, decision: Decision) 
         raise ValueError(f"the payment of {existing['amount']} does not match the payout of {decision.payout}")
 
 
-def _fail(conn, trace, claim_id, attempt, max_attempts, exc) -> str:
+def _fail(conn, trace, claim_id, run_id, attempt, max_attempts, exc) -> str:
     """Undo a failed attempt and put the claim back in the queue, or leave it for a handler."""
     message = f"{type(exc).__name__}: {exc}"
     conn.execute("DELETE FROM payments WHERE claim_id = ?", (claim_id,))
@@ -54,6 +55,8 @@ def _fail(conn, trace, claim_id, attempt, max_attempts, exc) -> str:
     conn.commit()
     then = "It goes back in the queue." if status == "waiting" else "It is left for a handler."
     trace("error", {"message": f"Attempt {attempt} of {max_attempts} failed ({message}). {then}"})
+    if run_id is not None:
+        todo_for_claim(conn, run_id, claim_id, "todo" if status == "waiting" else "left_for_handler", message)
     if status == "waiting":
         return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). It is back in the queue: try it again after the others."
     return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). Left for a handler."
@@ -86,13 +89,15 @@ def work_claim(
     attempt = row["attempts"] + 1  # claims.attempts counts the failed ones
     trace = _Trace(conn, claim_id, run_id)
     trace("status", {"status": "in_progress", "model": agent.model_id, "attempt": attempt})
+    if run_id is not None:
+        todo_for_claim(conn, run_id, claim_id, "in_progress")
     try:
         # the runner records the final decision itself, after the payment check
         decision = agent.decide(claim_id, lambda kind, content: None if kind == "decision" else trace(kind, content))
         _check_payment(conn, claim_id, decision)
     except Exception as exc:  # any model, tool or payment failure fails this attempt only
         _record_usage(trace, agent)
-        return _fail(conn, trace, claim_id, attempt, max_attempts, exc)
+        return _fail(conn, trace, claim_id, run_id, attempt, max_attempts, exc)
 
     for warning in rationale_warnings(decision.rationale):
         trace("warning", {"message": warning})
@@ -123,4 +128,6 @@ def work_claim(
     conn.commit()
     trace("decision", decision.model_dump())
     _record_usage(trace, agent)
+    if run_id is not None:
+        todo_for_claim(conn, run_id, claim_id, "done", outcome)
     return f"{claim_id}: {outcome}"
