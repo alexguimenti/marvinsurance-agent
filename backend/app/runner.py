@@ -2,7 +2,7 @@ import json
 import sqlite3
 
 from app.agent import Agent, Decision, rationale_warnings
-from app.documents import Documents
+from app.documents import documents_for
 from app.payments import request_payment
 from app.reference import Reference
 from app.runs import todo_for_claim
@@ -108,7 +108,7 @@ def work_claim(
         status = "awaiting_approval" if held else "decided"
         outcome = f"approve ${decision.payout:,.2f}, {'held for sign-off' if held else 'paid'}"
 
-    docs = Documents(ref)
+    docs = documents_for(ref)
     conn.execute(
         "INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model, "
         "manual_version, wording_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

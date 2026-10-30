@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
 from app.reference import Reference
 
@@ -66,3 +67,9 @@ class Documents:
     def version(self, document: str) -> str:
         match = _VERSION.search(self._text(document))
         return match[1] if match else "unknown"
+
+
+@lru_cache(maxsize=None)
+def documents_for(ref: Reference) -> Documents:
+    """One section index per Reference, so the documents are cut into sections once."""
+    return Documents(ref)

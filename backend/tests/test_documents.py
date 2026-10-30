@@ -50,3 +50,11 @@ def test_search_with_no_match_returns_empty_list(docs):
 def test_versions(docs):
     assert docs.version("policy_wording") == "2026.1"
     assert docs.version("claims_manual") == "2026.2"
+
+
+def test_documents_for_shares_one_index_per_reference(data_dir):
+    from app.documents import documents_for
+
+    ref = Reference(data_dir)
+    assert documents_for(ref) is documents_for(ref)
+    assert documents_for(ref) is not documents_for(Reference(data_dir))

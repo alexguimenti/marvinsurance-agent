@@ -4,7 +4,7 @@ from dataclasses import asdict
 
 from langchain_core.tools import BaseTool, tool
 
-from app.documents import DOCUMENTS, Documents
+from app.documents import DOCUMENTS, documents_for
 from app.payments import request_payment as create_payment
 from app.payout import LineItem, calculate_payout as compute_payout
 from app.reference import Reference
@@ -15,7 +15,7 @@ MAX_SECTIONS = 8
 
 def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list[BaseTool]:
     """Read-only tools bound to a single claim. None of them takes a path or a claim id."""
-    docs = Documents(ref)
+    docs = documents_for(ref)
     unknown = f"Documents: {', '.join(DOCUMENTS)}."
 
     def claim() -> dict:

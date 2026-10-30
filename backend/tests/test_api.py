@@ -120,24 +120,52 @@ def test_claim_failing_once_is_decided_in_the_same_run(client):
     assert detail["status"] == "decided" and detail["attempts"] == 1
 
 
-def test_claim_detail_lists_what_was_read(db_path, data_dir, monkeypatch):
-    import app.orchestrator as orchestrator_module
+def reader_agent(reads):
+    """A stub claim agent that reports section reads the way LangChainAgent traces them."""
     from tests.fakes import StubAgent
 
     class Reader(StubAgent):
         def decide(self, claim_id, on_event):
-            for document, section in (("claims_manual", 7), ("policy_wording", 5), ("claims_manual", 7)):
+            for document, section, result in reads:
                 on_event("tool_call", {"name": "read_section", "args": {"document": document, "section": section}})
+                on_event("tool_result", {"name": "read_section", "content": result})
             return super().decide(claim_id, on_event)
 
-    monkeypatch.setattr(orchestrator_module, "build_agent", lambda settings, conn, ref: Reader())
+    return Reader()
+
+
+def run_with(db_path, data_dir, monkeypatch, agent):
+    import app.orchestrator as orchestrator_module
+
+    monkeypatch.setattr(orchestrator_module, "build_agent", lambda settings, conn, ref: agent)
     with TestClient(create_app(make_settings(db_path, data_dir))) as client:
         client.post("/runs", json={"claim_ids": ["CLM-1001"]})
-        read = client.get("/claims/CLM-1001").json()["read"]
+        return client.get("/claims/CLM-1001").json()["read"]
+
+
+def test_claim_detail_lists_what_was_read(db_path, data_dir, monkeypatch):
+    read = run_with(db_path, data_dir, monkeypatch, reader_agent([
+        ("claims_manual", 7, "[claims_manual section 7: Interpretation notes, 5000 characters]"),
+        ("policy_wording", 5, "[policy_wording section 5: Baggage and Personal Effects, 900 characters]"),
+        ("claims_manual", 7, "You already read claims_manual section 7 above. Use that text."),
+    ]))
     assert read == [
         {"document": "claims_manual", "section": 7, "title": "Interpretation notes"},
         {"document": "policy_wording", "section": 5, "title": "Baggage and Personal Effects"},
     ]
+
+
+def test_a_refused_read_is_not_listed(db_path, data_dir, monkeypatch):
+    read = run_with(db_path, data_dir, monkeypatch, reader_agent([
+        ("claims_manual", 9, "Error: you have read 8 sections, the most for one claim. Decide with what you have."),
+        ("claims_manual", 99, "Error: claims_manual has no section 99. Documents: policy_wording, claims_manual."),
+    ]))
+    assert read == []
+
+
+def test_post_runs_with_an_empty_claim_list_422(client):
+    assert client.post("/runs", json={"claim_ids": []}).status_code == 422
+    assert client.get("/runs/latest").json()["run"] is None
 
 
 def test_claim_usage_sums_every_attempt(client, db_path):
