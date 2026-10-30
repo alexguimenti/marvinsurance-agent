@@ -8,11 +8,11 @@
 
 **Tech Stack:** Python, FastAPI, SQLite, LangChain, OpenRouter, pytest, React (Vite, TypeScript), Vitest, Playwright. No new agent framework.
 
-**Spec:** `docs/HARNESS.md` (requirements R1 to R7), `docs/SPEC.md` (rules that stay), `docs/DESIGN.md` (style).
+**Spec:** `docs/plans/HARNESS.md` (requirements R1 to R7), `docs/SPEC.md` (rules that stay), `docs/DESIGN.md` (style).
 
 ## Global Constraints
 
-- Decisions D1 to D8 in `docs/HARNESS.md` section 11 are taken as recommended: status `needs_handler` with no decision (D1); 2 attempts per claim, a failed claim goes back to `waiting` (D2); a retry keeps its slot in the cap (D3); one run at a time, claims one after another (D4); headings plus keyword search (D5); one model for both roles (D6); `AGENT_MODEL` stays the override (D7); a root `npm run check` and status kept in `README.md` (D8).
+- Decisions D1 to D8 in `docs/plans/HARNESS.md` section 11 are taken as recommended: status `needs_handler` with no decision (D1); 2 attempts per claim, a failed claim goes back to `waiting` (D2); a retry keeps its slot in the cap (D3); one run at a time, claims one after another (D4); headings plus keyword search (D5); one model for both roles (D6); `AGENT_MODEL` stays the override (D7); a root `npm run check` and status kept in `README.md` (D8).
 - Claim statuses, exactly: `waiting`, `in_progress`, `awaiting_approval`, `decided`, `needs_handler`.
 - To-do statuses, exactly: `todo`, `in_progress`, `done`, `left_for_handler`. Run statuses: `running`, `finished`, `failed`.
 - Decisions, exactly: `approve`, `decline`, `refer`. Approval limit `payout_approval_limit` = 1000.00, enforced in `payments.request_payment`. Only a payout above $1,000.00 is held.
@@ -170,7 +170,7 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `load_instructions()` is replaced by `load_instructions(name: Literal["claim", "run"]) -> str` reading `instructions_<name>.md`.
   - `ScriptedAgent` fails on purpose: `CLM-1013` always raises `RuntimeError("scripted failure")`; `CLM-1017` raises the same only while the claim's `attempts` is 0.
   - `LangChainAgent.__init__` gains `max_steps: int = 40, timeout_s: float = 300`; `decide` passes `{"recursion_limit": max_steps}` and raises `TimeoutError` when the stream runs past `timeout_s`.
-- Rules (from `docs/HARNESS.md` R5):
+- Rules (from `docs/plans/HARNESS.md` R5):
   1. Take the claim with `UPDATE claims SET status='in_progress', run_id=? WHERE claim_id=? AND status='waiting'`. No row changed means not worked.
   2. Any exception from `agent.decide`, and a payment whose amount differs from the decided payout, is a failed attempt: delete the claim's payment, `attempts += 1`, `last_error = message`, trace `error`. Then status `waiting` if `attempts < max_attempts`, else `needs_handler`.
   3. On success: payment through `request_payment` (approve) or voided (decline/refer) as in the pilot, a plain `INSERT` into `decisions` with `manual_version` and `wording_version`, status `decided` or `awaiting_approval`, trace `decision` and `usage`.

@@ -32,7 +32,7 @@ def test_reference_lookups(data_dir):
     assert ref.plan("premium")["deductible"] == 50.0
     assert ref.company["payout_approval_limit"] == 1000.0
     assert {h["handler_id"] for h in ref.handlers} >= {"HND-01"}
-    assert "## 10. How we work out your payment" in ref.wording
+    assert "## 10. How we work out your payment" in ref.read("policy_wording.md")
     assert len(ref.knowledge) == 33
     assert {a["add_on"] for a in ref.add_ons} == {
         "adventure_sports", "pre_existing_waiver", "electronics_plus"

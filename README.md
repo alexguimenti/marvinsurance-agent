@@ -2,12 +2,12 @@
 
 A course project (nothing here is real). The Farting Agent works a travel-insurance claims queue like a human analyst. One run plans the queue as a to-do list, hands each claim to a fresh claim agent, and finishes with a summary for the handlers. The claim agent reads the claim, the policy and the customer's history, looks up the sections of the policy wording and the claims manual it needs, then approves, declines or refers. Payouts above $1,000 wait for a handler.
 
-See `docs/SPEC.md` for what we build, `docs/TECH_STACK.md` for the stack, `docs/HARNESS.md` for the harness requirements, and `docs/PLAN.md` and `docs/PLAN_HARNESS.md` for the two implementation plans.
+See `docs/SPEC.md` for what we build, `docs/TECH_STACK.md` for the stack, `docs/plans/HARNESS.md` for the harness requirements, and `docs/plans/` for the finished implementation plans.
 
 ## Status
 
-- **Pilot** (`docs/PLAN.md`): done. Queue, claim detail, live activity, instructions and approvals; the $1,000 limit enforced by the payment code.
-- **Harness** (`docs/PLAN_HARNESS.md`): done. One run works the whole queue, or a capped part of it, through a to-do list shown on the queue page. Each claim gets a fresh claim agent. The agent looks up sections of the policy wording and the claims manual, and the claim page shows what it read. A claim that fails goes back in the queue; one that fails twice is left for a handler ("Needs a handler"). Default model: DeepSeek V4.1 Flash, low reasoning effort.
+- **Pilot** (`docs/plans/PLAN.md`): done. Queue, claim detail, live activity, instructions and approvals; the $1,000 limit enforced by the payment code.
+- **Harness** (`docs/plans/PLAN_HARNESS.md`): done. One run works the whole queue, or a capped part of it, through a to-do list shown on the queue page. Each claim gets a fresh claim agent. The agent looks up sections of the policy wording and the claims manual, and the claim page shows what it read. A claim that fails goes back in the queue; one that fails twice is left for a handler ("Needs a handler"). Default model: DeepSeek V4.1 Flash, low reasoning effort.
 - Not built: sign-in, real payments, messages to customers, stopping a run midway.
 
 ## Setup
@@ -111,5 +111,6 @@ frontend/  React (Vite, TypeScript), Vitest
 e2e/       Playwright
 scripts/   score.py, reset_db.py, check.mjs
 data/      seed data; data/evals and data/security are off limits to the app
-docs/      SPEC, TECH_STACK, DESIGN, HARNESS, PLAN, PLAN_HARNESS
+docs/      SPEC, TECH_STACK, DESIGN; plans/ holds the finished plans and the harness brief
+labs/, lab1_desk/, lab2_desk/   course notebooks and lab desks (each desk has its own .venv); not part of the app
 ```

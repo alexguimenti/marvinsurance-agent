@@ -53,10 +53,6 @@ class Reference:
         return self.read("handlers.json")
 
     @property
-    def wording(self) -> str:
-        return self.read("policy_wording.md")
-
-    @property
     def manual(self) -> str:
         return self.read("claims_manual.md")
 

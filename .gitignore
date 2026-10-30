@@ -12,3 +12,4 @@ e2e/playwright-report/
 .superpowers/
 e2e/.tmp/
 *.egg-info/
+tempCodeRunnerFile*

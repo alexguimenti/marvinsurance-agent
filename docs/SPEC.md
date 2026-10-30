@@ -1,6 +1,6 @@
 # SPEC: Farting Agent for Marvin FartInsurance
 
-Status: pilot plus the harness (`docs/HARNESS.md`). This is a course project. Nothing here is a real company, customer or payment.
+Status: pilot plus the harness (`docs/plans/HARNESS.md`). This is a course project. Nothing here is a real company, customer or payment.
 
 ## 1. Overview
 

@@ -1,6 +1,6 @@
 # HARNESS: letting the Farting Agent organize its own work
 
-Status: draft, to be agreed before `docs/PLAN_HARNESS.md` is written. Items marked **Proposed** are my choices where the brief is silent. Change them freely.
+Status: draft, to be agreed before `docs/plans/PLAN_HARNESS.md` is written. Items marked **Proposed** are my choices where the brief is silent. Change them freely.
 
 Source: the head of claims operations' brief "Getting ready for harder claims". This file turns it into requirements we can plan, build and test against. Where it conflicts with `docs/SPEC.md`, this file wins once agreed, and `SPEC.md` is updated (section 11).
 
@@ -241,7 +241,7 @@ Each has my recommendation.
 
 ## 13. Suggested build order
 
-For `docs/PLAN_HARNESS.md`, smallest working step first, each with its tests:
+For `docs/plans/PLAN_HARNESS.md`, smallest working step first, each with its tests:
 
 1. Section loader and the three lookup tools; trace and "What the agent read" (R4).
 2. `runs` and `todo_items` tables, run API and the stub model that plays both roles (R1, R2 storage).
