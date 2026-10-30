@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1013",
+  "policy_id": "POL-2013",
+  "customer_id": "CUS-3013",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-07-27",
+  "incident_date": "2026-07-24",
+  "incident_location": "Chicago, Illinois",
+  "summary": "Seven hour delay leaving Chicago for Cancun",
+  "story": "Our flight from Chicago to Cancun on July 24 was supposed to leave at 9:15 in the morning. There was a mechanical problem and we finally took off at 4:20 in the afternoon, so I lost most of the first day of my vacation sitting at O'Hare. I bought lunch and a day pass for the airport lounge so I could at least wait somewhere comfortable. I would like to be reimbursed for both. Receipts attached.",
+  "items": [
+    {
+      "description": "Lunch and snacks at the airport",
+      "category": "meals",
+      "amount": 64.0
+    },
+    {
+      "description": "Airport lounge day pass",
+      "category": "other",
+      "amount": 59.0
+    }
+  ],
+  "amount_claimed": 123.0,
+  "documents": [
+    {
+      "name": "Northwind Airlines delay confirmation",
+      "type": "carrier_report",
+      "content": "Northwind Airlines. Flight NW 1427 Chicago ORD to Cancun CUN, July 24, 2026. Scheduled departure 09:15. Actual departure 16:20. Cause: aircraft mechanical issue. Issued to passenger Brian O'Connell."
+    },
+    {
+      "name": "Receipts",
+      "type": "receipt",
+      "content": "Terminal 3 Grill, O'Hare, July 24, 2026: $41.00. Hudson Market, O'Hare, July 24, 2026: $23.00. Skyway Lounge day pass, July 24, 2026: $59.00."
+    }
+  ],
+  "status": "open"
+}

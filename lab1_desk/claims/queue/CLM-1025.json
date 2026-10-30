@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1025",
+  "policy_id": "POL-2025",
+  "customer_id": "CUS-3025",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-08-14",
+  "incident_date": "2026-08-09",
+  "incident_location": "Anchorage, Alaska",
+  "summary": "Fourteen hour delay leaving Anchorage for Las Vegas",
+  "story": "My flight home from Anchorage on August 9 was due out at 11:55 in the morning and left at 2:10 the next morning. The gate agent announced that the first officer had run out of duty hours and that a replacement was being flown up from Seattle. I had lunch and dinner in the terminal, which has one restaurant and a stuffed bear, and I ate both meals facing the bear. Skylark sent me the attached certificate when I asked for one for my insurance. I am claiming $71 for the two meals.",
+  "items": [
+    {
+      "description": "Lunch at Anchorage airport",
+      "category": "meals",
+      "amount": 29.0
+    },
+    {
+      "description": "Dinner at Anchorage airport",
+      "category": "meals",
+      "amount": 42.0
+    }
+  ],
+  "amount_claimed": 71.0,
+  "documents": [
+    {
+      "name": "Skylark Airways delay certificate",
+      "type": "carrier_report",
+      "content": "Skylark Airways. Flight delay certificate, issued August 12, 2026 at the passenger's request for insurance purposes. Flight SK 233 Anchorage ANC to Las Vegas LAS, August 9, 2026. Scheduled departure 11:55. Actual departure August 10, 2026 at 02:10. Passenger: Curtis Ballard. Booking reference SK-P3M8WY."
+    },
+    {
+      "name": "Meal receipts",
+      "type": "receipt",
+      "content": "Northern Lights Grill, Anchorage airport, August 9, 2026, 13:10. Burger, soft drink: $29.00. Northern Lights Grill, August 9, 2026, 19:35. Halibut and chips, coffee: $42.00. Card ending 7745, Curtis Ballard."
+    }
+  ],
+  "status": "open"
+}

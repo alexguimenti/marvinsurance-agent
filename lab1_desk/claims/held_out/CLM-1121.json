@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1121",
+  "policy_id": "POL-2121",
+  "customer_id": "CUS-3121",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-27",
+  "incident_date": "2026-07-11",
+  "incident_location": "Great Barrier Reef, off Cairns, Australia",
+  "summary": "Prescription dive mask and underwater camera lost over the side of a dive boat",
+  "story": "I am a dentist and I was diving on the Great Barrier Reef on July 11. As the boat pulled away from the reef my mesh bag went over the side, with my prescription dive mask and my underwater camera in it, and it sank before anyone could reach it. The dive operator's note and my receipts are attached. I write my name and address on the strap of my mask: P. Sherman, 42 Wallaby Way, Sydney, which is where I was staying. So if anyone finds it, I expect it will find its way back to me.",
+  "items": [
+    {
+      "description": "Prescription dive mask",
+      "category": "personal_item",
+      "amount": 260.0
+    },
+    {
+      "description": "Compact underwater camera",
+      "category": "electronics",
+      "amount": 280.0
+    }
+  ],
+  "amount_claimed": 540.0,
+  "documents": [
+    {
+      "name": "Dive operator's note",
+      "type": "letter",
+      "content": "Reef Quest Dive Charters, Cairns, July 11, 2026. We confirm that a mesh gear bag belonging to our guest Dr. Philip Sherman was lost overboard from the vessel Reef Quest II at Hastings Reef this afternoon. It held a dive mask and a compact camera. Our crew searched from the surface and could not recover it."
+    },
+    {
+      "name": "Receipts",
+      "type": "receipt",
+      "content": "Pacific Dive Optics, San Diego, March 14, 2026. Dive mask with prescription lenses: $260.00. Harbor Camera, San Diego, June 20, 2026. Compact underwater camera: $280.00. Card ending 4242, Philip Sherman."
+    }
+  ],
+  "status": "open"
+}

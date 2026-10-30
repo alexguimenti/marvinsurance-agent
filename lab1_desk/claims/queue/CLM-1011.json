@@ -1,0 +1,82 @@
+{
+  "claim_id": "CLM-1011",
+  "policy_id": "POL-2011",
+  "customer_id": "CUS-3011",
+  "claim_type": "baggage",
+  "submitted_on": "2026-06-29",
+  "incident_date": "2026-06-03",
+  "incident_location": "Milan, Italy",
+  "summary": "Best man's suitcase lost on the way to a wedding on Lake Como",
+  "story": "I flew to Milan on June 3 for my brother's wedding on Lake Como, where I was the best man. My checked suitcase never arrived. Meridian Air searched for three weeks and declared it lost on June 24, and they have paid me $350 under their own rules. I have listed everything that was in the bag with what I paid for it. The formalwear and the camera gear were bought this spring for the wedding, and the receipts are attached along with my card statement for the suitcase and the cufflinks. I gave the best man's speech in a jacket borrowed from the head waiter, which got a bigger laugh than the speech did.",
+  "items": [
+    {
+      "description": "Hard-shell suitcase",
+      "category": "luggage",
+      "amount": 260.0
+    },
+    {
+      "description": "Dinner jacket, black",
+      "category": "clothing",
+      "amount": 290.0
+    },
+    {
+      "description": "Mirrorless camera body",
+      "category": "electronics",
+      "amount": 280.0
+    },
+    {
+      "description": "Black oxford dress shoes",
+      "category": "clothing",
+      "amount": 230.0
+    },
+    {
+      "description": "Four dress shirts",
+      "category": "clothing",
+      "amount": 340.0
+    },
+    {
+      "description": "Dress trousers, black",
+      "category": "clothing",
+      "amount": 190.0
+    },
+    {
+      "description": "Silver cufflinks",
+      "category": "personal_item",
+      "amount": 120.0
+    },
+    {
+      "description": "35mm lens",
+      "category": "electronics",
+      "amount": 240.0
+    }
+  ],
+  "amount_claimed": 1950.0,
+  "documents": [
+    {
+      "name": "Meridian Air property irregularity report",
+      "type": "carrier_report",
+      "content": "Meridian Air property irregularity report MXP-MA-30418. Passenger Owen Gallagher arrived Milan MXP June 3, 2026 on MA 402 from Boston. One checked bag, tag MA 771204, not delivered."
+    },
+    {
+      "name": "Meridian Air settlement letter",
+      "type": "letter",
+      "content": "Meridian Air, June 24, 2026. Dear Mr. Gallagher, after a search of 21 days we have been unable to find your bag, tag MA 771204, and we now treat it as lost. We have paid $350.00 to your card in full settlement of our liability."
+    },
+    {
+      "name": "Formalwear receipt",
+      "type": "receipt",
+      "content": "Harborview Formalwear, Boston, April 11, 2026. Two piece tuxedo, black: jacket $290.00, trousers $190.00. Black oxford dress shoes: $230.00. Four dress shirts at $85.00 each: $340.00. Total: $1,050.00."
+    },
+    {
+      "name": "Camera receipt",
+      "type": "receipt",
+      "content": "Back Bay Camera Exchange, Boston, April 18, 2026. Mirrorless camera body, used: $280.00. 35mm f/2 lens for the same mount, used: $240.00. Total: $520.00."
+    },
+    {
+      "name": "Card statement extract",
+      "type": "other",
+      "content": "Card ending 2290, Owen Gallagher. March 7, 2026, Tremont Luggage, Boston: $260.00. May 2, 2026, Beacon Hill Jewelers, Boston: $120.00."
+    }
+  ],
+  "status": "open"
+}

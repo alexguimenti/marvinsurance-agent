@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1107",
+  "policy_id": "POL-2107",
+  "customer_id": "CUS-3107",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-08-07",
+  "incident_date": "2026-07-24",
+  "incident_location": "Houston, Texas",
+  "summary": "Four hour delay leaving Houston because of a swarm of bees on the wing",
+  "story": "Our flight from Houston to Cancun on July 24 left four hours and twenty minutes late because of bees. A swarm of them settled on the tip of the left wing while we were boarding, and the captain told us we could not push back until they had gone. A beekeeper was called and then was not allowed to touch the aircraft. Pest control was not allowed to spray it. So two hundred of us watched the bees through the terminal window for four hours. In the end the pilot started the engines and the bees left of their own accord, which I would have suggested at the start. My husband and I had lunch in the terminal while we waited. Meridian's letter and the receipt are attached.",
+  "items": [
+    {
+      "description": "Lunch for two at Houston airport",
+      "category": "meals",
+      "amount": 57.0
+    },
+    {
+      "description": "Coffee and snacks for two",
+      "category": "meals",
+      "amount": 19.0
+    }
+  ],
+  "amount_claimed": 76.0,
+  "documents": [
+    {
+      "name": "Meridian Air delay confirmation",
+      "type": "carrier_report",
+      "content": "Meridian Air. Flight MA 1682 Houston IAH to Cancun CUN, July 24, 2026. Scheduled departure 12:25. Actual departure 16:45. Cause: a swarm of bees gathered on the left winglet during boarding and the aircraft could not be moved until the swarm had left. No fault was found with the aircraft. Passengers: Gloria Esposito, Frank Esposito."
+    },
+    {
+      "name": "Meal receipts",
+      "type": "receipt",
+      "content": "Bayou City Kitchen, IAH terminal C, July 24, 2026, 13:15. Two lunches, two iced teas: $57.00. Terminal C Coffee, July 24, 2026, 15:30. Two coffees, snacks: $19.00. Card ending 3391, Gloria Esposito."
+    }
+  ],
+  "status": "open"
+}

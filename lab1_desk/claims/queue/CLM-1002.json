@@ -1,0 +1,62 @@
+{
+  "claim_id": "CLM-1002",
+  "policy_id": "POL-2002",
+  "customer_id": "CUS-3002",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-20",
+  "incident_date": "2026-06-21",
+  "incident_location": "Frankfurt, Germany",
+  "summary": "Suitcase lost on a connecting flight",
+  "story": "I flew from Milwaukee to Prague with a connection in Frankfurt. My suitcase never arrived in Prague. I reported it at the airport before I left the baggage hall, and Northwind Airlines searched for three weeks before declaring it lost. They have paid me $400 in compensation. I am claiming the suitcase and what was in it. I have listed the contents with what I paid for each item, and I have receipts for everything except the shirts and the toiletry kit.",
+  "items": [
+    {
+      "description": "Hard-shell suitcase",
+      "category": "luggage",
+      "amount": 280.0
+    },
+    {
+      "description": "Wool suit",
+      "category": "clothing",
+      "amount": 420.0
+    },
+    {
+      "description": "Dress shoes, one pair",
+      "category": "clothing",
+      "amount": 160.0
+    },
+    {
+      "description": "Running shoes, one pair",
+      "category": "clothing",
+      "amount": 110.0
+    },
+    {
+      "description": "Toiletry kit",
+      "category": "toiletries",
+      "amount": 60.0
+    },
+    {
+      "description": "Four shirts",
+      "category": "clothing",
+      "amount": 120.0
+    }
+  ],
+  "amount_claimed": 1150.0,
+  "documents": [
+    {
+      "name": "Northwind Airlines lost baggage report",
+      "type": "carrier_report",
+      "content": "Northwind Airlines property irregularity report PRG-NW-48213, filed June 21, 2026 at Prague airport by passenger Tom Becker. One checked bag, tag NW 771204, not delivered."
+    },
+    {
+      "name": "Northwind Airlines settlement letter",
+      "type": "letter",
+      "content": "Northwind Airlines, July 13, 2026. Dear Mr. Becker, after a search of 21 days we have declared your bag lost. We have paid $400.00 to your card in full settlement of our liability."
+    },
+    {
+      "name": "Purchase receipts",
+      "type": "receipt",
+      "content": "Hartmann Luggage, March 2025, hard-shell suitcase: $280.00. Lakeshore Tailors, October 2025, wool suit: $420.00. Lakeshore Tailors, October 2025, leather dress shoes: $160.00. Badger Running Company, April 2026, running shoes: $110.00."
+    }
+  ],
+  "status": "open"
+}

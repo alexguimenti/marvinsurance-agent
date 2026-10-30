@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1106",
+  "policy_id": "POL-2106",
+  "customer_id": "CUS-3106",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-24",
+  "incident_date": "2026-07-08",
+  "incident_location": "Arthur's Pass, New Zealand",
+  "summary": "Action camera stolen by a kea at Arthur's Pass",
+  "story": "On July 8 I stopped at the Arthur's Pass visitor centre in my campervan. I put my action camera on the hood while I zipped up my jacket, standing right beside it, and a kea, which is a large green mountain parrot, landed on the hood, picked the camera up by its wrist strap and flew off toward the ridge with it. Two others watched from the roof, and I believe they were in on it. I asked the constable in the village about reporting the theft. He was sympathetic, but he said he could not open a file on a parrot. The ranger on duty saw it happen and wrote the attached statement. My receipt for the camera is attached.",
+  "items": [
+    {
+      "description": "Action camera",
+      "category": "electronics",
+      "amount": 399.0
+    }
+  ],
+  "amount_claimed": 399.0,
+  "documents": [
+    {
+      "name": "Statement from the Department of Conservation ranger",
+      "type": "letter",
+      "content": "Department of Conservation, Arthur's Pass National Park visitor centre, July 8, 2026. At about 11:40 this morning I saw a kea take a small camera from the hood of a campervan in the visitor centre car park while the owner, Mr. Colin Meadows, was standing beside the vehicle. The bird flew with it toward the ridge above the village and we were not able to recover it. This happens several times each season. Ranger A. Tipene."
+    },
+    {
+      "name": "Purchase receipt",
+      "type": "receipt",
+      "content": "Treasure Valley Camera and Video, Boise, June 6, 2026. Action camera with wrist strap: $399.00. Card ending 3307, Colin Meadows."
+    }
+  ],
+  "status": "open"
+}

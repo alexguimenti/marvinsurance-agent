@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1022",
+  "policy_id": "POL-2022",
+  "customer_id": "CUS-3022",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-08-05",
+  "incident_date": "2026-07-20",
+  "incident_location": "Belgrade, Serbia",
+  "summary": "Thirty hour delay on the sleeper train from Istanbul to Paris",
+  "story": "I was traveling from Istanbul to Paris in the Calais coach of the Simplon Express. At Belgrade on July 20 we were told that floods had washed out the line between Vinkovci and Brod, and we were held for thirty hours. The dining car ran out of nearly everything on the first day, so I bought my meals for cash from the station buffet and from a woman selling pastries on the platform, about $140 in all, and nobody gave receipts. I also paid to rebook my connection in Paris. I should add that the delay was made longer by an incident in the compartment next to mine, which a Belgian gentleman with a remarkable mustache insisted on resolving before any of us could leave the dining car. I had told the conductor there was a man in my compartment. Nobody listens.",
+  "items": [
+    {
+      "description": "Meals during the delay, no receipts",
+      "category": "meals",
+      "amount": 140.0
+    },
+    {
+      "description": "Rebooking fee for the Paris connection",
+      "category": "rebooking",
+      "amount": 85.0
+    }
+  ],
+  "amount_claimed": 225.0,
+  "documents": [
+    {
+      "name": "Simplon Rail delay confirmation",
+      "type": "carrier_report",
+      "content": "Simplon Rail, passenger services. Train 12, Simplon Express, Istanbul to Paris. Scheduled departure from Belgrade July 20, 2026 at 21:15. Actual departure from Belgrade July 22, 2026 at 03:30. Cause: severe weather. Flash flooding washed out the line between Vinkovci and Brod. Passenger: Mrs. Caroline Hubbard, Calais coach, berth 3."
+    },
+    {
+      "name": "Rebooking receipt",
+      "type": "receipt",
+      "content": "Gare de Lyon ticket office, Paris, July 23, 2026. Change fee, Paris to Nice, one passenger, C. Hubbard: $85.00."
+    }
+  ],
+  "status": "open"
+}

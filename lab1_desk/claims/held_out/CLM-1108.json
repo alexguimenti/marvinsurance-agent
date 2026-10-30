@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1108",
+  "policy_id": "POL-2108",
+  "customer_id": "CUS-3108",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-07-31",
+  "incident_date": "2026-07-17",
+  "incident_location": "Portland, Oregon",
+  "summary": "Seven hour delay on the train from Portland to Los Angeles",
+  "story": "My husband and I were taking the train down the coast from Seattle to Los Angeles, with a night in Portland on the way. Our train out of Portland on July 17 was due to leave at 2:25 in the afternoon and left at 9:50 that night. The conductor came through the waiting room and told us the locomotive had failed and that a replacement was coming down from Seattle. We had dinner at the station and bought snacks for the night. I asked Coastal Rail for a letter for my insurance and it is attached with the receipts. I am claiming $66 for the two of us.",
+  "items": [
+    {
+      "description": "Dinner for two at Portland Union Station",
+      "category": "meals",
+      "amount": 52.0
+    },
+    {
+      "description": "Snacks and water for the night",
+      "category": "meals",
+      "amount": 14.0
+    }
+  ],
+  "amount_claimed": 66.0,
+  "documents": [
+    {
+      "name": "Coastal Rail delay verification letter",
+      "type": "carrier_report",
+      "content": "Coastal Rail customer relations. Delay verification letter, issued July 24, 2026 at the passenger's request for insurance purposes. Train 11, Portland Union Station to Los Angeles, July 17, 2026. Scheduled departure 14:25. Actual departure 21:50. Passengers: Marjorie Keane, Howard Keane. Reservation 4C21F9."
+    },
+    {
+      "name": "Meal receipts",
+      "type": "receipt",
+      "content": "Union Station Grill, Portland, July 17, 2026, 17:40. Two dinners, two iced teas: $52.00. Station News and Snacks, Portland, July 17, 2026, 20:55. Snacks, two bottles of water: $14.00. Card ending 6087, Marjorie Keane."
+    }
+  ],
+  "status": "open"
+}

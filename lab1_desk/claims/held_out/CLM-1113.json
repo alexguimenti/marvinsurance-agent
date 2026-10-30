@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1113",
+  "policy_id": "POL-2113",
+  "customer_id": "CUS-3113",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-08-31",
+  "incident_date": "2026-08-21",
+  "incident_location": "Denver, Colorado",
+  "summary": "Eleven hour weather delay leaving Denver, meals paid in cash",
+  "story": "My husband Ben and I were flying from Denver to Reykjavik on August 21. Thunderstorms shut down departures and our 2:10 pm flight finally left at 1:15 the next morning. We took a room at the airport hotel for the evening so we could rest, and I have that receipt. We also bought lunch, dinner and a lot of coffee at various kiosks around the terminal, about $96 in total, but we paid cash and did not keep the receipts. I hope that is not a problem.",
+  "items": [
+    {
+      "description": "Airport hotel room for the evening",
+      "category": "accommodation",
+      "amount": 189.0
+    },
+    {
+      "description": "Meals at the airport, two travelers, no receipts",
+      "category": "meals",
+      "amount": 96.0
+    }
+  ],
+  "amount_claimed": 285.0,
+  "documents": [
+    {
+      "name": "Skylark Airways delay confirmation",
+      "type": "carrier_report",
+      "content": "Skylark Airways. Flight SK 602 Denver DEN to Reykjavik KEF, August 21, 2026. Scheduled departure 14:10. Actual departure August 22, 2026 at 01:15. Cause: thunderstorms, ground stop. Passengers Grace Liu and Ben Liu."
+    },
+    {
+      "name": "Hotel receipt",
+      "type": "receipt",
+      "content": "Concourse Hotel, Denver International Airport, August 21, 2026. Evening room, 16:00 to 23:30, guests G. Liu and B. Liu: $189.00."
+    }
+  ],
+  "status": "open"
+}

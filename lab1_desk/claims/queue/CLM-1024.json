@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1024",
+  "policy_id": "POL-2024",
+  "customer_id": "CUS-3024",
+  "claim_type": "baggage",
+  "submitted_on": "2026-08-20",
+  "incident_date": "2026-07-08",
+  "incident_location": "Bogota, Colombia",
+  "summary": "Phone snatched from her hand in La Candelaria",
+  "story": "On July 8 I was walking in La Candelaria in Bogota, checking a map on my phone, when a man ran past and took the phone out of my hand. I went to the police the same afternoon and their report is attached, along with the receipt for the phone, which I bought in March. I sent this in from my hostel in July but I am not sure it went through, so I am filing it again now that I am home.",
+  "items": [
+    {
+      "description": "Smartphone, 256 GB",
+      "category": "electronics",
+      "amount": 899.0
+    }
+  ],
+  "amount_claimed": 899.0,
+  "documents": [
+    {
+      "name": "Police report",
+      "type": "police_report",
+      "content": "Policia Nacional de Colombia, CAI La Candelaria, Bogota. Denuncia, July 8, 2026, 16:20. Reported by Isabel Moreno, United States citizen. At about 14:30 today on Carrera 2 a man on foot took a smartphone from the hand of the reporting person and ran toward Calle 12. Item: one smartphone, 256 GB, black. Report number BOG-2026-118734."
+    },
+    {
+      "name": "Purchase receipt",
+      "type": "receipt",
+      "content": "Queens Center Mobile, Elmhurst, March 21, 2026. Smartphone, 256 GB: $899.00. Card ending 7203, Isabel Moreno."
+    }
+  ],
+  "status": "open"
+}

@@ -1,0 +1,42 @@
+{
+  "claim_id": "CLM-1006",
+  "policy_id": "POL-2006",
+  "customer_id": "CUS-3005",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-08-25",
+  "incident_date": "2026-08-12",
+  "incident_location": "Bentota, Sri Lanka",
+  "summary": "Hit by a falling coconut while reading under a palm tree",
+  "story": "Yes, it is me again, and no, I did not go near any giraffes. On August 12 I was reading on a lounger under a palm tree at my hotel in Bentota when a coconut fell and hit me on the left shoulder and the side of my head. The hotel drove me to a clinic, where a doctor examined me, took an X-ray of the shoulder and prescribed painkillers. Nothing was broken. I am claiming the clinic bill and the pharmacy bill. I upgraded to First after Kenya, which now looks like the best decision I made all summer.",
+  "items": [
+    {
+      "description": "Clinic examination and shoulder X-ray",
+      "category": "medical",
+      "amount": 380.0
+    },
+    {
+      "description": "Prescription painkillers",
+      "category": "medical",
+      "amount": 45.0
+    }
+  ],
+  "amount_claimed": 425.0,
+  "documents": [
+    {
+      "name": "Clinic bill and report",
+      "type": "medical_record",
+      "content": "Bentota Bay Medical Centre, August 12, 2026. Patient: Oliver Grant, age 43. Brought in by hotel staff after being struck by a falling coconut. Bruising to the left shoulder and left side of the scalp. No loss of consciousness. Neurological examination normal. Shoulder X-ray: no fracture. No relevant medical history. Advised rest and pain relief. Consultation and X-ray: $380.00, paid."
+    },
+    {
+      "name": "Pharmacy receipt",
+      "type": "receipt",
+      "content": "Bentota Pharmacy, August 12, 2026. Prescription pain relief, 10 days: $45.00."
+    },
+    {
+      "name": "Hotel incident note",
+      "type": "letter",
+      "content": "Saffron Beach Hotel, Bentota, August 12, 2026. We confirm that our guest Mr. Grant was struck by a coconut in the garden at about 3 pm today and was driven to the medical centre by our duty manager. The palm has since been harvested."
+    }
+  ],
+  "status": "open"
+}

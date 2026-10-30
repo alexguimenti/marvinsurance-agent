@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1111",
+  "policy_id": "POL-2111",
+  "customer_id": "CUS-3111",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-07-19",
+  "incident_date": "2026-07-08",
+  "incident_location": "Cozumel, Mexico",
+  "summary": "Decompression sickness after a scuba dive, hyperbaric treatment",
+  "story": "On July 8 I did a guided wall dive in Cozumel with a local dive shop. My maximum depth was 24 meters and I followed my computer the whole way up, including the safety stop. About an hour after surfacing I had joint pain in my right elbow and shoulder and tingling in my hand. The dive shop took me to the hyperbaric clinic, where I was diagnosed with decompression sickness and treated in the chamber that evening and again the next morning. I have been diving for nine years and hold an Advanced Open Water certification. The clinic bill, my certification and the dive log are attached.",
+  "items": [
+    {
+      "description": "Emergency assessment and two hyperbaric chamber treatments",
+      "category": "medical",
+      "amount": 4600.0
+    }
+  ],
+  "amount_claimed": 4600.0,
+  "documents": [
+    {
+      "name": "Hyperbaric clinic bill and report",
+      "type": "medical_record",
+      "content": "Cozumel Hyperbaric Medical Center, July 9, 2026. Patient: Leilani Kahale, age 33. Presented July 8 with joint pain and paresthesia one hour after a recreational dive. Diagnosis: decompression sickness, type I. No relevant medical history. Treatment: US Navy Treatment Table 6 on July 8, Table 5 on July 9, with full resolution. Emergency assessment: $600.00. Chamber treatments: $4,000.00. Total paid: $4,600.00."
+    },
+    {
+      "name": "Diver certification",
+      "type": "certification",
+      "content": "Advanced Open Water Diver. Leilani Kahale. Certified May 2019. Maximum recommended depth: 30 meters (100 feet)."
+    },
+    {
+      "name": "Dive log",
+      "type": "other",
+      "content": "Dive computer export, July 8, 2026, Santa Rosa Wall, Cozumel. Maximum depth: 24.3 meters. Dive time: 46 minutes. Safety stop: 3 minutes at 5 meters. No ascent rate alarms. No decompression violations."
+    }
+  ],
+  "status": "open"
+}

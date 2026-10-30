@@ -1,0 +1,42 @@
+{
+  "claim_id": "CLM-1114",
+  "policy_id": "POL-2114",
+  "customer_id": "CUS-3114",
+  "claim_type": "trip_cancellation",
+  "submitted_on": "2026-07-08",
+  "incident_date": "2026-06-25",
+  "incident_location": "Westwood, Massachusetts",
+  "summary": "Walking trip to England canceled after the town demolished his house for a bypass",
+  "story": "On Thursday, June 25, the town demolished my house to make way for a bypass. I never could get the hang of Thursdays. The town says the plans had been on display for nine months. They were on display in the basement of the planning office, in the bottom of a locked filing cabinet. I lay down in front of the bulldozer for most of the morning, without success. I was due to fly to England on June 29 for a walking trip, and I now have nowhere to keep my luggage, or anything else, so I canceled. I am claiming under the part of the policy about my home being made uninhabitable, which it certainly is. A friend has advised me not to panic.",
+  "items": [
+    {
+      "description": "Round-trip flights, Boston to London",
+      "category": "trip_cost",
+      "amount": 980.0
+    },
+    {
+      "description": "Prepaid inns on the walking route, ten nights",
+      "category": "trip_cost",
+      "amount": 1650.0
+    }
+  ],
+  "amount_claimed": 2630.0,
+  "documents": [
+    {
+      "name": "Town notice",
+      "type": "letter",
+      "content": "Town of Westwood, Department of Public Works, June 24, 2026. Notice to the occupier, Mr. Arthur Dent, 42 Country Lane. Under the order of taking recorded on September 18, 2025, the dwelling at this address will be demolished on June 25, 2026 for the construction of the Route 109 bypass. Compensation has been paid into escrow as the order provides."
+    },
+    {
+      "name": "Meridian Air cancellation confirmation",
+      "type": "letter",
+      "content": "Meridian Air, June 26, 2026. Booking MA-T4D7VB, Arthur Dent, Boston to London June 29 and return July 10, fare $980.00, canceled at the passenger's request. The fare is not refundable."
+    },
+    {
+      "name": "Walking tour confirmation",
+      "type": "letter",
+      "content": "Surrey Hills Inn to Inn Walks, Guildford, June 26, 2026. Booking for Mr. A. Dent, ten nights from June 30, prepaid $1,650.00, canceled. No refund is due inside 30 days of the start date."
+    }
+  ],
+  "status": "open"
+}
