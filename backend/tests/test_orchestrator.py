@@ -4,11 +4,12 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from app import runs
-from app.agent import LangChainAgent, ScriptedAgent
+from app.agent import LangChainAgent
 from app.config import Settings
 from app.db import connect, init_schema
-from app.orchestrator import LangChainOrchestrator, ScriptedOrchestrator, build_run_tools, run_harness
+from app.orchestrator import LangChainOrchestrator, build_run_tools, run_harness
 from app.reference import Reference
+from app.scripted import ScriptedAgent, ScriptedOrchestrator
 from app.seed import seed_claims
 from tests.fakes import STUB_USAGE, StubAgent, script, tool_call
 

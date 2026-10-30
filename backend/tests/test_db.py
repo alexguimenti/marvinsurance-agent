@@ -17,7 +17,7 @@ def test_init_schema_is_idempotent(db_path):
 def test_reset_analyses_puts_every_claim_back_in_the_queue(db_path, data_dir):
     import json
 
-    from app.agent import ScriptedAgent
+    from app.scripted import ScriptedAgent
     from app.db import reset_analyses
     from app.reference import Reference
     from app.runner import work_claim

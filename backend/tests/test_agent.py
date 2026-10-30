@@ -201,7 +201,7 @@ def test_usage_is_reset_for_each_claim(conn, ref):
 
 
 def test_scripted_agent_fails_on_1013_always_and_1017_once(conn, ref):
-    from app.agent import ScriptedAgent
+    from app.scripted import ScriptedAgent
 
     agent = ScriptedAgent(conn)
     for attempts in (0, 1, 2):
@@ -215,7 +215,7 @@ def test_scripted_agent_fails_on_1013_always_and_1017_once(conn, ref):
 
 
 def test_scripted_agent_reads_a_section(conn, ref):
-    from app.agent import ScriptedAgent
+    from app.scripted import ScriptedAgent
 
     calls = []
     ScriptedAgent(conn).decide("CLM-1001", lambda kind, content: calls.append(content) if kind == "tool_call" else None)

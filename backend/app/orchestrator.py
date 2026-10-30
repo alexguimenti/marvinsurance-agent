@@ -4,12 +4,11 @@ import sqlite3
 from typing import Protocol
 
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel
 
 from app import runs
-from app.agent import Agent, Emit, LangChainAgent, Usage, build_agent, chat_model, load_instructions
+from app.agent import Agent, Emit, build_agent, chat_model, load_instructions, run_graph
 from app.config import Settings
 from app.reference import Reference
 from app.runner import work_claim as work_one_claim
@@ -89,54 +88,17 @@ class LangChainOrchestrator:
 
     def run(self, tools: list[BaseTool], on_event: Emit) -> None:
         agent = create_agent(self.model, tools, system_prompt=load_instructions("run"))
-        total = Usage()
-        calls: dict[str, dict] = {}
-        config = {"recursion_limit": self.max_steps}
-        for chunk in agent.stream({"messages": [HumanMessage("Work the claims queue.")]},
-                                  stream_mode="updates", config=config):
-            for update in chunk.values():
-                for message in (update or {}).get("messages", []):
-                    if isinstance(message, AIMessage):
-                        total.add(message)
-                        self.usage = total.as_dict()
-                    LangChainAgent._emit_message(message, on_event, calls)
 
+        def keep_usage(usage: dict) -> None:
+            self.usage = usage
 
-class ScriptedOrchestrator:
-    """Deterministic stand-in for tests and e2e runs: works claims in id order. Never calls a model."""
-
-    model_id = "scripted"
-    usage = None
-
-    def run(self, tools: list[BaseTool], on_event: Emit) -> None:
-        by_name = {t.name: t for t in tools}
-
-        def call(name: str, args: dict) -> str:
-            on_event("tool_call", {"name": name, "args": args})
-            result = by_name[name].invoke(args)
-            on_event("tool_result", {"name": name, "content": result})
-            return result
-
-        listed = json.loads(call("list_waiting_claims", {}))
-        room = None if listed["cap"] is None else listed["cap"] - listed["taken"]
-        plan = [c["claim_id"] for c in listed["claims"]][:room]
-        call("set_todo", {"items": [{"title": f"Work {cid}", "claim_id": cid} for cid in plan]})
-        reports = [call("work_claim", {"claim_id": cid}) for cid in plan]
-        for _ in range(3):  # claims that came back to the queue are worked again after the others
-            answer = call("finish_run", {"summary": self._summary(reports)})
-            if not answer.startswith("Not finished"):
-                return
-            owed = answer.split(": ", 1)[1].split(", ")
-            reports += [call("work_claim", {"claim_id": cid}) for cid in owed]
-
-    @staticmethod
-    def _summary(reports: list[str]) -> str:
-        latest = {line.split(":", 1)[0]: line for line in reports}
-        return f"Worked {len(latest)} claims.\n" + "\n".join(latest.values())
+        run_graph(agent, "Work the claims queue.", self.max_steps, on_event, keep_usage)
 
 
 def build_orchestrator(settings: Settings) -> Orchestrator:
     if settings.agent_provider == "scripted":
+        from app.scripted import ScriptedOrchestrator  # stand-in for tests and e2e runs
+
         return ScriptedOrchestrator()
     return LangChainOrchestrator(chat_model(settings), settings.agent_model, settings.agent_run_max_steps)
 

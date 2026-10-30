@@ -1,4 +1,3 @@
-import json
 import re
 import sqlite3
 import time
@@ -108,45 +107,58 @@ class LangChainAgent:
             system_prompt=load_instructions("claim"),
             response_format=ToolStrategy(Decision),
         )
-        prompt = HumanMessage(f"Decide claim {claim_id}. Start by reading it with get_claim.")
-        decision: Decision | None = None
-        total = Usage()
+        prompt = f"Decide claim {claim_id}. Start by reading it with get_claim."
         self.usage = None
-        calls: dict[str, dict] = {}  # tool call id -> its arguments, to describe the result
-        deadline = time.monotonic() + self.timeout_s
-        config = {"recursion_limit": self.max_steps}
-        for chunk in agent.stream({"messages": [prompt]}, stream_mode="updates", config=config):
-            if time.monotonic() > deadline:
-                raise TimeoutError(f"the claim took longer than {self.timeout_s:g} seconds")
-            for update in chunk.values():
-                if not update:
-                    continue
-                for message in update.get("messages", []):
-                    if isinstance(message, AIMessage):
-                        total.add(message)
-                        self.usage = total.as_dict()  # kept up to date, so a failed run still reports its cost
-                    self._emit_message(message, on_event, calls)
-                if "structured_response" in update:
-                    decision = update["structured_response"]
+
+        def keep_usage(usage: dict) -> None:
+            self.usage = usage  # kept up to date, so a failed attempt still reports its cost
+
+        decision = run_graph(agent, prompt, self.max_steps, on_event, keep_usage, self.timeout_s)
         if decision is None:
             raise ValueError("the agent finished without a decision")
         on_event("decision", decision.model_dump())
         return decision
 
-    @staticmethod
-    def _emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
-        if isinstance(message, AIMessage):
-            for call in message.tool_calls:
-                calls[call["id"]] = call["args"]
-                if call["name"] != "Decision":
-                    on_event("tool_call", {"name": call["name"], "args": call["args"]})
-            if message.content and not message.tool_calls:
-                on_event("message", {"text": str(message.content)})
-        elif isinstance(message, ToolMessage) and message.name != "Decision":
-            content = str(message.content)
-            if message.name == "read_section" and not content.startswith(("Error:", "You already read")):
-                content = _section_summary(calls.get(message.tool_call_id, {}), content)  # the trace records what was read, not a copy of it
-            on_event("tool_result", {"name": message.name, "content": content})
+
+def _emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
+    """Trace one message of a LangChain agent: tool calls, tool results and plain text."""
+    if isinstance(message, AIMessage):
+        for call in message.tool_calls:
+            calls[call["id"]] = call["args"]
+            if call["name"] != "Decision":
+                on_event("tool_call", {"name": call["name"], "args": call["args"]})
+        if message.content and not message.tool_calls:
+            on_event("message", {"text": str(message.content)})
+    elif isinstance(message, ToolMessage) and message.name != "Decision":
+        content = str(message.content)
+        if message.name == "read_section" and not content.startswith(("Error:", "You already read")):
+            content = _section_summary(calls.get(message.tool_call_id, {}), content)  # the trace records what was read, not a copy of it
+        on_event("tool_result", {"name": message.name, "content": content})
+
+
+def run_graph(graph, message: str, max_steps: int, on_event: Emit,
+              on_usage: Callable[[dict | None], None], timeout_s: float | None = None):
+    """Stream a LangChain agent from one request, tracing every message and keeping its usage up to date.
+    Returns its structured response, or None when it has none."""
+    total = Usage()
+    calls: dict[str, dict] = {}  # tool call id -> its arguments, to describe the result
+    deadline = time.monotonic() + timeout_s if timeout_s else None
+    result = None
+    config = {"recursion_limit": max_steps}
+    for chunk in graph.stream({"messages": [HumanMessage(message)]}, stream_mode="updates", config=config):
+        if deadline and time.monotonic() > deadline:
+            raise TimeoutError(f"the agent took longer than {timeout_s:g} seconds")
+        for update in chunk.values():
+            if not update:
+                continue
+            for msg in update.get("messages", []):
+                if isinstance(msg, AIMessage):
+                    total.add(msg)
+                    on_usage(total.as_dict())
+                _emit_message(msg, on_event, calls)
+            if "structured_response" in update:
+                result = update["structured_response"]
+    return result
 
 
 def _section_summary(args: dict, content: str) -> str:
@@ -156,65 +168,10 @@ def _section_summary(args: dict, content: str) -> str:
     return f"[{args.get('document')} section {args.get('section')}: {title}, {len(content)} characters]"
 
 
-# Over-limit approvals used by the scripted provider, so the approval flow can be exercised.
-_SCRIPTED_OVER_LIMIT = {"CLM-1003": 3750.0, "CLM-1008": 2240.0, "CLM-1011": 1150.0}
-# Failures used by the scripted provider, so recovery can be exercised end to end.
-_SCRIPTED_ALWAYS_FAILS = {"CLM-1013"}
-_SCRIPTED_FAILS_ONCE = {"CLM-1017"}
-
-
-class ScriptedAgent:
-    """Deterministic stand-in for tests and e2e runs. Never calls a model."""
-
-    model_id = "scripted"
-    usage = None
-
-    def __init__(self, conn: sqlite3.Connection):
-        self.conn = conn
-
-    def decide(self, claim_id: str, on_event: Emit) -> Decision:
-        row = self.conn.execute("SELECT payload FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()
-        claim = json.loads(row["payload"])
-        on_event("tool_call", {"name": "get_claim", "args": {}})
-        on_event("tool_result", {"name": "get_claim", "content": claim["summary"]})
-        on_event("tool_call", {"name": "read_section", "args": {"document": "policy_wording", "section": 10}})
-        on_event("tool_result", {"name": "read_section",
-                                 "content": "[policy_wording section 10: How we work out your payment, 600 characters]"})
-        attempts = self.conn.execute("SELECT attempts FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()[0]
-        if claim_id in _SCRIPTED_ALWAYS_FAILS or (claim_id in _SCRIPTED_FAILS_ONCE and attempts == 0):
-            raise RuntimeError("scripted failure")
-        if claim_id in _SCRIPTED_OVER_LIMIT:
-            decision = self._approve(_SCRIPTED_OVER_LIMIT[claim_id])
-        elif claim_id.endswith("5"):
-            decision = Decision(
-                decision="decline",
-                rationale="The claim is excluded. Section 9 of the policy wording does not pay it.",
-                citations=["Policy wording, section 9"],
-            )
-        elif claim_id.endswith("9"):
-            decision = Decision(
-                decision="refer",
-                rationale="A document is missing. Section 11 of the policy wording says the claim waits.",
-                citations=["Policy wording, section 11"],
-            )
-        else:
-            decision = self._approve(round(min(claim["amount_claimed"] * 0.5, 900.0), 2))
-        on_event("decision", decision.model_dump())
-        return decision
-
-    @staticmethod
-    def _approve(payout: float) -> Decision:
-        return Decision(
-            decision="approve",
-            payout=payout,
-            calculation=[CalcStep(step="Eligible amount", amount=payout)],
-            rationale="The loss is covered. Section 10 of the policy wording sets the payment.",
-            citations=["Policy wording, section 10"],
-        )
-
-
 def build_agent(settings: Settings, conn: sqlite3.Connection, ref: Reference) -> Agent:
     if settings.agent_provider == "scripted":
+        from app.scripted import ScriptedAgent  # stand-in for tests and e2e runs
+
         return ScriptedAgent(conn)
     return LangChainAgent(chat_model(settings), conn, ref, settings.agent_model,
                           max_steps=settings.agent_max_steps, timeout_s=settings.agent_claim_timeout_s)
