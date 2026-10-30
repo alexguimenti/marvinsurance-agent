@@ -216,7 +216,13 @@ class ScriptedAgent:
 def build_agent(settings: Settings, conn: sqlite3.Connection, ref: Reference) -> Agent:
     if settings.agent_provider == "scripted":
         return ScriptedAgent(conn)
-    model = ChatOpenAI(
+    return LangChainAgent(chat_model(settings), conn, ref, settings.agent_model,
+                          max_steps=settings.agent_max_steps, timeout_s=settings.agent_claim_timeout_s)
+
+
+def chat_model(settings: Settings) -> ChatOpenAI:
+    """The configured OpenRouter model, shared by the claim agent and the orchestrator."""
+    return ChatOpenAI(
         model=settings.agent_model,
         api_key=settings.openrouter_api_key,
         base_url=OPENROUTER_URL,
@@ -228,5 +234,3 @@ def build_agent(settings: Settings, conn: sqlite3.Connection, ref: Reference) ->
             **({"reasoning": {"effort": settings.agent_reasoning_effort}} if settings.agent_reasoning_effort else {}),
         },
     )
-    return LangChainAgent(model, conn, ref, settings.agent_model,
-                          max_steps=settings.agent_max_steps, timeout_s=settings.agent_claim_timeout_s)
