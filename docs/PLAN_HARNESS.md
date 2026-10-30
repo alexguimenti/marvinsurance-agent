@@ -368,13 +368,15 @@ Note: the scripted agent does not call `read_section`, so make `ScriptedAgent` e
 
 Needs the OpenRouter key in `.env` and costs a few cents. Ask before running.
 
-- [ ] **Step 1:** Stop any dev server using `farting.db`, then `.\backend\.venv\Scripts\python scripts\reset_db.py`.
-- [ ] **Step 2:** Start the backend and front end (`COMMANDS.md`), open the queue, set the limit to 5 and press "Run queue".
-- [ ] **Step 3:** Check, and record in this file: the to-do list fills and ticks off; 5 claims leave `waiting` and 20 stay; each of the 5 claim pages shows its steps and "What the agent read"; the run summary and cost appear. Screenshot the queue page.
-- [ ] **Step 4:** Note the run's cost and any claim that needed a retry or a handler. Do not tune the instructions from `data/evals/`.
+- [x] **Step 1:** Stop any dev server using `farting.db`, then `.\backend\.venv\Scripts\python scripts\reset_db.py`.
+- [x] **Step 2:** Start the backend and front end (`COMMANDS.md`), open the queue, set the limit to 5 and press "Run queue".
+- [x] **Step 3:** Check, and record in this file: the to-do list fills and ticks off; 5 claims leave `waiting` and 20 stay; each of the 5 claim pages shows its steps and "What the agent read"; the run summary and cost appear. Screenshot the queue page.
+- [x] **Step 4:** Note the run's cost and any claim that needed a retry or a handler. Do not tune the instructions from `data/evals/`.
 - [ ] **Step 5:** Optional, with the user's OK: `scripts/score.py --split queue --run` and record the result next to the pilot's in `README.md`.
 
 ---
+
+**Result (2026-10-30, `deepseek/deepseek-v4.1-flash`, low effort, Limit 5, after reseeding):** run 1 finished in about 8 minutes for $0.027 (50 model calls). The agent planned six items (five claims and the summary) and chose CLM-1001, CLM-1004, CLM-1013, CLM-1019 and CLM-1023, "the smallest/simplest" in its words. Outcomes: CLM-1001 approve $420.00 and CLM-1004 approve $186.00 (both paid), CLM-1013 decline, CLM-1019 and CLM-1023 refer. No failed attempts, nothing left for a handler, the other 20 claims stayed waiting. Every claim page lists what it read: 7 to 18 sections each, from both the wording and the manual. The summary itself flagged that two nine-hour delays were referred while a seven-hour one was declined. Step 5 (scoring) not run.
 
 ## Self-review
 
