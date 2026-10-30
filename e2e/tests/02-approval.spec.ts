@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test.beforeAll(async ({ request }) => {
   // make sure the queue has run, in case this file is run on its own
-  await request.post('/api/queue/run')
+  await request.post('/api/runs')
   await expect
     .poll(async () => (await (await request.get('/api/approvals')).json()).length, { timeout: 30_000 })
     .toBe(3)
