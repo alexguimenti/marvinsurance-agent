@@ -21,7 +21,7 @@ from pathlib import Path
 import anthropic
 from anthropic import beta_tool
 
-DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_MODEL = "claude-haiku-5-5"
 DECISIONS = ("approve", "decline", "refer")
 CUSTOMER_ID = re.compile(r"^CUS-\d+$")
 POLICY_ID = re.compile(r"^POL-\d+$")

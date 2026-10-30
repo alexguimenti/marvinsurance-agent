@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1115",
+  "policy_id": "POL-2115",
+  "customer_id": "CUS-3115",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-08-24",
+  "incident_date": "2026-08-13",
+  "incident_location": "Vancouver, Canada",
+  "summary": "Emergency room visit in Vancouver for a flare-up of COPD",
+  "story": "I have COPD and I manage it carefully, which is why I paid extra for the waiver when I bought this policy. On August 13 in Vancouver the wildfire smoke got bad and by the evening I could not catch my breath even with my inhaler. I went to the emergency room, where they gave me nebulizer treatments and steroids and kept me for a few hours until my breathing settled. The bill came to $780. The hospital's record and the bill are attached.",
+  "items": [
+    {
+      "description": "Emergency room visit, nebulizer treatments and medication",
+      "category": "medical",
+      "amount": 780.0
+    }
+  ],
+  "amount_claimed": 780.0,
+  "documents": [
+    {
+      "name": "Emergency department record",
+      "type": "medical_record",
+      "content": "Burrard General Hospital, Vancouver, emergency department, August 13, 2026. Patient: Harold Benson, age 68. Known COPD, diagnosed 2017, on tiotropium and a salbutamol inhaler. Reports his physician added a steroid inhaler in May 2026 after a winter exacerbation. Presented with worsening shortness of breath during a regional wildfire smoke advisory. Diagnosis: acute exacerbation of COPD. Treated with nebulized bronchodilators and oral prednisone. Observed for 4 hours, improved, discharged with a 5 day course of prednisone."
+    },
+    {
+      "name": "Hospital bill",
+      "type": "invoice",
+      "content": "Burrard General Hospital, August 13, 2026. Non-resident emergency department fee: $620.00. Nebulizer treatments and medication: $160.00. Total paid: $780.00."
+    }
+  ],
+  "status": "open"
+}

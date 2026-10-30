@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1105",
+  "policy_id": "POL-2105",
+  "customer_id": "CUS-3105",
+  "claim_type": "trip_cancellation",
+  "submitted_on": "2026-08-05",
+  "incident_date": "2026-07-26",
+  "incident_location": "San Jose, California",
+  "summary": "Trek to Machu Picchu canceled after breaking an ankle at pickleball",
+  "story": "I was due to leave for a guided trek to Machu Picchu on August 3. On July 26 I was playing pickleball at my local courts, ran back for a lob and rolled my right ankle. The X-ray showed a fracture and I am in a walking boot for six weeks. My orthopedic doctor has confirmed in writing that a four day mountain trek is out of the question. I canceled with Andes Trails on July 27. Their terms do not refund anything inside 30 days of departure, and they have confirmed that in writing. I am claiming the full cost of the tour, which I paid in March. For the record, I won the point.",
+  "items": [
+    {
+      "description": "Guided tour package, prepaid, not refundable",
+      "category": "trip_cost",
+      "amount": 2400.0
+    }
+  ],
+  "amount_claimed": 2400.0,
+  "documents": [
+    {
+      "name": "Physician statement",
+      "type": "physician_statement",
+      "content": "Santa Clara Valley Orthopedics, San Jose, July 27, 2026. I confirm that Mr. Daniel Cho, age 39, sustained a fracture of the lateral malleolus of the right ankle on July 26, 2026 while playing pickleball. He is in a walking boot and must avoid hiking and uneven ground for at least six weeks. He is not fit to take part in a multi-day trek departing August 3, 2026. Dr. Anita Deshmukh, Orthopedic Surgery."
+    },
+    {
+      "name": "Andes Trails cancellation confirmation",
+      "type": "letter",
+      "content": "Andes Trails, July 27, 2026. Dear Mr. Cho, we confirm the cancellation of your booking AT-77120, Classic Inca Trail, August 3 to August 14, 2026, paid in full on March 28, 2026: $2,400.00. Under our terms, cancellations within 30 days of departure are not refunded. Refund due: $0.00. We wish you a quick recovery."
+    }
+  ],
+  "status": "open"
+}

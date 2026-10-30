@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1123",
+  "policy_id": "POL-2123",
+  "customer_id": "CUS-3123",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-07-13",
+  "incident_date": "2026-06-28",
+  "incident_location": "Piraeus, Greece",
+  "summary": "Eleven hour ferry delay leaving Piraeus for Santorini",
+  "story": "Our ferry from Piraeus to Santorini on June 28 was due out at 7:25 in the morning and sailed at 6:40 that evening. The captain announced that one of the engines would not start and that an engineer was on his way from Athens with a part. The man at the ticket window told us the engineer was his cousin and would certainly hurry. Linda and I spent eleven hours at a harbor cafe whose playlist was one song. I can now sing it in Greek. We had breakfast and lunch there. The ferry company gave me the attached certificate at their office, and the receipts are attached.",
+  "items": [
+    {
+      "description": "Breakfast for two at Piraeus harbor",
+      "category": "meals",
+      "amount": 31.0
+    },
+    {
+      "description": "Lunch for two at Piraeus harbor",
+      "category": "meals",
+      "amount": 58.0
+    }
+  ],
+  "amount_claimed": 89.0,
+  "documents": [
+    {
+      "name": "Aegean Star Lines certificate",
+      "type": "carrier_report",
+      "content": "Aegean Star Lines, Piraeus. Certificate of delayed sailing, issued June 28, 2026 at the passenger's request for insurance purposes. Vessel Aegean Star III, Piraeus to Thira (Santorini), June 28, 2026. Scheduled departure 07:25. Actual departure 18:40. Passengers: Douglas Pruitt, Linda Pruitt. Ticket reference ASL-7731-Q."
+    },
+    {
+      "name": "Meal receipts",
+      "type": "receipt",
+      "content": "Kafeneio To Limani, Akti Kallimasioti, Piraeus, June 28, 2026, 08:50. Two breakfasts, two coffees: $31.00. Kafeneio To Limani, June 28, 2026, 14:15. Two lunches, one bottle of water, two coffees: $58.00. Card ending 2085, Douglas Pruitt."
+    }
+  ],
+  "status": "open"
+}

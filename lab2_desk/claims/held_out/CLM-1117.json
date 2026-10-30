@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1117",
+  "policy_id": "POL-2117",
+  "customer_id": "CUS-3117",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-08-21",
+  "incident_date": "2026-08-10",
+  "incident_location": "Rio de Janeiro, Brazil",
+  "summary": "Broken nose after walking into a bus shelter in Copacabana",
+  "story": "On the afternoon of August 10 I was walking along Avenida Atlantica in Copacabana and I walked into a bus shelter and broke my nose. I would prefer not to go into what I was looking at. It was a beach volleyball match. The shelter was where bus shelters usually are. A lifeguard walked me to a clinic, where they X-rayed my nose, set it and gave me painkillers. The bill and the notes are attached.",
+  "items": [
+    {
+      "description": "Clinic treatment for a broken nose",
+      "category": "medical",
+      "amount": 880.0
+    }
+  ],
+  "amount_claimed": 880.0,
+  "documents": [
+    {
+      "name": "Clinic invoice",
+      "type": "invoice",
+      "content": "Clinica Sao Lucas Copacabana, Rio de Janeiro, August 10, 2026. Patient Trevor Mallory. Emergency consultation: $220.00. X-ray, nasal bones: $160.00. Closed reduction of nasal fracture under local anesthetic: $430.00. Medication: $70.00. Total: $880.00. Paid by card."
+    },
+    {
+      "name": "Medical record",
+      "type": "medical_record",
+      "content": "Clinica Sao Lucas Copacabana, August 10, 2026, 15:25. Patient Trevor Mallory, age 40. Walked into a fixed structure, a bus shelter, while walking on the promenade about 30 minutes ago. No loss of consciousness. No alcohol. Examination: swelling and deviation of the nasal bridge, nosebleed now stopped. X-ray: displaced fracture of the nasal bones. Treatment: closed reduction under local anesthetic, splint, pain relief. Fit to fly. Dr. M. Carvalho."
+    }
+  ],
+  "status": "open"
+}

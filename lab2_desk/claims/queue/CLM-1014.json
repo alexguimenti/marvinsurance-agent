@@ -1,0 +1,62 @@
+{
+  "claim_id": "CLM-1014",
+  "policy_id": "POL-2014",
+  "customer_id": "CUS-3014",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-27",
+  "incident_date": "2026-06-27",
+  "incident_location": "Cancun, Mexico",
+  "summary": "Duffel bag lost on the way to Cancun",
+  "story": "I checked a duffel bag from Kansas City to Cancun on June 27 and it never turned up. Skylark looked for three weeks, then wrote to say it was lost and paid me $100. It was a beach week, so the bag was mostly shirts, shorts and swimsuits, all bought new in May, and my snorkel set. I spent the first two days of the vacation in the clothes I flew in. The receipts, the airline's report and their letter are attached.",
+  "items": [
+    {
+      "description": "Duffel bag",
+      "category": "luggage",
+      "amount": 110.0
+    },
+    {
+      "description": "Three polo shirts",
+      "category": "clothing",
+      "amount": 195.0
+    },
+    {
+      "description": "Two swimsuits",
+      "category": "clothing",
+      "amount": 170.0
+    },
+    {
+      "description": "Two pairs of shorts",
+      "category": "clothing",
+      "amount": 120.0
+    },
+    {
+      "description": "Leather sandals, one pair",
+      "category": "clothing",
+      "amount": 140.0
+    },
+    {
+      "description": "Snorkel mask and snorkel",
+      "category": "personal_item",
+      "amount": 70.0
+    }
+  ],
+  "amount_claimed": 805.0,
+  "documents": [
+    {
+      "name": "Skylark Airways property irregularity report",
+      "type": "carrier_report",
+      "content": "Skylark Airways property irregularity report CUN-SK-19073. Passenger Jordan Ellis-Wright arrived Cancun CUN June 27, 2026 on SK 1440 from Kansas City. One checked bag, tag SK 402281, not delivered."
+    },
+    {
+      "name": "Skylark Airways settlement letter",
+      "type": "letter",
+      "content": "Skylark Airways, July 20, 2026. Dear Jordan Ellis-Wright, we have been unable to find your bag, tag SK 402281, and now treat it as lost. We have paid $100.00 to your card in settlement of our liability."
+    },
+    {
+      "name": "Receipts",
+      "type": "receipt",
+      "content": "Plaza Outfitters, Kansas City, May 16, 2026. Three polo shirts at $65.00 each: $195.00. Two pairs of shorts at $60.00 each: $120.00. Two swimsuits at $85.00 each: $170.00. Leather sandals: $140.00. Total: $625.00. Midwest Dive and Swim, Kansas City, May 23, 2026. Snorkel mask and snorkel set: $70.00. Canvas duffel bag: $110.00. Total: $180.00. Card ending 3358, Jordan Ellis-Wright."
+    }
+  ],
+  "status": "open"
+}

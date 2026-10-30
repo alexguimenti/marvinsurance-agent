@@ -1,0 +1,47 @@
+{
+  "claim_id": "CLM-1109",
+  "policy_id": "POL-2109",
+  "customer_id": "CUS-3109",
+  "claim_type": "trip_interruption",
+  "submitted_on": "2026-06-29",
+  "incident_date": "2026-06-14",
+  "incident_location": "Budapest, Hungary",
+  "summary": "Business trip to Transylvania cut short by sickness",
+  "story": "I am a real estate attorney and I traveled to Transylvania on June 3 to close a property purchase for a client, who insisted that the papers be signed in person at his castle. He was a most attentive host, though he kept unusual hours and I never once saw him eat. After ten days at the castle I had become weak and unwell, and I left in some haste by a route I would not recommend. I was admitted to a hospital in Budapest on June 14. The doctor there found me severely anemic and told me to go home, and his letter is attached. He was puzzled by two small marks on my neck, which I put down to the mosquitoes. I flew home on June 16 and lost my last four prepaid nights in Bistrita. The purchase went through, and I understand my client has since relocated.",
+  "items": [
+    {
+      "description": "One-way economy fare, Budapest to Boston",
+      "category": "transport",
+      "amount": 610.0
+    },
+    {
+      "description": "Unused prepaid hotel nights in Bistrita",
+      "category": "trip_cost",
+      "amount": 280.0
+    }
+  ],
+  "amount_claimed": 890.0,
+  "documents": [
+    {
+      "name": "Physician's letter",
+      "type": "physician_statement",
+      "content": "Hospital of St. Joseph and St. Mary, Budapest, June 15, 2026. Mr. Jonathan Harker, age 34, was admitted on June 14, 2026 with severe anemia, dehydration and nervous exhaustion. He is improving with treatment. He is not fit to continue his journey and I have advised him to return home to recover under the care of his own physician. Dr. A. Vamos, internal medicine."
+    },
+    {
+      "name": "Airline ticket receipt",
+      "type": "receipt",
+      "content": "Meridian Air, ticket issued June 15, 2026. Passenger Jonathan Harker. Budapest BUD to Boston BOS, June 16, 2026, economy, one way: $610.00."
+    },
+    {
+      "name": "Hotel statement",
+      "type": "letter",
+      "content": "Golden Krone Hotel, Bistrita, June 22, 2026. Reservation for Mr. J. Harker, June 16 to June 20, four nights, prepaid $280.00. The guest did not arrive. This rate is not refundable."
+    },
+    {
+      "name": "Card statement extract",
+      "type": "other",
+      "content": "Card ending 1897, Jonathan Harker. May 2, 2026, Golden Krone Hotel, Bistrita: $280.00. June 15, 2026, Meridian Air: $610.00."
+    }
+  ],
+  "status": "open"
+}

@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1018",
+  "policy_id": "POL-2018",
+  "customer_id": "CUS-3018",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-01",
+  "incident_date": "2026-06-22",
+  "incident_location": "Florence, Italy",
+  "summary": "Shopping bag with a new leather jacket snatched by a man on a scooter in Florence",
+  "story": "On June 22 I bought a leather jacket at a stall in the San Lorenzo market in Florence. I paid 390 euros in cash, about $420, and the stallholder did not give receipts. Twenty minutes later, on the Ponte alle Grazie, a man on a scooter pulled the shopping bag out of my hand and rode off with it. My canvas daypack was over the same arm and went with it. I reported it at the Carabinieri station within the hour, and their report is attached.",
+  "items": [
+    {
+      "description": "Leather jacket",
+      "category": "clothing",
+      "amount": 420.0
+    },
+    {
+      "description": "Canvas daypack",
+      "category": "luggage",
+      "amount": 80.0
+    }
+  ],
+  "amount_claimed": 500.0,
+  "documents": [
+    {
+      "name": "Carabinieri report",
+      "type": "police_report",
+      "content": "Carabinieri, Stazione Firenze Santa Croce. Report of theft, June 22, 2026, 12:55. Reported by Hector Villanueva, United States citizen. At about 12:10 today on the Ponte alle Grazie a man riding a scooter pulled a shopping bag and a canvas daypack from the arm of the reporting person and left toward Piazza Ferrucci. Items reported stolen: one men's leather jacket, new, and one canvas daypack. Report number FI-2026-044172."
+    }
+  ],
+  "status": "open"
+}

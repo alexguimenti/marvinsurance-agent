@@ -1,0 +1,52 @@
+{
+  "claim_id": "CLM-1008",
+  "policy_id": "POL-2008",
+  "customer_id": "CUS-3008",
+  "claim_type": "trip_cancellation",
+  "submitted_on": "2026-06-29",
+  "incident_date": "2026-06-14",
+  "incident_location": "Liberal, Kansas",
+  "summary": "Trip to Seattle canceled after a tornado carried off her farmhouse",
+  "story": "On June 14 a tornado lifted our farmhouse off its foundation and set it down in a field some distance away. I was inside at the time with my dog, Toto. We are both fine, although I hit my head and had a very strange dream. The county has declared the house uninhabitable and I am staying with my aunt and uncle, so on June 16 I canceled the trip I had booked to Seattle for June 20. I had been looking forward to seeing the Emerald City. For now I have come to the view that there is no place like home, once we have one again. The airline gave me a $200 credit and nothing else was refundable.",
+  "items": [
+    {
+      "description": "Round-trip flights, Wichita to Seattle",
+      "category": "trip_cost",
+      "amount": 640.0
+    },
+    {
+      "description": "Prepaid hotel, seven nights",
+      "category": "trip_cost",
+      "amount": 1480.0
+    },
+    {
+      "description": "Prepaid Mount Rainier day tour",
+      "category": "trip_cost",
+      "amount": 320.0
+    }
+  ],
+  "amount_claimed": 2440.0,
+  "documents": [
+    {
+      "name": "County notice",
+      "type": "letter",
+      "content": "Seward County Emergency Management, June 15, 2026. Following the tornado of June 14, 2026, the dwelling at Rural Route 2, Box 39, Liberal, Kansas, occupied by the Gale family, was found displaced from its foundation and structurally unsafe. It is declared uninhabitable until further notice."
+    },
+    {
+      "name": "Skylark Airways cancellation confirmation",
+      "type": "letter",
+      "content": "Skylark Airways, June 16, 2026. Booking SK-J8L3QN, Dorothy Gale, Wichita to Seattle June 20 and return June 27, fare $640.00, canceled at the passenger's request. The fare is not refundable. A travel credit of $200.00 has been issued."
+    },
+    {
+      "name": "Hotel and tour confirmations",
+      "type": "letter",
+      "content": "Pike Street Hotel, Seattle, June 16, 2026. Reservation for D. Gale, June 20 to June 27, prepaid $1,480.00, canceled. This rate is not refundable. Rainier Day Tours, June 16, 2026. Booking for D. Gale, June 23, prepaid $320.00, canceled. No refund is due inside 14 days."
+    },
+    {
+      "name": "Card statement extract",
+      "type": "other",
+      "content": "Card ending 1939, Dorothy Gale. April 17, 2026, Skylark Airways: $640.00. April 17, 2026, Pike Street Hotel: $1,480.00. April 20, 2026, Rainier Day Tours: $320.00."
+    }
+  ],
+  "status": "open"
+}

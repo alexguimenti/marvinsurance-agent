@@ -1,0 +1,42 @@
+{
+  "claim_id": "CLM-1122",
+  "policy_id": "POL-2122",
+  "customer_id": "CUS-3122",
+  "claim_type": "baggage_delay",
+  "submitted_on": "2026-08-19",
+  "incident_date": "2026-08-10",
+  "incident_location": "Munich, Germany",
+  "summary": "Checked bag delayed on arrival in Munich",
+  "story": "I flew from Columbus to Munich, arriving on August 10, and my checked bag did not arrive with me. I was without it for three days and had to buy a whole set of clothes and shoes to get through the start of my trip, since I had meetings with friends and dinners planned. I spent $412 in total. The receipts and the airline's report are attached. Please process this quickly, as it was a very stressful start to my vacation.",
+  "items": [
+    {
+      "description": "Clothing",
+      "category": "clothing",
+      "amount": 287.0
+    },
+    {
+      "description": "Shoes",
+      "category": "clothing",
+      "amount": 125.0
+    }
+  ],
+  "amount_claimed": 412.0,
+  "documents": [
+    {
+      "name": "Northwind Airlines delayed baggage report",
+      "type": "carrier_report",
+      "content": "Northwind Airlines delayed baggage report MUC-NW-66308. Passenger Carla Jennings arrived Munich August 10, 2026 at 07:50 on NW 96. One checked bag delayed. Delivered to the passenger's hotel August 11, 2026 at 09:40."
+    },
+    {
+      "name": "Clothing receipt",
+      "type": "receipt",
+      "content": "Easton Fashion Outlet, Columbus, Ohio. August 7, 2026, 14:12. Two tops, one pair of pants, one jacket: $287.00. Card ending 4471."
+    },
+    {
+      "name": "Shoe receipt",
+      "type": "receipt",
+      "content": "Easton Fashion Outlet, Columbus, Ohio. August 7, 2026, 14:31. Leather sneakers: $125.00. Card ending 4471."
+    }
+  ],
+  "status": "open"
+}

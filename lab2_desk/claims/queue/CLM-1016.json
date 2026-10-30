@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1016",
+  "policy_id": "POL-2016",
+  "customer_id": "CUS-3016",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-08-03",
+  "incident_date": "2026-07-22",
+  "incident_location": "Mexico City, Mexico",
+  "summary": "Hospital admission in Mexico City with a kidney stone",
+  "story": "On July 22, two days into my trip to Mexico City, I had terrible pain in my left side at the hotel. It came out of nowhere. I took a taxi to a private hospital, where they found a kidney stone causing a blockage and kept me for two nights. They removed the stone the next day. I paid $6,200 by card when I was discharged. I was told that the altitude and not drinking enough water on the flight may have played a part. The hospital's discharge summary and the bill are attached.",
+  "items": [
+    {
+      "description": "Two night hospital admission, CT scan and kidney stone removal",
+      "category": "medical",
+      "amount": 6200.0
+    }
+  ],
+  "amount_claimed": 6200.0,
+  "documents": [
+    {
+      "name": "Hospital discharge summary",
+      "type": "medical_record",
+      "content": "HOSPITAL ANGELES DEL VALLE, MEXICO CITY. DEPARTMENT OF UROLOGY. DISCHARGE SUMMARY.\n\nPatient: Robert Haines. Date of birth: February 3, 1965. Age: 61. Nationality: United States. Admitted: July 22, 2026 at 21:40 through the emergency department. Discharged: July 24, 2026 at 11:15. Attending physician: Dr. Luis Ortega Marin, Urology.\n\nREASON FOR ADMISSION. Severe pain in the left flank radiating to the groin, of sudden onset at the patient's hotel at approximately 19:30, with nausea and two episodes of vomiting. The patient arrived by taxi and was unable to sit still during the assessment.\n\nFINDINGS ON ARRIVAL. Blood pressure 152/90. Heart rate 102, regular. Temperature 37.1 C. Oxygen saturation 94 percent on room air, consistent with the altitude of Mexico City. Marked tenderness over the left flank. Abdomen soft, no guarding. No fever and no signs of sepsis.\n\nINVESTIGATIONS. Urinalysis: blood 3+, no nitrites, no leukocytes. Complete blood count normal. Creatinine 1.3 mg/dL, mildly raised. Electrolytes normal. C-reactive protein normal. Non-contrast CT of the abdomen and pelvis on July 22: a 6 mm stone in the upper left ureter with moderate hydronephrosis of the left kidney. No stones in the right kidney. No other acute findings.\n\nHISTORY OBTAINED FROM THE PATIENT. The patient reports high blood pressure treated with lisinopril. He passed a kidney stone without treatment in 2022 and has taken potassium citrate since then. On direct questioning he describes an episode of left flank pain with visible blood in the urine in the spring of this year. He reports that he saw his urologist at home about it on May 14, 2026, that a CT scan at that visit showed a 5 mm stone in the lower part of the left kidney, that his potassium citrate was increased from 10 mEq to 20 mEq twice daily and tamsulosin was added, and that he was advised to return for repeat imaging in August, which he had not yet done. He reports that the pain settled within a few days in May, that he considered the matter dealt with and that he did not think to mention it when arranging his travel. He takes no other regular medication. No known drug allergies.\n\nDIAGNOSIS. Obstructing stone of the left ureter with hydronephrosis. In the opinion of the treating team this is the stone documented in the left kidney in May 2026, which has since moved into the ureter. Reduced fluid intake during travel and the dry air at the altitude of Mexico City, approximately 2,240 meters, may have contributed to the timing of the episode.\n\nTREATMENT IN HOSPITAL. Admitted to the urology ward. Treated with intravenous fluids, ketorolac and morphine for pain, and ondansetron for nausea. The pain did not settle overnight and kidney function did not improve, so the patient was taken to the operating room on July 23. Procedure: left ureteroscopy with laser fragmentation of the stone and placement of a ureteral stent, under general anesthesia. The stone was cleared completely. No complications. Fragments were sent for analysis and the result will follow by email.\n\nCONDITION AT DISCHARGE. Comfortable, eating and drinking normally, passing urine without difficulty. Creatinine 1.0 mg/dL on the morning of discharge. Mild discomfort from the stent, as expected.\n\nMEDICATION AT DISCHARGE. Tamsulosin 0.4 mg daily while the stent is in place. Potassium citrate 20 mEq twice daily, continued. Ibuprofen 400 mg as needed for stent discomfort. Lisinopril continued.\n\nADVICE AND FOLLOW UP. The patient should drink at least 2.5 liters of water a day. He is fit to fly home as planned. The ureteral stent must be removed by his urologist within two weeks, and he has been given a letter and the operative note to take with him. He should go to an emergency department if he develops a fever, cannot pass urine or has pain that does not respond to medication.\n\nSigned: Dr. Luis Ortega Marin, Urology. July 24, 2026."
+    },
+    {
+      "name": "Hospital itemized bill",
+      "type": "invoice",
+      "content": "Hospital Angeles del Valle, Mexico City. Patient: Robert Haines. Admission July 22 to July 24, 2026. Emergency department assessment: $650.00. CT scan: $700.00. Laboratory tests: $320.00. Urology ward, two nights: $1,500.00. Ureteroscopy with laser and stent, operating room and anesthesia: $2,350.00. Physician fees: $480.00. Medication: $200.00. Total paid by card on July 24, 2026: $6,200.00."
+    }
+  ],
+  "status": "open"
+}

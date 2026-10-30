@@ -1,0 +1,52 @@
+{
+  "claim_id": "CLM-1005",
+  "policy_id": "POL-2005",
+  "customer_id": "CUS-3005",
+  "claim_type": "passport",
+  "submitted_on": "2026-07-14",
+  "incident_date": "2026-07-01",
+  "incident_location": "Nairobi, Kenya",
+  "summary": "Passport eaten by a giraffe at breakfast",
+  "story": "On the morning of July 1 I was having breakfast at Twiga House in Nairobi, where the resident giraffes put their heads through the dining room windows. My passport was on the table next to my plate because the front desk had just handed it back to me. A giraffe called Daisy took it off the table and ate most of it before anyone could get it back. What I recovered was the cover and part of page 3. The lodge manager has written a letter confirming this. He was very apologetic, although he did mention that Daisy had never done it before. I went to the US Embassy in Nairobi the next day for an emergency passport. I am claiming the passport fee, the photos and the taxis to and from the embassy.",
+  "items": [
+    {
+      "description": "Emergency passport fee",
+      "category": "document_fees",
+      "amount": 165.0
+    },
+    {
+      "description": "Passport photos",
+      "category": "document_fees",
+      "amount": 18.0
+    },
+    {
+      "description": "Taxis to and from the US Embassy",
+      "category": "transport",
+      "amount": 60.0
+    }
+  ],
+  "amount_claimed": 243.0,
+  "documents": [
+    {
+      "name": "Letter from Twiga House",
+      "type": "letter",
+      "content": "Twiga House, Nairobi, July 1, 2026. To whom it may concern. I confirm that at breakfast this morning one of our Rothschild's giraffes reached through the dining room window and took the passport of our guest Mr. Oliver Grant from his table. Our staff recovered the cover and one damaged page. The passport cannot be used. We are sorry for the distress caused. Joseph Kamau, Lodge Manager."
+    },
+    {
+      "name": "US Embassy receipt",
+      "type": "receipt",
+      "content": "US Embassy Nairobi, American Citizen Services, July 2, 2026. Emergency passport, applicant Oliver Grant. Fee paid: $165.00."
+    },
+    {
+      "name": "Photo receipt",
+      "type": "receipt",
+      "content": "Westlands Photo Studio, Nairobi, July 2, 2026. Passport photos, set of four: $18.00."
+    },
+    {
+      "name": "Taxi receipts",
+      "type": "receipt",
+      "content": "Taxi, Twiga House to US Embassy, July 2, 2026: $30.00. Taxi, US Embassy to Twiga House, July 2, 2026: $30.00."
+    }
+  ],
+  "status": "open"
+}

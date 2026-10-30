@@ -1,0 +1,6 @@
+{
+  "claim_id": "CLM-1023",
+  "decision": "refer",
+  "payout": 0.0,
+  "rationale": "Refer to a claims handler to request one missing document: Northwind's written confirmation of the cause of the delay, since the delay certificate gives only the scheduled (08:15) and actual (17:32) departure times and not the cause (wording section 3; claims manual sections 5 and 2). The 9h17m delay exceeds the First plan's 3-hour waiting period, and the two meal receipts total $61 (manual section 10 flat allowance of $70 is higher, so receipts apply), so the expected payout is $61 once the cause is confirmed and no sign-off is needed under $1,000 (manual section 3)."
+}

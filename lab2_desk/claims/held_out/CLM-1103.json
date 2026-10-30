@@ -1,0 +1,62 @@
+{
+  "claim_id": "CLM-1103",
+  "policy_id": "POL-2103",
+  "customer_id": "CUS-3103",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-06",
+  "incident_date": "2026-06-09",
+  "incident_location": "Hanoi, Vietnam",
+  "summary": "Suitcase and clothes ruined by fish sauce in the hold on the way to Hanoi",
+  "story": "My suitcase came onto the carousel in Hanoi on June 9 wet through and smelling very strongly of fish sauce. Northwind's baggage desk told me a case of it had broken open in the hold beside my bag, and they wrote up a damage report on the spot. We were on our way to trek in Sapa, so the case held my sweaters, shirts, boots and socks, all bought for the trip. A laundry in the Old Quarter tried twice and then gave me the attached statement. Northwind has paid me $450. The suitcase now lives in our garage, and my wife has asked that this claim be settled before it comes back into the house.",
+  "items": [
+    {
+      "description": "Soft-sided suitcase",
+      "category": "luggage",
+      "amount": 190.0
+    },
+    {
+      "description": "Two cashmere sweaters",
+      "category": "clothing",
+      "amount": 700.0
+    },
+    {
+      "description": "Three linen shirts",
+      "category": "clothing",
+      "amount": 330.0
+    },
+    {
+      "description": "Hiking boots, one pair",
+      "category": "clothing",
+      "amount": 240.0
+    },
+    {
+      "description": "Four pairs of wool socks",
+      "category": "clothing",
+      "amount": 96.0
+    }
+  ],
+  "amount_claimed": 1556.0,
+  "documents": [
+    {
+      "name": "Northwind Airlines damage report",
+      "type": "carrier_report",
+      "content": "Northwind Airlines damaged baggage report HAN-NW-08842. Passenger Dennis Kaminski arrived Hanoi HAN June 9, 2026 on NW 77 from Minneapolis via Tokyo. One checked bag, tag NW 219076, delivered wet. Contents contaminated by liquid that leaked from other cargo in the hold, identified as fish sauce."
+    },
+    {
+      "name": "Northwind Airlines settlement letter",
+      "type": "letter",
+      "content": "Northwind Airlines, June 30, 2026. Dear Mr. Kaminski, we accept responsibility for the damage to your bag, tag NW 219076, and its contents. We have paid $450.00 to your card in settlement of our liability."
+    },
+    {
+      "name": "Laundry statement",
+      "type": "repair_report",
+      "content": "Hang Bac Laundry and Leather Care, Hanoi, June 12, 2026. For Mr. Dennis Kaminski. We cleaned one soft-sided suitcase, two cashmere sweaters, three linen shirts, one pair of leather hiking boots and four pairs of wool socks, twice. The odor has gone into the fabric, the leather and the lining and we cannot remove it. In our opinion none of these items can be restored."
+    },
+    {
+      "name": "Receipts",
+      "type": "receipt",
+      "content": "North Loop Outfitters, Minneapolis, May 16, 2026. Two cashmere sweaters at $350.00 each: $700.00. Three linen shirts at $110.00 each: $330.00. Four pairs of wool socks at $24.00 each: $96.00. Leather hiking boots: $240.00. Total: $1,366.00. Lake Street Luggage, Minneapolis, May 16, 2026. Soft-sided suitcase, 26 inch: $190.00. Card ending 9031, Dennis Kaminski."
+    }
+  ],
+  "status": "open"
+}

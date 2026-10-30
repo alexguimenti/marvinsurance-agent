@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1110",
+  "policy_id": "POL-2110",
+  "customer_id": "CUS-3110",
+  "claim_type": "baggage",
+  "submitted_on": "2026-09-04",
+  "incident_date": "2026-08-26",
+  "incident_location": "Paris, France",
+  "summary": "Wallet and phone pickpocketed on the Paris metro",
+  "story": "On August 26 my wallet and phone were taken from my zipped crossbody bag on line 1 of the Paris metro, somewhere between Chatelet and the Louvre. I noticed at the museum entrance. I went to the police station near the Louvre that afternoon and they took my statement, but they said the printed report would take several days and I flew home before it was ready. The reference number they gave me is 2026/PV/093317. I am claiming the phone and the wallet. The cash in the wallet was about $60.",
+  "items": [
+    {
+      "description": "Smartphone",
+      "category": "electronics",
+      "amount": 450.0
+    },
+    {
+      "description": "Leather wallet",
+      "category": "personal_item",
+      "amount": 95.0
+    },
+    {
+      "description": "Cash",
+      "category": "other",
+      "amount": 60.0
+    }
+  ],
+  "amount_claimed": 605.0,
+  "documents": [
+    {
+      "name": "Purchase receipt",
+      "type": "receipt",
+      "content": "Capitol Wireless, Washington DC, September 2025. Smartphone, 128 GB: $450.00."
+    }
+  ],
+  "status": "open"
+}

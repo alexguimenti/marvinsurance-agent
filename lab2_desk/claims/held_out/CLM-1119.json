@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1119",
+  "policy_id": "POL-2119",
+  "customer_id": "CUS-3119",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-08-18",
+  "incident_date": "2026-08-06",
+  "incident_location": "Queenstown, New Zealand",
+  "summary": "Dislocated shoulder on a bungee jump",
+  "story": "On August 6 I did a bungee jump near Queenstown. On the rebound my right arm got pulled back hard and my shoulder dislocated. The crew got me down and drove me to the emergency department, where they put it back in, took images and gave me a sling. I also had two physiotherapy sessions before I flew home. The operator was great and none of this was their fault. I am claiming the hospital and physio costs.",
+  "items": [
+    {
+      "description": "Emergency department visit, imaging and shoulder reduction",
+      "category": "medical",
+      "amount": 1550.0
+    },
+    {
+      "description": "Two physiotherapy sessions",
+      "category": "medical",
+      "amount": 300.0
+    }
+  ],
+  "amount_claimed": 1850.0,
+  "documents": [
+    {
+      "name": "Hospital bill and report",
+      "type": "medical_record",
+      "content": "Lakes District Hospital, Queenstown, August 6, 2026. Patient: Jake Morrison, age 28. Anterior dislocation of the right shoulder sustained during a commercial bungee jump. Reduced under sedation, post-reduction X-ray satisfactory, sling provided. No relevant medical history. Charges for a non-resident patient: $1,550.00, paid."
+    },
+    {
+      "name": "Physiotherapy receipt",
+      "type": "receipt",
+      "content": "Remarkables Physio, Queenstown. Sessions on August 9 and August 12, 2026: $300.00."
+    }
+  ],
+  "status": "open"
+}

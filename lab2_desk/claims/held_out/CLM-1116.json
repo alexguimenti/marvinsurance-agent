@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1116",
+  "policy_id": "POL-2116",
+  "customer_id": "CUS-3116",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-07-24",
+  "incident_date": "2026-06-09",
+  "incident_location": "Cancun, Mexico",
+  "summary": "Clinic visit in Cancun for an ear infection after snorkeling",
+  "story": "After two days of snorkeling off the beach in Cancun I woke up on June 9 with a painful ear and could not hear out of it. The hotel sent me to a clinic, where the doctor diagnosed an outer ear infection, cleaned the ear and prescribed drops. I paid $420 by card. The clinic mailed me this final invoice last week with the doctor's notes, and I am sending both in.",
+  "items": [
+    {
+      "description": "Clinic consultation, ear cleaning and prescription",
+      "category": "medical",
+      "amount": 420.0
+    }
+  ],
+  "amount_claimed": 420.0,
+  "documents": [
+    {
+      "name": "Clinic invoice",
+      "type": "invoice",
+      "content": "Clinica Costa Maya, Cancun. Final invoice F-20718, issued July 15, 2026. Patient Marisol Vega. Date of service June 9, 2026. Consultation: $180.00. Ear irrigation and cleaning: $150.00. Antibiotic ear drops and pain relief: $90.00. Total: $420.00. Paid by card June 9, 2026."
+    },
+    {
+      "name": "Medical record",
+      "type": "medical_record",
+      "content": "Clinica Costa Maya, June 9, 2026. Patient Marisol Vega, age 36. Presents with pain and reduced hearing in the right ear for one day after swimming. No fever. No previous ear problems. Examination: canal swollen and red, eardrum intact. Diagnosis: acute otitis externa. Treatment: irrigation and cleaning, antibiotic drops for 7 days, keep the ear dry. Dr. L. Canul."
+    }
+  ],
+  "status": "open"
+}

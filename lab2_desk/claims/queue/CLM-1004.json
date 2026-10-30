@@ -1,0 +1,42 @@
+{
+  "claim_id": "CLM-1004",
+  "policy_id": "POL-2004",
+  "customer_id": "CUS-3004",
+  "claim_type": "baggage_delay",
+  "submitted_on": "2026-07-10",
+  "incident_date": "2026-07-02",
+  "incident_location": "Edinburgh, United Kingdom",
+  "summary": "Checked bag arrived 31 hours late",
+  "story": "I landed in Edinburgh on the morning of July 2 for a friend's wedding and my checked bag did not. Skylark Airways delivered it to my hotel the following afternoon, a little over 31 hours later. In between I had a welcome dinner to go to, and I would rather not have attended it in the T-shirt from the airline's amenity kit, so I bought a dress, underwear and basic toiletries. The receipts and the airline's report are attached.",
+  "items": [
+    {
+      "description": "Dress and underwear",
+      "category": "clothing",
+      "amount": 139.0
+    },
+    {
+      "description": "Toiletries",
+      "category": "toiletries",
+      "amount": 47.0
+    }
+  ],
+  "amount_claimed": 186.0,
+  "documents": [
+    {
+      "name": "Skylark Airways delayed baggage report",
+      "type": "carrier_report",
+      "content": "Skylark Airways delayed baggage report EDI-SK-20931. Passenger Danielle Okafor arrived Edinburgh July 2, 2026 at 08:10 on SK 418. One checked bag delayed. Delivered to the passenger's hotel July 3, 2026 at 15:25."
+    },
+    {
+      "name": "Clothing receipt",
+      "type": "receipt",
+      "content": "Jenners Row, Edinburgh, July 2, 2026. Dress: $112.00. Underwear: $27.00. Total: $139.00."
+    },
+    {
+      "name": "Pharmacy receipt",
+      "type": "receipt",
+      "content": "Princes Street Pharmacy, Edinburgh, July 2, 2026. Toothbrush, toothpaste, deodorant, face wash, moisturizer: $47.00."
+    }
+  ],
+  "status": "open"
+}

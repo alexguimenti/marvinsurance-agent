@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1125",
+  "policy_id": "POL-2125",
+  "customer_id": "CUS-3125",
+  "claim_type": "baggage_delay",
+  "submitted_on": "2026-08-17",
+  "incident_date": "2026-08-04",
+  "incident_location": "Zurich, Switzerland",
+  "summary": "Checked bag arrived 41 hours late in Zurich",
+  "story": "I landed in Zurich on the morning of August 4 for a week of meetings and my suitcase arrived at my hotel 41 hours later. I bought two shirts, underwear, socks and toiletries to get through the first two days. Northwind's report and my receipts are attached.",
+  "items": [
+    {
+      "description": "Two shirts, underwear and socks",
+      "category": "clothing",
+      "amount": 104.0
+    },
+    {
+      "description": "Toiletries",
+      "category": "toiletries",
+      "amount": 34.0
+    }
+  ],
+  "amount_claimed": 138.0,
+  "documents": [
+    {
+      "name": "Northwind Airlines delayed baggage report",
+      "type": "carrier_report",
+      "content": "Northwind Airlines delayed baggage report ZRH-NW-31904. Passenger Nathan Brandt arrived Zurich ZRH August 4, 2026 at 07:50 on NW 52 from Chicago. One checked bag, tag NW 870233, not delivered on arrival. Delivered to the passenger's hotel August 6, 2026 at 00:45."
+    },
+    {
+      "name": "Receipts",
+      "type": "receipt",
+      "content": "Bahnhofstrasse Herrenmode, Zurich, August 4, 2026. Two shirts, underwear, socks: $104.00. Apotheke am Paradeplatz, Zurich, August 4, 2026. Toiletries: $34.00. Card ending 5518, Nathan Brandt."
+    }
+  ],
+  "status": "open"
+}

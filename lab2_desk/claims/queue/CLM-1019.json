@@ -1,0 +1,42 @@
+{
+  "claim_id": "CLM-1019",
+  "policy_id": "POL-2019",
+  "customer_id": "CUS-3019",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-08-20",
+  "incident_date": "2026-08-14",
+  "incident_location": "Miami, Florida",
+  "summary": "Nine hour delay leaving Miami for Bogota",
+  "story": "My flight from Miami to Bogota on August 14 was scheduled for 7:30 in the morning and left at 4:50 in the afternoon because the crew had timed out and the airline had to bring in a replacement. I took a day room at the airport hotel to get some work done, had lunch, and paid for a taxi to the hotel and back. The total is $210 and the receipts are attached, along with the airline's confirmation of the delay.",
+  "items": [
+    {
+      "description": "Airport hotel day room",
+      "category": "accommodation",
+      "amount": 112.0
+    },
+    {
+      "description": "Lunch",
+      "category": "meals",
+      "amount": 58.0
+    },
+    {
+      "description": "Taxi to the hotel and back",
+      "category": "transport",
+      "amount": 40.0
+    }
+  ],
+  "amount_claimed": 210.0,
+  "documents": [
+    {
+      "name": "Meridian Air delay confirmation",
+      "type": "carrier_report",
+      "content": "Meridian Air. Flight MA 205 Miami MIA to Bogota BOG, August 14, 2026. Scheduled departure 07:30. Actual departure 16:50. Cause: crew duty time limit, replacement crew required. Issued to passenger Victor Salazar."
+    },
+    {
+      "name": "Receipts",
+      "type": "receipt",
+      "content": "Miami Airport Hotel, day room, August 14, 2026: $112.00. Cafe Versailles, Concourse D, August 14, 2026: $58.00. Taxi, August 14, 2026, two trips: $40.00."
+    }
+  ],
+  "status": "open"
+}

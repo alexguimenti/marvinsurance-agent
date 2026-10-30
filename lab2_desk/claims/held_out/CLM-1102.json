@@ -1,0 +1,42 @@
+{
+  "claim_id": "CLM-1102",
+  "policy_id": "POL-2102",
+  "customer_id": "CUS-3102",
+  "claim_type": "baggage",
+  "submitted_on": "2026-08-28",
+  "incident_date": "2026-08-22",
+  "incident_location": "San Francisco, California",
+  "summary": "Laptop bag stolen from a parked rental car",
+  "story": "On August 22 I parked my rental car near Alamo Square in San Francisco to take some photos. I was gone for maybe twenty minutes. When I got back the rear window was smashed and my laptop bag was gone from the back seat. The car was locked, and I had put my jacket over the bag. I filed a police report online that evening and the rental company has the damage report. The bag had my laptop and my headphones in it.",
+  "items": [
+    {
+      "description": "Laptop",
+      "category": "electronics",
+      "amount": 1350.0
+    },
+    {
+      "description": "Noise-canceling headphones",
+      "category": "electronics",
+      "amount": 280.0
+    },
+    {
+      "description": "Laptop bag",
+      "category": "luggage",
+      "amount": 85.0
+    }
+  ],
+  "amount_claimed": 1715.0,
+  "documents": [
+    {
+      "name": "Police report",
+      "type": "police_report",
+      "content": "San Francisco Police Department, online report 260-581-447, filed August 22, 2026 at 19:05 by Tyler Brooks. Vehicle burglary on Steiner Street between 15:30 and 15:50. Rear passenger window broken. Taken from the rear seat: one laptop bag containing a laptop and headphones."
+    },
+    {
+      "name": "Purchase receipts",
+      "type": "receipt",
+      "content": "Music City Electronics, Nashville, January 2026, laptop 14 inch: $1,350.00. Music City Electronics, Nashville, January 2026, noise-canceling headphones: $280.00."
+    }
+  ],
+  "status": "open"
+}

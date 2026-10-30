@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1120",
+  "policy_id": "POL-2120",
+  "customer_id": "CUS-3120",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-08-27",
+  "incident_date": "2026-08-19",
+  "incident_location": "Keflavik, Iceland",
+  "summary": "Flight home from Keflavik canceled by a windstorm, 22 hour delay",
+  "story": "My flight home from Keflavik on August 19 was canceled when a windstorm closed the airport, and I left 22 hours late the next day. Every hotel near the airport was full of people from canceled flights. The only room I could find was the Aurora Suite at the Hotel Reykjanes, at $690 for the night. It has a hot tub on the balcony. I would like it noted that I did not use the hot tub, because the balcony was where the windstorm was. I had dinner at the hotel. Northwind's letter and my receipts are attached.",
+  "items": [
+    {
+      "description": "Hotel Reykjanes, Aurora Suite, one night",
+      "category": "accommodation",
+      "amount": 690.0
+    },
+    {
+      "description": "Dinner at the hotel",
+      "category": "meals",
+      "amount": 54.0
+    }
+  ],
+  "amount_claimed": 744.0,
+  "documents": [
+    {
+      "name": "Northwind Airlines delay confirmation",
+      "type": "carrier_report",
+      "content": "Northwind Airlines. Flight NW 615 Keflavik KEF to New Orleans MSY via Boston, August 19, 2026. Scheduled departure 16:50. Canceled: severe weather, airport closed by high winds. Rebooked on NW 615 August 20, 2026, actual departure 14:55. Passenger: Lorraine Baptiste."
+    },
+    {
+      "name": "Hotel receipt",
+      "type": "receipt",
+      "content": "Hotel Reykjanes, Keflavik, August 20, 2026. Aurora Suite, one night, August 19, guest L. Baptiste: $690.00. Restaurant, dinner, August 19: $54.00. Total: $744.00. Card ending 1977."
+    }
+  ],
+  "status": "open"
+}

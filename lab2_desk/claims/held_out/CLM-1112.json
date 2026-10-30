@@ -1,0 +1,47 @@
+{
+  "claim_id": "CLM-1112",
+  "policy_id": "POL-2112",
+  "customer_id": "CUS-3112",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-30",
+  "incident_date": "2026-07-16",
+  "incident_location": "Ao Thalane, Krabi, Thailand",
+  "summary": "Phone, earbuds and speaker ruined when a kayak capsized in Krabi",
+  "story": "On July 16 I took a guided kayak trip through the mangroves at Ao Thalane. My kayak went over in the channel and my dry bag went under with me. The dry bag stayed perfectly dry on the outside. Inside it, my phone, my earbuds and my speaker spent about a minute in salt water, and none of them has worked since. A repair shop in Krabi Town looked at all three and their statement is attached, with my receipts. I bought Electronics Plus with the policy because I was taking all my electronics on the trip.",
+  "items": [
+    {
+      "description": "Smartphone, 128 GB",
+      "category": "electronics",
+      "amount": 480.0
+    },
+    {
+      "description": "Wireless earbuds",
+      "category": "electronics",
+      "amount": 249.0
+    },
+    {
+      "description": "Portable Bluetooth speaker",
+      "category": "electronics",
+      "amount": 179.0
+    }
+  ],
+  "amount_claimed": 908.0,
+  "documents": [
+    {
+      "name": "Repair shop statement",
+      "type": "repair_report",
+      "content": "Krabi Mobile and Audio Repair, Krabi Town, July 17, 2026. Customer Mia Castellano. We examined one smartphone, one pair of wireless earbuds with charging case and one portable Bluetooth speaker. All three show salt water inside the casing and corrosion on the boards. None of the three can be repaired."
+    },
+    {
+      "name": "Purchase receipts",
+      "type": "receipt",
+      "content": "Ocean State Electronics, Providence, November 28, 2025. Smartphone, 128 GB: $480.00. Wireless earbuds: $249.00. Total: $729.00. Ocean State Electronics, Providence, May 30, 2026. Portable Bluetooth speaker: $179.00. Card ending 5120, Mia Castellano."
+    },
+    {
+      "name": "Tour operator's note",
+      "type": "letter",
+      "content": "Thalane Bay Kayak Tours, July 16, 2026. We confirm that Ms. Mia Castellano's kayak capsized during our morning mangrove tour today. She was unhurt. Her dry bag was recovered from the water."
+    }
+  ],
+  "status": "open"
+}

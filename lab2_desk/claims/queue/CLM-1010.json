@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1010",
+  "policy_id": "POL-2010",
+  "customer_id": "CUS-3010",
+  "claim_type": "emergency_medical",
+  "submitted_on": "2026-07-02",
+  "incident_date": "2026-06-21",
+  "incident_location": "Las Vegas, Nevada",
+  "summary": "Emergency dental treatment in Las Vegas for a missing front tooth",
+  "story": "I was in Las Vegas from June 19 for a friend's bachelor party. On the morning of June 21 I woke up on the floor of our suite missing an upper front tooth. I have no memory of the night before, and neither do my friends. I am a dentist, and I have to say that the extraction is consistent with my own technique. I went to an emergency dental clinic that morning for an exam, an X-ray and a temporary bridge, and their bill and notes are attached. There was also a tiger in the bathroom of the suite, which I mention only for completeness. I am not claiming for anything connected with the tiger.",
+  "items": [
+    {
+      "description": "Emergency dental exam and X-ray",
+      "category": "medical",
+      "amount": 290.0
+    },
+    {
+      "description": "Temporary bridge, upper front tooth",
+      "category": "medical",
+      "amount": 1060.0
+    }
+  ],
+  "amount_claimed": 1350.0,
+  "documents": [
+    {
+      "name": "Clinic invoice",
+      "type": "invoice",
+      "content": "Desert Springs Emergency Dental, Las Vegas, June 21, 2026. Patient Stuart Price. Emergency examination: $140.00. Periapical X-ray: $150.00. Temporary bridge, tooth 10: $1,060.00. Total: $1,350.00. Paid by card."
+    },
+    {
+      "name": "Clinical notes",
+      "type": "medical_record",
+      "content": "Desert Springs Emergency Dental, June 21, 2026, 10:40. Patient Stuart Price, age 47, a dentist. Tooth 10, the upper left lateral incisor, is missing. The socket is clean with a clot in place, consistent with a recent extraction using instruments. The patient believes he removed the tooth himself during the night and has no memory from about 10 pm to 9 am. He and his companions report heavy drinking through the evening of June 20, and he smelled of alcohol and was unsteady on arrival. No other injury. Treatment: exam, X-ray, temporary bridge. Advised to see his own dentist at home. Dr. R. Okafor, DDS."
+    }
+  ],
+  "status": "open"
+}

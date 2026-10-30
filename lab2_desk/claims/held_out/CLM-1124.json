@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1124",
+  "policy_id": "POL-2124",
+  "customer_id": "CUS-3124",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-17",
+  "incident_date": "2026-07-08",
+  "incident_location": "Paris, France",
+  "summary": "Knife roll and cookbook chewed by a rat at a cooking school in Paris",
+  "story": "I spent the week of July 4 at a cooking school in Paris. On July 8 I came back from lunch to find that a rat had got into my bag in the students' locker room and chewed through my leather knife roll and most of my cookbook, which was a first edition of Everyone Can Cook. The school's letter is attached. In fairness to the rat, it seemed unusually interested in the cooking. I saw it again the next day near the stove, and I had the distinct impression that it disapproved of my soup.",
+  "items": [
+    {
+      "description": "Leather knife roll",
+      "category": "personal_item",
+      "amount": 210.0
+    },
+    {
+      "description": "Cookbook, first edition",
+      "category": "personal_item",
+      "amount": 95.0
+    }
+  ],
+  "amount_claimed": 305.0,
+  "documents": [
+    {
+      "name": "Letter from the cooking school",
+      "type": "letter",
+      "content": "Ecole de Cuisine Rive Gauche, Paris, July 9, 2026. We regret that on July 8 a rat entered the students' locker room and damaged belongings of Mr. Alfred Linguini: one leather knife roll, gnawed through along the spine, and one book, of which the cover and about forty pages were eaten. Neither can be repaired. Pest control attended the same afternoon."
+    },
+    {
+      "name": "Receipts",
+      "type": "receipt",
+      "content": "Brooklyn Kitchen Supply, May 9, 2026. Leather knife roll, eight slot: $210.00. Court Street Books, Brooklyn, May 12, 2026. Everyone Can Cook, first edition, used: $95.00. Card ending 2007, Alfred Linguini."
+    }
+  ],
+  "status": "open"
+}

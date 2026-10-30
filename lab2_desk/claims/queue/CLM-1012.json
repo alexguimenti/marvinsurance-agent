@@ -1,0 +1,47 @@
+{
+  "claim_id": "CLM-1012",
+  "policy_id": "POL-2012",
+  "customer_id": "CUS-3012",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-09",
+  "incident_date": "2026-07-02",
+  "incident_location": "Paris, France",
+  "summary": "Valise stolen from a train at the Gare de Lyon",
+  "story": "On July 2 I took the train from Paris to Lausanne to join my husband, who was working there. At the Gare de Lyon I put my valise on the luggage rack in our carriage and stepped off the train to buy a bottle of water for the journey. I was gone for perhaps ten minutes. When I came back the valise was gone. It held my clothes and, far worse, all of my husband's writing: the printed manuscript of his novel, his notebooks and the backup drive, which I had packed so that he could work on everything in Switzerland. There are no other copies. I reported it to the police at the station that afternoon. I have valued the manuscript and notebooks at $1,900, though my husband would call that figure an insult.",
+  "items": [
+    {
+      "description": "Leather valise",
+      "category": "luggage",
+      "amount": 320.0
+    },
+    {
+      "description": "Clothing and shoes",
+      "category": "clothing",
+      "amount": 610.0
+    },
+    {
+      "description": "Printed manuscript and notebooks",
+      "category": "personal_item",
+      "amount": 1900.0
+    },
+    {
+      "description": "Backup drive",
+      "category": "electronics",
+      "amount": 70.0
+    }
+  ],
+  "amount_claimed": 2900.0,
+  "documents": [
+    {
+      "name": "Police report",
+      "type": "police_report",
+      "content": "Police Nationale, Gare de Lyon, Paris. Report 2026/071845, filed July 2, 2026 at 14:20 by Hadley Richards, US citizen. The complainant states that she placed a brown leather valise on the luggage rack of carriage 12 of the 12:57 service to Lausanne, left the train to make a purchase on the platform and returned about ten minutes later to find the valise missing. No witnesses. No suspect identified."
+    },
+    {
+      "name": "List of contents",
+      "type": "other",
+      "content": "Leather valise: $320. Clothing and shoes for two weeks: $610. Printed manuscript, about 400 pages, and six notebooks: $1,900. Backup drive, 1 TB: $70."
+    }
+  ],
+  "status": "open"
+}

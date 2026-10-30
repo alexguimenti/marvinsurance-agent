@@ -1,0 +1,82 @@
+{
+  "claim_id": "CLM-1118",
+  "policy_id": "POL-2118",
+  "customer_id": "CUS-3118",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-10",
+  "incident_date": "2026-06-14",
+  "incident_location": "Singapore",
+  "summary": "Garment bag lost on the way to a conference in Singapore",
+  "story": "I flew from Raleigh to Singapore on June 13 to speak at a conference, and my checked garment bag did not arrive with me. Meridian Air searched for three weeks, declared it lost on July 6 and paid me $500. The bag held the suit, shirts and ties I had bought for the trip, my dress shoes, and my camera and portrait lens, because I was staying on for three days to photograph the botanic gardens. I gave my talk in chinos from the hotel gift shop, which have the word Singapore down one leg. Everything is listed at what I paid, and the receipts and my card statement are attached.",
+  "items": [
+    {
+      "description": "Leather garment bag",
+      "category": "luggage",
+      "amount": 340.0
+    },
+    {
+      "description": "Suit jacket, charcoal wool",
+      "category": "clothing",
+      "amount": 450.0
+    },
+    {
+      "description": "Camera body",
+      "category": "electronics",
+      "amount": 480.0
+    },
+    {
+      "description": "Three dress shirts",
+      "category": "clothing",
+      "amount": 540.0
+    },
+    {
+      "description": "Suit trousers, charcoal wool",
+      "category": "clothing",
+      "amount": 250.0
+    },
+    {
+      "description": "Oxford shoes, one pair",
+      "category": "clothing",
+      "amount": 310.0
+    },
+    {
+      "description": "85mm portrait lens",
+      "category": "electronics",
+      "amount": 450.0
+    },
+    {
+      "description": "Two silk ties",
+      "category": "accessories",
+      "amount": 190.0
+    }
+  ],
+  "amount_claimed": 3010.0,
+  "documents": [
+    {
+      "name": "Meridian Air property irregularity report",
+      "type": "carrier_report",
+      "content": "Meridian Air property irregularity report SIN-MA-51127. Passenger Julian Okoro arrived Singapore SIN June 14, 2026 on MA 31 from Raleigh-Durham via San Francisco. One checked garment bag, tag MA 660418, not delivered."
+    },
+    {
+      "name": "Meridian Air settlement letter",
+      "type": "letter",
+      "content": "Meridian Air, July 6, 2026. Dear Mr. Okoro, after a search of 21 days we have been unable to find your bag, tag MA 660418, and we now treat it as lost. We have paid $500.00 to your card in full settlement of our liability."
+    },
+    {
+      "name": "Menswear receipt",
+      "type": "receipt",
+      "content": "Hartwell and Sons, Raleigh, May 9, 2026. Two piece suit, charcoal wool: jacket $450.00, trousers $250.00. Three dress shirts at $180.00 each: $540.00. Two silk ties at $95.00 each: $190.00. Total: $1,430.00."
+    },
+    {
+      "name": "Camera receipt",
+      "type": "receipt",
+      "content": "Triangle Camera, Durham, April 25, 2026. Camera body: $480.00. 85mm f/1.8 portrait lens: $450.00. Total: $930.00."
+    },
+    {
+      "name": "Card statement extract",
+      "type": "other",
+      "content": "Card ending 7714, Julian Okoro. February 21, 2026, Carolina Leather Goods, Raleigh: $340.00. March 3, 2026, Fayetteville Street Shoes, Raleigh: $310.00."
+    }
+  ],
+  "status": "open"
+}

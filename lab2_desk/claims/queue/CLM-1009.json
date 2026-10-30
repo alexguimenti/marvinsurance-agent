@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1009",
+  "policy_id": "POL-2009",
+  "customer_id": "CUS-3009",
+  "claim_type": "baggage",
+  "submitted_on": "2026-07-30",
+  "incident_date": "2026-07-21",
+  "incident_location": "Barcelona, Spain",
+  "summary": "Camera snatched on the Barcelona metro",
+  "story": "On July 21 I was on the metro in Barcelona with my camera on a strap around my neck. As the doors were closing at Liceu station a man cut the strap, grabbed the camera and jumped off the train. It was over in a couple of seconds. I got off at the next stop and went straight to the police station on Nou de la Rambla, where I filed a report the same afternoon. The camera is a mirrorless body with its kit lens, which I bought together in February for $980. The police report and my purchase receipt are attached.",
+  "items": [
+    {
+      "description": "Mirrorless camera with kit lens",
+      "category": "electronics",
+      "amount": 980.0
+    }
+  ],
+  "amount_claimed": 980.0,
+  "documents": [
+    {
+      "name": "Police report",
+      "type": "police_report",
+      "content": "Mossos d'Esquadra, Ciutat Vella station, Barcelona. Report 548812/2026, filed July 21, 2026 at 16:40 by Sofia Reyes, US citizen. Theft by snatching on metro line L3 at Liceu station at about 15:10 the same day. One mirrorless camera with lens, strap cut. Suspect not identified."
+    },
+    {
+      "name": "Purchase receipt",
+      "type": "receipt",
+      "content": "Lone Star Camera, Austin, Texas, February 14, 2026. Mirrorless camera body with 18-55mm kit lens: $980.00."
+    }
+  ],
+  "status": "open"
+}

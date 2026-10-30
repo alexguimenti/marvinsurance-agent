@@ -1,0 +1,37 @@
+{
+  "claim_id": "CLM-1023",
+  "policy_id": "POL-2023",
+  "customer_id": "CUS-3023",
+  "claim_type": "trip_delay",
+  "submitted_on": "2026-07-13",
+  "incident_date": "2026-07-03",
+  "incident_location": "Dallas, Texas",
+  "summary": "Nine hour delay leaving Dallas for Vancouver",
+  "story": "Our flight from Dallas to Vancouver on July 3 was due out at 8:15 in the morning and left at 5:32 in the afternoon. After we had boarded, the captain told us there was a fault with a fuel pump and that a part was coming from Houston, and they took us back off the plane. We had breakfast and lunch in the terminal while we waited. I asked Northwind for a letter for my insurance and they sent the delay certificate that is attached, with the meal receipts. I am claiming $61 for the two of us.",
+  "items": [
+    {
+      "description": "Breakfast for two at DFW",
+      "category": "meals",
+      "amount": 27.0
+    },
+    {
+      "description": "Lunch for two at DFW",
+      "category": "meals",
+      "amount": 34.0
+    }
+  ],
+  "amount_claimed": 61.0,
+  "documents": [
+    {
+      "name": "Northwind Airlines delay certificate",
+      "type": "carrier_report",
+      "content": "Northwind Airlines. Flight delay certificate, issued July 9, 2026 at the passenger's request for insurance purposes. Flight NW 418 Dallas DFW to Vancouver YVR, July 3, 2026. Scheduled departure 08:15. Actual departure 17:32. Passengers: Stephanie Marsh, Colin Marsh. Booking reference NW-K4T9PX."
+    },
+    {
+      "name": "Meal receipts",
+      "type": "receipt",
+      "content": "Lone Star Grill, DFW terminal C, July 3, 2026, 09:05. Two breakfast tacos, two coffees: $27.00. Terminal C Deli, July 3, 2026, 13:20. Two sandwiches, two iced teas: $34.00. Card ending 1196, Stephanie Marsh."
+    }
+  ],
+  "status": "open"
+}

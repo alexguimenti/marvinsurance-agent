@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLM-1104",
+  "policy_id": "POL-2104",
+  "customer_id": "CUS-3104",
+  "claim_type": "baggage",
+  "submitted_on": "2026-08-14",
+  "incident_date": "2026-08-05",
+  "incident_location": "At sea, Gulf of Alaska",
+  "summary": "Dentures lost overboard during rough seas",
+  "story": "On August 5 our ship crossed the Gulf of Alaska in rough weather and I was seasick. I went out to the rail on deck 7 for air, and while I was being ill over the side my upper and lower dentures went into the sea. My wife June saw the whole thing and has not let me forget it. Guest Services wrote up an incident note the same evening. I ate soup for the rest of the cruise. My dentist at home has made a replacement set and his invoice is attached.",
+  "items": [
+    {
+      "description": "Full set of dentures, upper and lower, replacement",
+      "category": "personal_item",
+      "amount": 1900.0
+    }
+  ],
+  "amount_claimed": 1900.0,
+  "documents": [
+    {
+      "name": "Ship incident note",
+      "type": "letter",
+      "content": "Polar Star Cruises, MS Aurora Borealis, Guest Services, August 5, 2026. Guest Walter Ferris, cabin 7114, reported at 19:40 that he lost a full set of dentures overboard from the deck 7 promenade while seasick. Witnessed by Mrs. June Ferris. Sea state at the time: rough. The item could not be recovered."
+    },
+    {
+      "name": "Dentist invoice",
+      "type": "invoice",
+      "content": "Gulf Coast Dental, Sarasota, Florida, August 12, 2026. Patient: Walter Ferris. Complete upper and lower dentures, replacement set: $1,900.00. Paid in full."
+    }
+  ],
+  "status": "open"
+}
