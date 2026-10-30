@@ -1,6 +1,6 @@
 # Farting Agent Harness Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tick the boxes in this file as you go.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking. Tick the boxes in this file as you go.
 
 **Goal:** One run of the Farting Agent plans and works the whole waiting queue (or a capped part of it) on its own, through a to-do list the team can watch, a fresh subagent per claim, section-by-section lookups in the policy wording and the claims manual, and recovery rules that never leave a claim stuck or decided twice.
 
@@ -71,14 +71,14 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
 **Interfaces:**
 - Produces: `Settings.agent_model` default `"deepseek/deepseek-v4.1-flash"`, `agent_reasoning_effort` default `"low"`, `agent_max_attempts: int = Field(2, ge=1, le=10)`, `agent_step_retries: int = Field(2, ge=0, le=5)`, `agent_claim_timeout_s: float = Field(300, gt=0)`, `agent_max_steps: int = Field(40, ge=5)` (one claim), `agent_run_max_steps: int = Field(400, ge=10)` (the orchestrator).
 
-- [ ] **Step 1: Write the failing tests** in `test_config.py`:
+- [x] **Step 1: Write the failing tests** in `test_config.py`:
   - `test_defaults_without_toml`: with `AGENT_CONFIG_FILE` pointing at a missing file, `Settings()` has `agent_model == "deepseek/deepseek-v4.1-flash"`, `agent_reasoning_effort == "low"`, `agent_max_attempts == 2`, `agent_step_retries == 2`, `agent_claim_timeout_s == 300`, `agent_max_steps == 40`, `agent_run_max_steps == 400`.
   - `test_repo_agent_toml_uses_default_model`: `_agent_toml()` read from the real `agent.toml` gives `agent_model == "deepseek/deepseek-v4.1-flash"` and `agent_reasoning_effort == "low"`.
   - `test_env_overrides_toml_model`: with `AGENT_MODEL=x/y` set, `Settings().agent_model == "x/y"`.
-- [ ] **Step 2: Run** `cd backend; .\.venv\Scripts\python -m pytest tests/test_config.py -v`. Expected: the first two FAIL, the third passes (existing behavior).
-- [ ] **Step 3: Implement.** Change the defaults and add the settings in `config.py`. Rewrite `agent.toml` as `model = "deepseek/deepseek-v4.1-flash"`, `temperature = 0`, `reasoning_effort = "low"`, `max_attempts = 2`, with one comment line per setting, plus commented `step_retries`, `claim_timeout_s`, `max_steps`, `run_max_steps`. In `build_agent`, pass `timeout=settings.agent_claim_timeout_s` and `max_retries=settings.agent_step_retries` to `ChatOpenAI`.
-- [ ] **Step 4: Run** the full backend suite. Expected: all pass (existing tests that relied on `max_attempts=3` take their value as a parameter, so they keep passing; fix any that read the default).
-- [ ] **Step 5: Commit** `config: default to deepseek-v4.1-flash, low effort; harness settings`.
+- [x] **Step 2: Run** `cd backend; .\.venv\Scripts\python -m pytest tests/test_config.py -v`. Expected: the first two FAIL, the third passes (existing behavior).
+- [x] **Step 3: Implement.** Change the defaults and add the settings in `config.py`. Rewrite `agent.toml` as `model = "deepseek/deepseek-v4.1-flash"`, `temperature = 0`, `reasoning_effort = "low"`, `max_attempts = 2`, with one comment line per setting, plus commented `step_retries`, `claim_timeout_s`, `max_steps`, `run_max_steps`. In `build_agent`, pass `timeout=settings.agent_claim_timeout_s` and `max_retries=settings.agent_step_retries` to `ChatOpenAI`.
+- [x] **Step 4: Run** the full backend suite. Expected: all pass (existing tests that relied on `max_attempts=3` take their value as a parameter, so they keep passing; fix any that read the default).
+- [x] **Step 5: Commit** `config: default to deepseek-v4.1-flash, low effort; harness settings`.
 
 ### Task 1: Section loader (R4)
 
@@ -93,7 +93,7 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `@dataclass(frozen=True) class Section: number: int; title: str; text: str`
   - `class Documents: __init__(self, ref: Reference)`; `sections(document: str) -> list[Section]`; `section(document: str, number: int) -> Section` (raises `KeyError` for an unknown document or number); `search(query: str, limit: int = 5) -> list[dict]` returning `{"document", "section", "title", "snippet"}`; `version(document: str) -> str`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_wording_has_twelve_sections`: titles of `sections("policy_wording")` start `["Your plan", "Trip Cancellation and Interruption", "Trip Delay", ...]`, `len == 12`, numbers 1..12.
   - `test_manual_has_fourteen_sections`: `len == 14`, section 10 title `"Meals without receipts"`.
   - `test_section_text_stops_at_next_heading`: `section("claims_manual", 9).text` contains `"third claim"` and not `"## 10."`.
@@ -102,10 +102,10 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `test_search_with_no_match_returns_empty_list`.
   - `test_versions`: `version("policy_wording") == "2026.1"`, `version("claims_manual") == "2026.2"`.
   - In `test_reference.py`: `test_manual_is_allowed` (`ref.manual` starts with `"# Marvin FartInsurance Claims Handling Manual"`) and the existing whitelist test still refuses `"evals/decisions.json"`.
-- [ ] **Step 2: Run** `pytest tests/test_documents.py tests/test_reference.py -v`. Expected: FAIL (module missing, `manual` missing).
-- [ ] **Step 3: Implement.** Split on lines matching `^## (\d+)\. (.+)$`. A section's text runs to the next such heading. The version is the first `Version (\d{4}\.\d+)` match in the file. Search: lower-case substring match of the whole query on each section's text, ranked by match count, snippet of about 160 characters around the first match. Documents are read only through `Reference`, never by path.
-- [ ] **Step 4: Run** the same tests. Expected: PASS.
-- [ ] **Step 5: Commit** `feat: section loader for the policy wording and the claims manual`.
+- [x] **Step 2: Run** `pytest tests/test_documents.py tests/test_reference.py -v`. Expected: FAIL (module missing, `manual` missing).
+- [x] **Step 3: Implement.** Split on lines matching `^## (\d+)\. (.+)$`. A section's text runs to the next such heading. The version is the first `Version (\d{4}\.\d+)` match in the file. Search: lower-case substring match of the whole query on each section's text, ranked by match count, snippet of about 160 characters around the first match. Documents are read only through `Reference`, never by path.
+- [x] **Step 4: Run** the same tests. Expected: PASS.
+- [x] **Step 5: Commit** `feat: section loader for the policy wording and the claims manual`.
 
 ### Task 2: Lookup tools replace the whole wording (R4)
 
@@ -117,16 +117,16 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
 - Consumes: `Documents` from Task 1.
 - Produces: tools `list_sections(document: str) -> str`, `read_section(document: str, section: int) -> str`, `search_documents(query: str) -> str`. `build_tools` no longer returns `get_policy_wording`. A `read_section` tool result in the trace is `"[<document> section <n>: <title>, <k> characters]"`, never the text.
 
-- [ ] **Step 1: Write the failing tests** in `test_tools.py`:
+- [x] **Step 1: Write the failing tests** in `test_tools.py`:
   - `test_tools_offer_lookups_not_whole_wording`: tool names include `list_sections`, `read_section`, `search_documents` and not `get_policy_wording`.
   - `test_read_section_returns_text`: `read_section.invoke({"document": "claims_manual", "section": 10})` contains `"$35"`.
   - `test_bad_lookups_return_error_strings` (Review Focus 5): `read_section` with `("claims_manual", 99)`, `("evals", 1)` and `("../evals/decisions.json", 1)` each return a string starting `"Error:"` that names the two valid documents, and nothing is raised.
   - `test_search_documents_returns_json_hits`: `json.loads(search_documents.invoke({"query": "meals without receipts"}))[0]["section"] == 10`.
   - In `test_agent.py`: `test_section_text_is_not_copied_to_the_trace`: a `FakeToolModel` script calls `read_section` then returns a `Decision`; the emitted `tool_result` content for `read_section` matches `^\[claims_manual section 7: Interpretation notes, \d+ characters\]$`.
-- [ ] **Step 2: Run** `pytest tests/test_tools.py tests/test_agent.py -v`. Expected: the new tests FAIL.
-- [ ] **Step 3: Implement** the three tools around `Documents`, catching `KeyError` to return `"Error: ... Documents: policy_wording, claims_manual."`. Remove `get_policy_wording`. Change the trace summary in `_emit_message`.
-- [ ] **Step 4: Run** the full backend suite. Expected: PASS. Fix tests that listed `get_policy_wording`.
-- [ ] **Step 5: Commit** `feat: agent looks up sections of the wording and the manual instead of reading the whole wording`.
+- [x] **Step 2: Run** `pytest tests/test_tools.py tests/test_agent.py -v`. Expected: the new tests FAIL.
+- [x] **Step 3: Implement** the three tools around `Documents`, catching `KeyError` to return `"Error: ... Documents: policy_wording, claims_manual."`. Remove `get_policy_wording`. Change the trace summary in `_emit_message`.
+- [x] **Step 4: Run** the full backend suite. Expected: PASS. Fix tests that listed `get_policy_wording`.
+- [x] **Step 5: Commit** `feat: agent looks up sections of the wording and the manual instead of reading the whole wording`.
 
 ### Task 3: Schema for runs, to-do items and attempts, with in-place upgrade
 
@@ -140,16 +140,16 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - New columns, added by `migrate(conn)` when missing: `claims.attempts INTEGER NOT NULL DEFAULT 0`, `claims.last_error TEXT`, `claims.run_id INTEGER`, `trace_events.run_id INTEGER`, `decisions.manual_version TEXT`, `decisions.wording_version TEXT`.
   - `init_schema(conn)` runs `SCHEMA` then `migrate(conn)`. `reset_analyses(conn)` also empties `runs`, `todo_items`, `run_events`, and sets `attempts = 0, last_error = NULL, run_id = NULL` on every claim.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_init_creates_harness_tables`: the three tables exist; the six columns exist (`PRAGMA table_info`).
   - `test_pilot_database_upgrades_in_place` (Review Focus 4): create a DB with the pilot `SCHEMA` text (copy it into the test as a constant), insert a claim, a decision and a trace event, call `init_schema`, then the rows are still there and the new columns read their defaults (`attempts == 0`).
   - `test_init_schema_twice_is_harmless`.
   - `test_reset_clears_runs_and_attempts`.
   - `test_decision_cannot_be_written_twice`: a second plain `INSERT INTO decisions` for the same `claim_id` raises `sqlite3.IntegrityError`.
-- [ ] **Step 2: Run** `pytest tests/test_db.py -v`. Expected: the new tests FAIL (the last one passes already: `claim_id` is the primary key; keep it as a guard).
-- [ ] **Step 3: Implement.** `migrate` reads `PRAGMA table_info(<table>)` and runs `ALTER TABLE ... ADD COLUMN` for each missing column.
-- [ ] **Step 4: Run** the full backend suite. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(db): runs, to-do items, run events, attempts; upgrade pilot databases in place`.
+- [x] **Step 2: Run** `pytest tests/test_db.py -v`. Expected: the new tests FAIL (the last one passes already: `claim_id` is the primary key; keep it as a guard).
+- [x] **Step 3: Implement.** `migrate` reads `PRAGMA table_info(<table>)` and runs `ALTER TABLE ... ADD COLUMN` for each missing column.
+- [x] **Step 4: Run** the full backend suite. Expected: PASS.
+- [x] **Step 5: Commit** `feat(db): runs, to-do items, run events, attempts; upgrade pilot databases in place`.
 
 ### Task 4: `work_claim`, the per-claim worker with attempt rules (R3, R5)
 
@@ -176,7 +176,7 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   3. On success: payment through `request_payment` (approve) or voided (decline/refer) as in the pilot, a plain `INSERT` into `decisions` with `manual_version` and `wording_version`, status `decided` or `awaiting_approval`, trace `decision` and `usage`.
   4. If the claim has a to-do item in the run, set it to `in_progress` when work starts, then `done`, `todo` (back in the queue) or `left_for_handler` with the error as note. (The to-do helper comes from Task 5; until then, guard with `if run_id`. Wire it in Task 5 Step 3.)
 
-- [ ] **Step 1: Write the failing tests** (stub agents in `fakes.py`: `StubAgent(outcomes: dict[str, list[Decision | Exception]])` pops one outcome per call and records the claim ids it was asked for):
+- [x] **Step 1: Write the failing tests** (stub agents in `fakes.py`: `StubAgent(outcomes: dict[str, list[Decision | Exception]])` pops one outcome per call and records the claim ids it was asked for):
   - `test_approve_under_limit_is_paid_and_decided`: line `"CLM-1001: approve $420.00, paid"`, status `decided`, decision row has `manual_version == "2026.2"`, `wording_version == "2026.1"`.
   - `test_over_limit_is_held` → `awaiting_approval`, payment `held`.
   - `test_first_failure_goes_back_to_waiting`: status `waiting`, `attempts == 1`, `last_error` names the error, line contains `"back in the queue"`, no decision row.
@@ -188,10 +188,10 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `test_trace_events_carry_run_id`.
   - `test_claim_usage_sums_attempts` (move from the pilot's retry test).
   - In `test_agent.py`: `test_scripted_agent_fails_on_1013_always_and_1017_once`; `test_langchain_agent_passes_recursion_limit` (spy on the compiled agent's `stream` config); `test_langchain_agent_times_out` (a fake model whose `_generate` sleeps past a 0.05 s `timeout_s`, expect `TimeoutError`).
-- [ ] **Step 2: Run** `pytest tests/test_runner.py tests/test_agent.py -v`. Expected: FAIL (`work_claim` missing).
-- [ ] **Step 3: Implement** `work_claim` and the agent changes. Delete `run_claim`, `run_queue`, `_refer` and the in-place retry loop. Rename the instructions file with `git mv`, then extend it: follow the manual's working order (manual section 4), look up sections with `search_documents`, `list_sections` and `read_section` rather than guess, always read manual section 9 and the customer's history before deciding, and cite the wording section and, where used, the manual section. Write only from the wording and the manual.
-- [ ] **Step 4: Run** the backend suite. `test_api.py` and `test_score.py` still call the old functions; mark those tests `xfail(reason="rewired in Task 7/10")` only if they cannot be fixed in one line, and list them in the ledger.
-- [ ] **Step 5: Commit** `feat: work_claim with attempt rules, one-line reports and versions on decisions`.
+- [x] **Step 2: Run** `pytest tests/test_runner.py tests/test_agent.py -v`. Expected: FAIL (`work_claim` missing).
+- [x] **Step 3: Implement** `work_claim` and the agent changes. Delete `run_claim`, `run_queue`, `_refer` and the in-place retry loop. Rename the instructions file with `git mv`, then extend it: follow the manual's working order (manual section 4), look up sections with `search_documents`, `list_sections` and `read_section` rather than guess, always read manual section 9 and the customer's history before deciding, and cite the wording section and, where used, the manual section. Write only from the wording and the manual.
+- [x] **Step 4: Run** the backend suite. `test_api.py` and `test_score.py` still call the old functions; mark those tests `xfail(reason="rewired in Task 7/10")` only if they cannot be fixed in one line, and list them in the ledger.
+- [x] **Step 5: Commit** `feat: work_claim with attempt rules, one-line reports and versions on decisions`.
 
 ### Task 5: Runs, to-do list and the missed-claim check (R1, R2, R5)
 
@@ -214,7 +214,7 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `finish(conn, run_id, status: str, summary: str | None = None, error: str | None = None) -> None`: sets `finished_at`, stores the total usage (the orchestrator's usage passed in `run_event(..., "usage", ...)` plus every claim `usage` trace event with this `run_id`), and puts any `in_progress` claim of the run back to `waiting`.
   - `recover_after_restart(conn) -> None`: runs still `running` become `failed` with error `"the server stopped during the run"`; `in_progress` claims go back to `waiting` with a `status` trace event `{"status": "waiting", "note": "recovered after a restart"}` (the trace is kept, `attempts` unchanged).
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_second_run_is_refused_while_one_runs` → `RunActive`.
   - `test_set_and_update_todo` (positions, statuses), `test_update_todo_rejects_unknown_status_and_item`, `test_item_cannot_be_done_for_undecided_claim`.
   - `test_work_claim_ticks_its_todo_item` (success → `done`; first failure → `todo`; second → `left_for_handler` with the note).
@@ -222,10 +222,10 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `test_missed_claims_lists_untried_and_retries_within_cap`: scope of 5, cap 3, nothing done → 3 ids; after 3 decided → `[]`; a claim back to `waiting` after a first failure is listed.
   - `test_finish_puts_in_progress_back_and_sums_usage`.
   - `test_recover_after_restart`.
-- [ ] **Step 2: Run** `pytest tests/test_runs.py -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** `runs.py`; call `todo_for_claim` from `work_claim` when `run_id` is set.
-- [ ] **Step 4: Run** the backend suite. Expected: PASS.
-- [ ] **Step 5: Commit** `feat: runs, to-do list and missed-claim check`.
+- [x] **Step 2: Run** `pytest tests/test_runs.py -v`. Expected: FAIL.
+- [x] **Step 3: Implement** `runs.py`; call `todo_for_claim` from `work_claim` when `run_id` is set.
+- [x] **Step 4: Run** the backend suite. Expected: PASS.
+- [x] **Step 5: Commit** `feat: runs, to-do list and missed-claim check`.
 
 ### Task 6: The orchestrator (R1, R2, R3, R5, R7)
 
@@ -248,7 +248,7 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `run_harness(conn, ref, settings, run_id: int, orchestrator: Orchestrator | None = None, agent: Agent | None = None) -> None`: builds the tools and runs the orchestrator; catches any exception from it; then, if the run is not finished, calls `runs.finish(..., status="failed", error=<exception or "missed: ...">)`. Never raises.
 - `instructions_run.md`: plan with `set_todo` after `list_waiting_claims`; choose the order and say why in one line; work each claim with `work_claim`; keep the list current with `update_todo`; a claim back in the queue is worked again after the others; respect the cap and do not touch claims outside it; call `finish_run` with a summary for handlers (counts by outcome, payouts held for sign-off, claims left for a handler and why); if `finish_run` refuses, work the listed claims and call it again. No claim ids or examples from the queue.
 
-- [ ] **Step 1: Write the failing tests** (an `agent` that is `StubAgent` or `ScriptedAgent`; an orchestrator that is `ScriptedOrchestrator` or `LangChainOrchestrator` over `FakeToolModel` scripts):
+- [x] **Step 1: Write the failing tests** (an `agent` that is `StubAgent` or `ScriptedAgent`; an orchestrator that is `ScriptedOrchestrator` or `LangChainOrchestrator` over `FakeToolModel` scripts):
   - `test_scripted_run_with_cap_works_that_many_and_leaves_the_rest`: cap 5 on the seeded queue → 5 claims not `waiting`, 20 `waiting`, run `finished`, summary not empty.
   - `test_run_without_cap_works_every_waiting_claim`.
   - `test_run_on_one_named_claim`: scope `["CLM-1004"]` → only it changes.
@@ -261,10 +261,10 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `test_orchestrator_crash_fails_the_run_and_frees_claims` (Review Focus 3): an orchestrator that raises after one `work_claim` → run `failed`, `error` set, no claim `in_progress`.
   - `test_orchestrator_stopping_early_records_missed_claims`: a `FakeToolModel` that ends with a plain message without calling `finish_run` → run `failed`, error lists the missed ids.
   - `test_run_usage_sums_orchestrator_and_claims`.
-- [ ] **Step 2: Run** `pytest tests/test_orchestrator.py -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** `orchestrator.py` and `instructions_run.md`.
-- [ ] **Step 4: Run** the backend suite. Expected: PASS.
-- [ ] **Step 5: Commit** `feat: orchestrator that plans and works the queue through a to-do list`.
+- [x] **Step 2: Run** `pytest tests/test_orchestrator.py -v`. Expected: FAIL.
+- [x] **Step 3: Implement** `orchestrator.py` and `instructions_run.md`.
+- [x] **Step 4: Run** the backend suite. Expected: PASS.
+- [x] **Step 5: Commit** `feat: orchestrator that plans and works the queue through a to-do list`.
 
 ### Task 7: API (R1, R2, R4, R5, R7)
 
@@ -282,7 +282,7 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - Removed: `POST /claims/{id}/run`, `POST /queue/run`.
   - Lifespan calls `runs.recover_after_restart` instead of deleting stuck traces.
 
-- [ ] **Step 1: Write the failing tests** (scripted provider, `TestClient`):
+- [x] **Step 1: Write the failing tests** (scripted provider, `TestClient`):
   - `test_post_runs_with_limit_works_that_many`: `limit: 3` → after the background task, 3 claims not `waiting`, `GET /runs/latest` shows `finished` and 3 to-do items `done`.
   - `test_post_runs_with_claim_ids`.
   - `test_second_run_conflicts` (insert a `running` row first) → 409.
@@ -293,10 +293,10 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `test_instructions_returns_both`.
   - `test_restart_recovers_running_run` (insert a `running` run and an `in_progress` claim, start the app) → run `failed`, claim `waiting`, its old trace kept.
   - Rewrite the pilot tests that used the removed routes to use `POST /runs`.
-- [ ] **Step 2: Run** `pytest tests/test_api.py -v`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Remove `RETRY_DELAY_S` and the old run helpers.
-- [ ] **Step 4: Run** the backend suite. Expected: PASS, no `xfail` left from Task 4 except `test_score.py` (Task 10).
-- [ ] **Step 5: Commit** `feat(api): runs, to-do list, what the agent read, both instructions`.
+- [x] **Step 2: Run** `pytest tests/test_api.py -v`. Expected: FAIL.
+- [x] **Step 3: Implement.** Remove `RETRY_DELAY_S` and the old run helpers.
+- [x] **Step 4: Run** the backend suite. Expected: PASS, no `xfail` left from Task 4 except `test_score.py` (Task 10).
+- [x] **Step 5: Commit** `feat(api): runs, to-do list, what the agent read, both instructions`.
 
 ### Task 8: Front end (R1, R2, R4, R5, R7)
 
@@ -319,7 +319,7 @@ What changes on each screen:
 - Consumes: Task 7 routes.
 - Produces: `Status` gains `'needs_handler'`; `STATUS_LABEL.needs_handler = 'Needs a handler'`; `startRun(opts: {claimIds?: string[]; limit?: number}) => Promise<{run_id: number}>`; `getLatestRun() => Promise<{run: Run | null; todo: TodoItem[]}>`; `getInstructions() => Promise<{run: string; claim: string}>`; types `Run`, `TodoItem`, `ReadSection`. `runClaim` and `runQueue` are removed.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `TodoPanel.test.tsx`: renders each item with its status label (`To do`, `In progress`, `Done`, `Left for a handler`) and note; shows the run's status, cost and summary; shows "No run yet" when `run` is null.
   - `Queue.test.tsx`: the panel shows the latest run and updates on the next poll; "Run queue" with the limit field set to 5 calls `startRun({limit: 5})`; ticked claims call `startRun({claimIds: [...]})`; a 409 shows "A run is already in progress"; the "Needs a handler" tile counts `needs_handler` claims; the run button is disabled while the latest run is `running`.
   - `ClaimDetail.test.tsx`: a "What the agent read" list with "Claims manual, section 7: Interpretation notes"; versions under the decision; attempts and the last error on a `needs_handler` claim; "Run this claim" calls `startRun({claimIds: [id]})`.
@@ -327,10 +327,10 @@ What changes on each screen:
   - `Trace.test.tsx`: a `read_section` call renders "Read claims manual, section 7"; an `error` event with "Attempt 1 of 2 failed" renders as an error row; the old `retry` test is removed.
   - `ClaimDetail.test.tsx` (also): "Run this claim" is disabled while the latest run is `running`.
   - `App.test.tsx`: the nav still renders with a `needs_handler` claim in the mock data.
-- [ ] **Step 2: Run** `cd frontend; npx vitest run`. Expected: the new tests FAIL.
-- [ ] **Step 3: Implement**, following `docs/DESIGN.md`: the to-do panel sits above the queue table as a checklist card, items with status marks matching the stamps, and the summary as a short note under it. `needs_handler` gets a badge and tile style.
-- [ ] **Step 4: Run** `npx vitest run` and `npx tsc -b`. Expected: all pass, no type errors.
-- [ ] **Step 5: Commit** `feat(frontend): to-do list, run limit, what the agent read, both instructions`.
+- [x] **Step 2: Run** `cd frontend; npx vitest run`. Expected: the new tests FAIL.
+- [x] **Step 3: Implement**, following `docs/DESIGN.md`: the to-do panel sits above the queue table as a checklist card, items with status marks matching the stamps, and the summary as a short note under it. `needs_handler` gets a badge and tile style.
+- [x] **Step 4: Run** `npx vitest run` and `npx tsc -b`. Expected: all pass, no type errors.
+- [x] **Step 5: Commit** `feat(frontend): to-do list, run limit, what the agent read, both instructions`.
 
 ### Task 9: End-to-end tests
 
@@ -340,12 +340,12 @@ What changes on each screen:
 
 Scripted outcomes on the seeded queue: `CLM-1003`, `CLM-1008`, `CLM-1011` held for sign-off; `CLM-1013` fails twice and needs a handler; `CLM-1017` fails once, then is decided.
 
-- [ ] **Step 1: Update and write the specs:**
+- [x] **Step 1: Update and write the specs:**
   - `01`: ticking two claims still works; "Run queue" then ends with 0 waiting, 3 awaiting approval, 1 needing a handler, 21 decided; the instructions page shows both headings.
   - `02`: unchanged flow, with the run started through the new button.
   - `03-harness` (runs on a fresh DB; reset it in `beforeAll` through a test-only helper script, `e2e/scripts/clean.mjs`, as today): with the limit set to 3, the to-do panel shows three items that end `Done`, 22 claims stay waiting, the summary appears; opening a decided claim shows "What the agent read".
-- [ ] **Step 2: Run** `cd e2e; npx playwright test`. Expected: all pass. Run it three times to check for flakes.
-- [ ] **Step 3: Commit** `test(e2e): runs, to-do list, needs a handler`.
+- [x] **Step 2: Run** `cd e2e; npx playwright test`. Expected: all pass. Run it three times to check for flakes.
+- [x] **Step 3: Commit** `test(e2e): runs, to-do list, needs a handler`.
 
 Note: the scripted agent does not call `read_section`, so make `ScriptedAgent` emit one `read_section` tool call and result (wording section 10) per claim before this task, with a unit test in `test_agent.py`.
 
@@ -355,14 +355,14 @@ Note: the scripted agent does not call `read_section`, so make `ScriptedAgent` e
 - Modify: `scripts/score.py`, `backend/tests/test_score.py`, `backend/tests/test_evals_isolation.py`, `docs/SPEC.md`, `docs/TECH_STACK.md`, `README.md`, `COMMANDS.md`, `data/README.md`
 - Create: `package.json` (root), `scripts/check.mjs`
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_score.py`: `_run_agent` uses `work_claim` and still returns one decision per claim in a temp DB (scripted provider).
   - `test_evals_isolation.py`: `test_instructions_quote_no_claim`: neither `instructions_run.md` nor `instructions_claim.md` matches `CLM-\d{4}`.
-- [ ] **Step 2: Run** `pytest tests/test_score.py tests/test_evals_isolation.py -v`. Expected: FAIL.
-- [ ] **Step 3: Implement.** `score.py` calls `work_claim(conn, ref, agent, id, None, settings.agent_max_attempts)` per claim. Root `package.json` has `"check": "node scripts/check.mjs"`; `check.mjs` runs, in order and stopping at the first failure: backend pytest (Windows or POSIX venv path), `npx vitest run` and `npx tsc -b` in `frontend`, `npx playwright test` in `e2e`.
-- [ ] **Step 4: Update the documents:** `SPEC.md` sections 3.1 (manual as an input), 3.3, 5 (`needs_handler`), 6 (to-do list, what the agent read), 8 (manual leaves "out of scope"), 9 (runs, cap, attempts), 10; `TECH_STACK.md` (orchestrator, subagents, runs on LangChain, default model); `README.md` (status of the product, `npm run check`, run limit); `COMMANDS.md`; `data/README.md` (the agent now reads the manual).
-- [ ] **Step 5: Run** `npm run check` from the repo root. Expected: every suite green.
-- [ ] **Step 6: Commit** `docs+chore: one-command check, scoring through work_claim, docs for the harness`.
+- [x] **Step 2: Run** `pytest tests/test_score.py tests/test_evals_isolation.py -v`. Expected: FAIL.
+- [x] **Step 3: Implement.** `score.py` calls `work_claim(conn, ref, agent, id, None, settings.agent_max_attempts)` per claim. Root `package.json` has `"check": "node scripts/check.mjs"`; `check.mjs` runs, in order and stopping at the first failure: backend pytest (Windows or POSIX venv path), `npx vitest run` and `npx tsc -b` in `frontend`, `npx playwright test` in `e2e`.
+- [x] **Step 4: Update the documents:** `SPEC.md` sections 3.1 (manual as an input), 3.3, 5 (`needs_handler`), 6 (to-do list, what the agent read), 8 (manual leaves "out of scope"), 9 (runs, cap, attempts), 10; `TECH_STACK.md` (orchestrator, subagents, runs on LangChain, default model); `README.md` (status of the product, `npm run check`, run limit); `COMMANDS.md`; `data/README.md` (the agent now reads the manual).
+- [x] **Step 5: Run** `npm run check` from the repo root. Expected: every suite green.
+- [x] **Step 6: Commit** `docs+chore: one-command check, scoring through work_claim, docs for the harness`.
 
 ### Task 11: Live run on the real model
 
