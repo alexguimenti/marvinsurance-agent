@@ -252,3 +252,7 @@ For `docs/PLAN_HARNESS.md`, smallest working step first, each with its tests:
 7. Default model and settings (R6).
 8. Queue page to-do panel, claim page changes, e2e (R2, R4, R5).
 9. Docs, one-command check, live 5-claim run, score.
+
+
+
+
