@@ -10,8 +10,10 @@ You need two terminals.
 
 ```powershell
 cd backend
-.\.venv\Scripts\python -m uvicorn app.main:app --port 8000 --reload --reload-dir app --reload-dir .. --reload-include "*.py" --reload-include agent.toml --reload-include .env
+.\.venv\Scripts\python -m uvicorn app.main:app --port 8000 --reload --reload-dir app --reload-dir .. --reload-include "*.py" --reload-include agent.toml --reload-include .env --no-access-log
 ```
+
+`--no-access-log` keeps the terminal quiet: without it every refresh of the screens (several a second) prints a line. Errors and reloads still show. Drop it to see every request.
 
 **Terminal 2: frontend** (http://localhost:5173)
 
@@ -29,7 +31,7 @@ Open http://localhost:5173.
 | a `.py` file in `backend/app/` | restarts by itself |
 | `agent.toml` (model, temperature, reasoning) | restarts by itself |
 | `.env` (the API key) | restarts by itself |
-| `backend/app/instructions_run.md` or `instructions_claim.md` (the agent's prompts) | **does not**: restart with Ctrl+C and run the command again |
+| `backend/app/instructions_run.md` or `instructions_claim.md` (the agent's prompts) | nothing to restart: they are read again for every run and every claim |
 | files in `frontend/src/` | the page updates by itself, nothing to restart |
 
 The `--reload-include` options need the `watchfiles` package, which `pip install -e ".[dev]"` installs. Without it uvicorn ignores them and only reloads `.py` files. The simple form, `python -m uvicorn app.main:app --port 8000 --reload`, reloads `.py` files only and is enough if you never touch `agent.toml`.

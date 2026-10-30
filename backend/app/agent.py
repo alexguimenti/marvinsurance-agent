@@ -144,7 +144,7 @@ class LangChainAgent:
                 on_event("message", {"text": str(message.content)})
         elif isinstance(message, ToolMessage) and message.name != "Decision":
             content = str(message.content)
-            if message.name == "read_section" and not content.startswith("Error:"):
+            if message.name == "read_section" and not content.startswith(("Error:", "You already read")):
                 content = _section_summary(calls.get(message.tool_call_id, {}), content)  # the trace records what was read, not a copy of it
             on_event("tool_result", {"name": message.name, "content": content})
 

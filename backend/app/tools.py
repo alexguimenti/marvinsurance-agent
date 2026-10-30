@@ -9,6 +9,9 @@ from app.payments import request_payment as create_payment
 from app.payout import LineItem, calculate_payout as compute_payout
 from app.reference import Reference
 
+# Each section read goes back to the model on every later step, so reading costs grow fast.
+MAX_SECTIONS = 8
+
 
 def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list[BaseTool]:
     """Read-only tools bound to a single claim. None of them takes a path or a claim id."""
@@ -54,13 +57,21 @@ def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list
         except KeyError as exc:
             return f"Error: {exc.args[0]}. {unknown}"
 
+    read: set[tuple[str, int]] = set()
+
     @tool
     def read_section(document: str, section: int) -> str:
         """Read one numbered section of 'policy_wording' or 'claims_manual'."""
+        if (document, section) in read:
+            return f"You already read {document} section {section} above. Use that text."
+        if len(read) >= MAX_SECTIONS:
+            return f"Error: you have read {MAX_SECTIONS} sections, the most for one claim. Decide with what you have."
         try:
-            return docs.section(document, section).text
+            text = docs.section(document, section).text
         except KeyError as exc:
             return f"Error: {exc.args[0]}. {unknown}"
+        read.add((document, section))
+        return text
 
     @tool
     def search_documents(query: str) -> str:

@@ -113,3 +113,22 @@ def test_calculate_payout_tool_returns_steps(conn, ref):
 def test_request_payment_tool_over_limit_returns_held(conn, ref):
     out = json.loads(tools_for(conn, ref)["request_payment"].invoke({"amount": 2500.0}))
     assert out["status"] == "held"
+
+
+def test_rereading_a_section_returns_a_short_reminder(conn, ref):
+    read = tools_for(conn, ref)["read_section"]
+    first = read.invoke({"document": "claims_manual", "section": 7})
+    again = read.invoke({"document": "claims_manual", "section": 7})
+    assert len(first) > 1000
+    assert again.startswith("You already read claims_manual section 7")
+    assert len(again) < 200
+
+
+def test_reading_is_capped_per_claim(conn, ref):
+    from app.tools import MAX_SECTIONS
+
+    read = tools_for(conn, ref)["read_section"]
+    sections = [("policy_wording", n) for n in range(1, 13)]
+    outs = [read.invoke({"document": d, "section": n}) for d, n in sections[:MAX_SECTIONS + 1]]
+    assert all(not o.startswith("Error:") for o in outs[:MAX_SECTIONS])
+    assert outs[MAX_SECTIONS].startswith(f"Error: you have read {MAX_SECTIONS} sections")
