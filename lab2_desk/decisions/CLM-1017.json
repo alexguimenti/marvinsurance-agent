@@ -1,0 +1,6 @@
+{
+  "claim_id": "CLM-1017",
+  "decision": "refer",
+  "payout": 0.0,
+  "rationale": "The theft itself looks covered under section 5 (Baggage and Personal Effects) — a snatch from the person is not \"unattended\" under the manual — but two required documents are missing: the copy of the Carabinieri police report (section 5 requires it for theft) and proof of value for the sunglasses, which are claimed above $100 (manual section 5). Under manual section 5 a missing document is never a decline and never an approval on a promise, so the claim should go to a claims handler for a 30-day document request; if both documents arrive, the indicative payout is $90 + $150 (tablet capped at the Economy per-item limit) + $150 (jacket capped) + $130 (sunglasses, if proved) = $520, less the $100 deductible = $420, which is within the $750 Economy maximum and inside my $1,000 authority."
+}

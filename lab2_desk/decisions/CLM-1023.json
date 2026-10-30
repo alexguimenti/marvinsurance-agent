@@ -1,0 +1,6 @@
+{
+  "claim_id": "CLM-1023",
+  "decision": "refer",
+  "payout": 0.0,
+  "rationale": "Trip Delay under section 3 of the wording needs \"the carrier's confirmation of the delay and its cause\", and manual section 5 lists that as a required document. The Northwind certificate confirms the times (08:15 to 17:32, so the First plan's 3-hour waiting period is met) but says nothing about the cause. The claim appears payable at $61 (breakfast $27 + lunch $34, reasonable meal receipts, no deductible and well under the $1,500 maximum), so a claims handler should send a 30-day document request for the carrier's written confirmation of the cause of the delay and approve once it arrives."
+}

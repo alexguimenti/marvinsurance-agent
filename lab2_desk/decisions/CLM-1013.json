@@ -1,0 +1,6 @@
+{
+  "claim_id": "CLM-1013",
+  "decision": "decline",
+  "payout": 0.0,
+  "rationale": "Under section 3 of the policy wording we pay Trip Delay only when the carrier delays you for at least your plan's waiting period, and the Economy plan's waiting period is 12 hours. The carrier's confirmation shows the flight was scheduled to leave Chicago at 09:15 and actually departed at 16:20, a delay of 7 hours 5 minutes, so the waiting period was not met and no Trip Delay benefit is payable on the $123 claimed."
+}
