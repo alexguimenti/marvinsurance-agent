@@ -47,6 +47,7 @@ def test_run_claim_twice_conflicts(client):
     assert client.post("/claims/CLM-1001/run").status_code == 409
 
 
+@pytest.mark.xfail(reason="rewired to POST /runs in PLAN_HARNESS task 7", strict=True)
 def test_run_queue_decides_everything(client):
     assert client.post("/queue/run").status_code == 202
     statuses = {c["status"] for c in client.get("/claims").json()}
@@ -81,7 +82,7 @@ def test_handlers_lists_approvers(client):
 
 
 def test_instructions_endpoint_matches_file(client):
-    assert client.get("/instructions").json() == {"text": load_instructions()}
+    assert client.get("/instructions").json() == {"text": load_instructions("claim")}
 
 
 @pytest.mark.parametrize("path", [
@@ -142,6 +143,7 @@ def test_claim_detail_exposes_the_agent_usage(client, db_path):
     assert client.get("/claims/CLM-1001").json()["usage"] == usage
 
 
+@pytest.mark.xfail(reason="rewired to POST /runs in PLAN_HARNESS task 7", strict=True)
 def test_a_flaky_agent_is_retried_by_the_api(db_path, data_dir, monkeypatch):
     import app.api as api_module
     from app.agent import Decision

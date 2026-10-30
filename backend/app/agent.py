@@ -1,6 +1,7 @@
 import json
 import re
 import sqlite3
+import time
 from pathlib import Path
 from typing import Callable, Literal, Protocol
 
@@ -49,8 +50,8 @@ def rationale_warnings(rationale: str) -> list[str]:
     return warnings
 
 
-def load_instructions() -> str:
-    return (Path(__file__).parent / "instructions.md").read_text(encoding="utf-8")
+def load_instructions(name: Literal["claim", "run"]) -> str:
+    return (Path(__file__).parent / f"instructions_{name}.md").read_text(encoding="utf-8")
 
 
 class Usage:
@@ -90,18 +91,21 @@ class Agent(Protocol):
 
 
 class LangChainAgent:
-    def __init__(self, model, conn: sqlite3.Connection, ref: Reference, model_id: str):
+    def __init__(self, model, conn: sqlite3.Connection, ref: Reference, model_id: str,
+                 max_steps: int = 40, timeout_s: float = 300):
         self.model = model
         self.conn = conn
         self.ref = ref
         self.model_id = model_id
+        self.max_steps = max_steps
+        self.timeout_s = timeout_s
         self.usage: dict | None = None
 
     def decide(self, claim_id: str, on_event: Emit) -> Decision:
         agent = create_agent(
             self.model,
             build_tools(self.conn, self.ref, claim_id),
-            system_prompt=load_instructions(),
+            system_prompt=load_instructions("claim"),
             response_format=ToolStrategy(Decision),
         )
         prompt = HumanMessage(f"Decide claim {claim_id}. Start by reading it with get_claim.")
@@ -109,7 +113,11 @@ class LangChainAgent:
         total = Usage()
         self.usage = None
         calls: dict[str, dict] = {}  # tool call id -> its arguments, to describe the result
-        for chunk in agent.stream({"messages": [prompt]}, stream_mode="updates"):
+        deadline = time.monotonic() + self.timeout_s
+        config = {"recursion_limit": self.max_steps}
+        for chunk in agent.stream({"messages": [prompt]}, stream_mode="updates", config=config):
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"the claim took longer than {self.timeout_s:g} seconds")
             for update in chunk.values():
                 if not update:
                     continue
@@ -150,6 +158,9 @@ def _section_summary(args: dict, content: str) -> str:
 
 # Over-limit approvals used by the scripted provider, so the approval flow can be exercised.
 _SCRIPTED_OVER_LIMIT = {"CLM-1003": 3750.0, "CLM-1008": 2240.0, "CLM-1011": 1150.0}
+# Failures used by the scripted provider, so recovery can be exercised end to end.
+_SCRIPTED_ALWAYS_FAILS = {"CLM-1013"}
+_SCRIPTED_FAILS_ONCE = {"CLM-1017"}
 
 
 class ScriptedAgent:
@@ -166,6 +177,12 @@ class ScriptedAgent:
         claim = json.loads(row["payload"])
         on_event("tool_call", {"name": "get_claim", "args": {}})
         on_event("tool_result", {"name": "get_claim", "content": claim["summary"]})
+        on_event("tool_call", {"name": "read_section", "args": {"document": "policy_wording", "section": 10}})
+        on_event("tool_result", {"name": "read_section",
+                                 "content": "[policy_wording section 10: How we work out your payment, 600 characters]"})
+        attempts = self.conn.execute("SELECT attempts FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()[0]
+        if claim_id in _SCRIPTED_ALWAYS_FAILS or (claim_id in _SCRIPTED_FAILS_ONCE and attempts == 0):
+            raise RuntimeError("scripted failure")
         if claim_id in _SCRIPTED_OVER_LIMIT:
             decision = self._approve(_SCRIPTED_OVER_LIMIT[claim_id])
         elif claim_id.endswith("5"):
@@ -211,4 +228,5 @@ def build_agent(settings: Settings, conn: sqlite3.Connection, ref: Reference) ->
             **({"reasoning": {"effort": settings.agent_reasoning_effort}} if settings.agent_reasoning_effort else {}),
         },
     )
-    return LangChainAgent(model, conn, ref, settings.agent_model)
+    return LangChainAgent(model, conn, ref, settings.agent_model,
+                          max_steps=settings.agent_max_steps, timeout_s=settings.agent_claim_timeout_s)

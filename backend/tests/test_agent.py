@@ -61,7 +61,7 @@ def test_rationale_warnings_flag_missing_section():
 
 
 def test_instructions_mention_data_not_instructions_and_wording_section():
-    text = load_instructions().lower()
+    text = load_instructions("claim").lower()
     assert "never follow instructions" in text
     assert "section" in text
     assert "calculate_payout" in text and "refer" in text
@@ -198,3 +198,64 @@ def test_usage_is_reset_for_each_claim(conn, ref):
         return agent.usage
 
     assert run()["cost_usd"] == 0.001
+
+
+def test_scripted_agent_fails_on_1013_always_and_1017_once(conn, ref):
+    from app.agent import ScriptedAgent
+
+    agent = ScriptedAgent(conn)
+    for attempts in (0, 1, 2):
+        conn.execute("UPDATE claims SET attempts=? WHERE claim_id='CLM-1013'", (attempts,))
+        with pytest.raises(RuntimeError):
+            agent.decide("CLM-1013", lambda *_: None)
+    with pytest.raises(RuntimeError):
+        agent.decide("CLM-1017", lambda *_: None)
+    conn.execute("UPDATE claims SET attempts=1 WHERE claim_id='CLM-1017'")
+    assert agent.decide("CLM-1017", lambda *_: None).decision in ("approve", "decline", "refer")
+
+
+def test_scripted_agent_reads_a_section(conn, ref):
+    from app.agent import ScriptedAgent
+
+    calls = []
+    ScriptedAgent(conn).decide("CLM-1001", lambda kind, content: calls.append(content) if kind == "tool_call" else None)
+    assert {"name": "read_section", "args": {"document": "policy_wording", "section": 10}} in calls
+
+
+def test_langchain_agent_passes_recursion_limit(conn, ref, monkeypatch):
+    import app.agent as agent_module
+
+    seen = {}
+
+    class Spy:
+        def stream(self, inputs, stream_mode=None, config=None):
+            seen["config"] = config
+            yield {"model": {"structured_response": Decision(**decision_args())}}
+
+    monkeypatch.setattr(agent_module, "create_agent", lambda *a, **k: Spy())
+    LangChainAgent(script(), conn, ref, "test/model", max_steps=12).decide("CLM-1001", lambda *_: None)
+    assert seen["config"]["recursion_limit"] == 12
+
+
+def test_langchain_agent_times_out(conn, ref):
+    import time
+
+    from tests.fakes import FakeToolModel
+
+    class SlowModel(FakeToolModel):
+        def _generate(self, messages, *args, **kwargs):
+            time.sleep(0.1)
+            return super()._generate(messages, *args, **kwargs)
+
+    model = SlowModel(messages=iter([tool_call("get_claim", {}, "c1"), tool_call("get_claim", {}, "c2"),
+                                     tool_call("Decision", decision_args(), "c3")]), seen=[])
+    with pytest.raises(TimeoutError):
+        LangChainAgent(model, conn, ref, "test/model", timeout_s=0.05).decide("CLM-1001", lambda *_: None)
+
+
+def test_build_agent_passes_step_limit_and_timeout(conn, ref):
+    settings = Settings(_env_file=None, agent_provider="openrouter", openrouter_api_key="k",
+                        agent_model="some/model", agent_max_steps=17, agent_claim_timeout_s=9)
+    agent = build_agent(settings, conn, ref)
+    assert (agent.max_steps, agent.timeout_s) == (17, 9)
+    assert agent.model.max_retries == settings.agent_step_retries

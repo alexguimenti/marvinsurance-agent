@@ -1,128 +1,112 @@
 import json
 import sqlite3
-import time
 
 from app.agent import Agent, Decision, rationale_warnings
+from app.documents import Documents
 from app.payments import request_payment
 from app.reference import Reference
 
 
 class _Trace:
-    def __init__(self, conn: sqlite3.Connection, claim_id: str):
-        self.conn, self.claim_id, self.seq = conn, claim_id, 0
+    """Appends events to a claim's trace, carrying on the numbering of earlier attempts."""
+
+    def __init__(self, conn: sqlite3.Connection, claim_id: str, run_id: int | None):
+        self.conn, self.claim_id, self.run_id = conn, claim_id, run_id
+        self.seq = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) FROM trace_events WHERE claim_id = ?", (claim_id,)
+        ).fetchone()[0]
 
     def __call__(self, kind: str, content: dict) -> None:
         self.seq += 1
         self.conn.execute(
-            "INSERT INTO trace_events (claim_id, seq, kind, content) VALUES (?, ?, ?, ?)",
-            (self.claim_id, self.seq, kind, json.dumps(content)),
+            "INSERT INTO trace_events (claim_id, seq, kind, content, run_id) VALUES (?, ?, ?, ?, ?)",
+            (self.claim_id, self.seq, kind, json.dumps(content), self.run_id),
         )
         self.conn.commit()
 
 
-def _set_status(conn: sqlite3.Connection, claim_id: str, status: str) -> None:
-    conn.execute("UPDATE claims SET status = ? WHERE claim_id = ?", (status, claim_id))
-    conn.commit()
+def _record_usage(trace: _Trace, agent: Agent) -> None:
+    usage = getattr(agent, "usage", None)
+    if usage:
+        trace("usage", usage)
 
 
-def _refer(reason: str) -> Decision:
-    return Decision(
-        decision="refer",
-        rationale=f"The automated review could not settle this claim, so it is referred to a handler. {reason}",
-    )
+def _check_payment(conn: sqlite3.Connection, claim_id: str, decision: Decision) -> None:
+    """A payment the agent asked for must match the payout it decided."""
+    existing = conn.execute("SELECT amount FROM payments WHERE claim_id = ?", (claim_id,)).fetchone()
+    if existing is None:
+        return
+    if decision.decision != "approve":
+        conn.execute("UPDATE payments SET status='void', updated_at=CURRENT_TIMESTAMP WHERE claim_id = ?", (claim_id,))
+    elif abs(existing["amount"] - decision.payout) > 0.005:
+        raise ValueError(f"the payment of {existing['amount']} does not match the payout of {decision.payout}")
 
 
-def _void_payment(conn: sqlite3.Connection, claim_id: str) -> None:
-    conn.execute(
-        "UPDATE payments SET status='void', updated_at=CURRENT_TIMESTAMP WHERE claim_id = ?", (claim_id,)
-    )
-    conn.commit()
-
-
-def _drop_payment(conn: sqlite3.Connection, claim_id: str) -> None:
-    """Forget a payment made by an attempt that did not stand, so the next attempt starts clean."""
+def _fail(conn, trace, claim_id, attempt, max_attempts, exc) -> str:
+    """Undo a failed attempt and put the claim back in the queue, or leave it for a handler."""
+    message = f"{type(exc).__name__}: {exc}"
     conn.execute("DELETE FROM payments WHERE claim_id = ?", (claim_id,))
+    status = "waiting" if attempt < max_attempts else "needs_handler"
+    conn.execute(
+        "UPDATE claims SET status = ?, attempts = ?, last_error = ? WHERE claim_id = ?",
+        (status, attempt, message, claim_id),
+    )
     conn.commit()
+    then = "It goes back in the queue." if status == "waiting" else "It is left for a handler."
+    trace("error", {"message": f"Attempt {attempt} of {max_attempts} failed ({message}). {then}"})
+    if status == "waiting":
+        return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). It is back in the queue: try it again after the others."
+    return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). Left for a handler."
 
 
-def _add_usage(total: dict | None, usage: dict | None) -> dict | None:
-    if not usage:
-        return total
-    if not total:
-        return dict(usage)
-    costs = [c for c in (total["cost_usd"], usage["cost_usd"]) if c is not None]
-    return {
-        "calls": total["calls"] + usage["calls"],
-        "input_tokens": total["input_tokens"] + usage["input_tokens"],
-        "output_tokens": total["output_tokens"] + usage["output_tokens"],
-        "reasoning_tokens": total["reasoning_tokens"] + usage["reasoning_tokens"],
-        "cost_usd": round(sum(costs), 8) if costs else None,
-    }
-
-
-def run_claim(
+def work_claim(
     conn: sqlite3.Connection,
     ref: Reference,
     agent: Agent,
     claim_id: str,
-    max_attempts: int = 1,
-    retry_delay: float = 0.0,
-) -> Decision | None:
-    """Run the agent on one waiting claim. Returns None when the claim is not waiting.
+    run_id: int | None = None,
+    max_attempts: int = 2,
+) -> str:
+    """Make one attempt at one waiting claim and report the outcome in one line.
 
-    A failed attempt (the model errors, or ends without a decision) is tried again, up to
-    max_attempts times in all. Only when the last attempt fails is the claim referred.
+    A failed attempt is undone: the claim goes back to waiting, or, after max_attempts
+    failures, is left for a handler. A claim that is not waiting is never touched.
     """
+    row = conn.execute("SELECT status, attempts FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()
+    if row is None:
+        return f"{claim_id}: not worked, there is no such claim."
     taken = conn.execute(
-        "UPDATE claims SET status='in_progress' WHERE claim_id = ? AND status='waiting'", (claim_id,)
+        "UPDATE claims SET status='in_progress', run_id = ? WHERE claim_id = ? AND status='waiting'",
+        (run_id, claim_id),
     )
     conn.commit()
     if taken.rowcount == 0:
-        return None
-    trace = _Trace(conn, claim_id)
-    trace("status", {"status": "in_progress", "model": agent.model_id})
+        return f"{claim_id}: not worked, the claim is {row['status'].replace('_', ' ')}."
 
-    total_usage: dict | None = None
-    decision = None
-    for attempt in range(1, max_attempts + 1):
-        try:
-            # the runner records the final decision itself, after payment checks
-            decision = agent.decide(claim_id, lambda kind, content: None if kind == "decision" else trace(kind, content))
-            total_usage = _add_usage(total_usage, getattr(agent, "usage", None))
-            break
-        except Exception as exc:  # any model or tool failure: try again, and refer only when out of attempts
-            total_usage = _add_usage(total_usage, getattr(agent, "usage", None))
-            message = f"{type(exc).__name__}: {exc}"
-            if attempt < max_attempts:
-                trace("retry", {"message": f"Attempt {attempt} of {max_attempts} failed ({message}). Trying again."})
-                _drop_payment(conn, claim_id)
-                if retry_delay:
-                    time.sleep(retry_delay)
-            else:
-                trace("error", {"message": message})
-                decision = _refer("Reason: the agent failed, see the activity trace.")
+    attempt = row["attempts"] + 1  # claims.attempts counts the failed ones
+    trace = _Trace(conn, claim_id, run_id)
+    trace("status", {"status": "in_progress", "model": agent.model_id, "attempt": attempt})
+    try:
+        # the runner records the final decision itself, after the payment check
+        decision = agent.decide(claim_id, lambda kind, content: None if kind == "decision" else trace(kind, content))
+        _check_payment(conn, claim_id, decision)
+    except Exception as exc:  # any model, tool or payment failure fails this attempt only
+        _record_usage(trace, agent)
+        return _fail(conn, trace, claim_id, attempt, max_attempts, exc)
 
     for warning in rationale_warnings(decision.rationale):
         trace("warning", {"message": warning})
-
-    limit = ref.company["payout_approval_limit"]
-    existing = conn.execute("SELECT amount FROM payments WHERE claim_id = ?", (claim_id,)).fetchone()
-    new_status = "decided"
+    status, outcome = "decided", decision.decision
     if decision.decision == "approve":
-        if existing is not None and abs(existing["amount"] - decision.payout) > 0.005:
-            trace("error", {"message": f"payment of {existing['amount']} does not match payout {decision.payout}"})
-            _void_payment(conn, claim_id)
-            decision = _refer("Reason: the requested payment did not match the decided payout.")
-        else:
-            payment = request_payment(conn, claim_id, decision.payout, limit)
-            if payment.status == "held":
-                new_status = "awaiting_approval"
-    elif existing is not None:
-        _void_payment(conn, claim_id)
+        payment = request_payment(conn, claim_id, decision.payout, ref.company["payout_approval_limit"])
+        held = payment.status == "held"
+        status = "awaiting_approval" if held else "decided"
+        outcome = f"approve ${decision.payout:,.2f}, {'held for sign-off' if held else 'paid'}"
 
+    docs = Documents(ref)
     conn.execute(
-        "INSERT OR REPLACE INTO decisions "
-        "(claim_id, decision, payout, calculation, rationale, citations, model) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model, "
+        "manual_version, wording_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             claim_id,
             decision.decision,
@@ -131,28 +115,12 @@ def run_claim(
             decision.rationale,
             json.dumps(decision.citations),
             agent.model_id,
+            docs.version("claims_manual"),
+            docs.version("policy_wording"),
         ),
     )
-    _set_status(conn, claim_id, new_status)
+    conn.execute("UPDATE claims SET status = ? WHERE claim_id = ?", (status, claim_id))
+    conn.commit()
     trace("decision", decision.model_dump())
-    if total_usage:
-        trace("usage", total_usage)
-    return decision
-
-
-def run_queue(
-    conn: sqlite3.Connection,
-    ref: Reference,
-    agent: Agent,
-    claim_ids: list[str] | None = None,
-    max_attempts: int = 1,
-    retry_delay: float = 0.0,
-) -> list[str]:
-    """Run the waiting claims (all of them, or only claim_ids) one at a time, in claim order."""
-    ids = [r["claim_id"] for r in conn.execute("SELECT claim_id FROM claims WHERE status='waiting' ORDER BY claim_id")]
-    if claim_ids is not None:
-        wanted = set(claim_ids)
-        ids = [i for i in ids if i in wanted]
-    for claim_id in ids:
-        run_claim(conn, ref, agent, claim_id, max_attempts, retry_delay)
-    return ids
+    _record_usage(trace, agent)
+    return f"{claim_id}: {outcome}"

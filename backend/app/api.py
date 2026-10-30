@@ -11,7 +11,7 @@ from app.config import Settings
 from app.db import connect, init_schema
 from app.payments import approve_payment
 from app.reference import Reference
-from app.runner import run_claim, run_queue
+from app.runner import work_claim
 from app.seed import seed_claims
 
 
@@ -71,14 +71,18 @@ def create_app(settings: Settings) -> FastAPI:
     def run_one(claim_id: str) -> None:
         conn = db()
         try:
-            run_claim(conn, ref, build_agent(settings, conn, ref), claim_id, settings.agent_max_attempts, RETRY_DELAY_S)
+            work_claim(conn, ref, build_agent(settings, conn, ref), claim_id, None, settings.agent_max_attempts)
         finally:
             conn.close()
 
     def run_all(claim_ids: list[str] | None = None) -> None:
         conn = db()
         try:
-            run_queue(conn, ref, build_agent(settings, conn, ref), claim_ids, settings.agent_max_attempts, RETRY_DELAY_S)
+            # temporary until the run routes replace this (PLAN_HARNESS task 7)
+            agent = build_agent(settings, conn, ref)
+            waiting = [r[0] for r in conn.execute("SELECT claim_id FROM claims WHERE status='waiting' ORDER BY claim_id")]
+            for claim_id in waiting if claim_ids is None else [i for i in waiting if i in set(claim_ids)]:
+                work_claim(conn, ref, agent, claim_id, None, settings.agent_max_attempts)
         finally:
             conn.close()
 
@@ -174,7 +178,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/instructions")
     def instructions():
-        return {"text": load_instructions()}
+        return {"text": load_instructions("claim")}
 
     @app.get("/approvals")
     def approvals():

@@ -62,7 +62,7 @@ def _run_agent(claims: list[dict], settings) -> list[dict]:
     from app.agent import build_agent
     from app.db import connect, init_schema
     from app.reference import Reference
-    from app.runner import run_claim
+    from app.runner import work_claim
 
     with tempfile.TemporaryDirectory() as tmp:
         conn = connect(str(Path(tmp) / "score.db"))
@@ -75,7 +75,8 @@ def _run_agent(claims: list[dict], settings) -> list[dict]:
         agent = build_agent(settings, conn, ref)
         for claim in claims:
             print(f"running {claim['claim_id']} ...", file=sys.stderr)
-            run_claim(conn, ref, agent, claim["claim_id"], settings.agent_max_attempts, 1.0)
+            for _ in range(settings.agent_max_attempts):  # a failed attempt puts the claim back in the queue
+                work_claim(conn, ref, agent, claim["claim_id"], None, settings.agent_max_attempts)
         result = _decisions_from(conn, {c["claim_id"] for c in claims})
         conn.close()
         return result

@@ -20,7 +20,7 @@ def test_reset_analyses_puts_every_claim_back_in_the_queue(db_path, data_dir):
     from app.agent import ScriptedAgent
     from app.db import reset_analyses
     from app.reference import Reference
-    from app.runner import run_claim
+    from app.runner import work_claim
     from app.seed import seed_claims
 
     conn = connect(db_path)
@@ -29,7 +29,7 @@ def test_reset_analyses_puts_every_claim_back_in_the_queue(db_path, data_dir):
     seed_claims(conn, ref)
     agent = ScriptedAgent(conn)
     for claim_id in ("CLM-1001", "CLM-1003"):  # CLM-1003 is over the limit, so it leaves a held payment
-        run_claim(conn, ref, agent, claim_id)
+        work_claim(conn, ref, agent, claim_id)
     assert conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0] == 2
     assert conn.execute("SELECT COUNT(*) FROM payments").fetchone()[0] == 2
 
