@@ -9,7 +9,7 @@ from app.reference import ALLOWED_FILES, Reference
         "evals/decisions.json",
         "security/claims.json",
         "../data/evals/decisions.json",
-        "claims_manual.md",
+        "policy_wording_short.md",
     ],
 )
 def test_reference_rejects_files_outside_whitelist(data_dir, name):
@@ -17,8 +17,12 @@ def test_reference_rejects_files_outside_whitelist(data_dir, name):
         Reference(data_dir).read(name)
 
 
-def test_whitelist_excludes_evals_security_and_manual():
-    assert not any("evals" in f or "security" in f or "manual" in f for f in ALLOWED_FILES)
+def test_whitelist_excludes_evals_and_security():
+    assert not any("evals" in f or "security" in f for f in ALLOWED_FILES)
+
+
+def test_manual_is_allowed(data_dir):
+    assert Reference(data_dir).manual.startswith("# Marvin FartInsurance Claims Handling Manual")
 
 
 def test_reference_lookups(data_dir):

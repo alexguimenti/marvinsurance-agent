@@ -11,6 +11,7 @@ ALLOWED_FILES = frozenset(
         "company.json",
         "knowledge.json",
         "policy_wording.md",
+        "claims_manual.md",
     }
 )
 
@@ -54,6 +55,10 @@ class Reference:
     @property
     def wording(self) -> str:
         return self.read("policy_wording.md")
+
+    @property
+    def manual(self) -> str:
+        return self.read("claims_manual.md")
 
     @property
     def knowledge(self) -> list[dict]:
