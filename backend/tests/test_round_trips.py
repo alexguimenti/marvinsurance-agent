@@ -70,6 +70,17 @@ def test_from_a_sign_off_to_the_payment_is_a_handful_of_statements(held):
     assert upto_paid <= 4, seen[:upto_paid]
 
 
+def test_a_paused_claim_saves_no_checkpoint_before_it_is_paid(held):
+    """A saved step is several more trips: waiting and paying are one step, so nothing is saved in between."""
+    config = {"configurable": {"thread_id": f"{CLAIM}-1"}}
+    assert held.graph.get_state(config).next == ("pay",)
+    before = len(list(held.graph.checkpointer.list(config)))
+    sign_off(held.engine, held.ref, f"PAY-{CLAIM}", "HND-01")
+    carry_on(held, CLAIM)
+    assert held.graph.get_state(config).next == ()
+    assert len(list(held.graph.checkpointer.list(config))) == before + 1  # only the one after the payment
+
+
 def test_warm_up_opens_every_connection(db_path):
     engine = make_engine(Settings(_env_file=None, db_path=db_path), max_connections=3)
     warm_up(engine, 3)

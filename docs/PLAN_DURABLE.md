@@ -419,6 +419,8 @@ Needs the owner. This task spends money on OpenRouter and writes to Supabase and
 - [ ] **Step 6: Kill test.** Reseed. `uv run -m agent --limit 5` with the service stopped; after a claim's first steps, kill that process. Run again after 45 s. Expected: same `thread_id`, same `attempts`, one decision.
 - [ ] **Step 7: Commit** `docs: record the live verification`.
 
+Found in this task: a sign-off first took 21 s to show as paid, because a query cost four trips of 220 ms and a new connection 6.5 s. Statements now commit by themselves, connections open at startup, and waiting and paying are one step of the graph (the plan had `sign_off` and `pay` as two).
+
 ## Done means
 
 Each line under "What done looks like" in `docs/DURABLE.md` has its evidence: tests in Tasks 1 to 11, measurements in Task 13, documents in Task 12.

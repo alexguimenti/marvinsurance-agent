@@ -7,12 +7,13 @@ from typing import Callable
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from agent.queue import begin_run, work_run
 from agent.worker import AgentEnv, carry_on, open_env, signed_off_claims
 from app.claims import get_claim
 from app.config import Settings, get_settings
-from app.db import init_schema, make_engine
+from app.db import claims, init_schema, make_engine
 from app.reference import Reference
 from app.runs import RunActive
 from app.seed import seed_claims
@@ -109,7 +110,9 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
     @app.post("/claims/{claim_id}/resume", status_code=202, operation_id="resume_claim")
     def resume_claim(claim_id: str):
         """Pick a claim back up after its sign-off, and pay it."""
-        _known(claim_id)
+        with holder["env"].engine.connect() as conn:
+            if conn.execute(select(claims.c.claim_id).where(claims.c.claim_id == claim_id)).first() is None:
+                raise HTTPException(404, f"unknown claim {claim_id}")
         in_background(f"resume {claim_id}", resume, holder["env"], claim_id)
         return {"claim_id": claim_id}
 

@@ -3,7 +3,7 @@
 Nodes record every step on the claim and hand refusals back to the model. The graph pays every approval, and
 asks the backend whether a sign-off is needed: it never applies the limit itself.
 
-    prepare -> model <-> tools -> tools_done -> decide -> sign_off -> pay
+    prepare -> model <-> tools -> tools_done -> decide -> pay
 """
 import time
 from typing import Annotated
@@ -106,22 +106,20 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
             trace("usage", state.usage)
         return {"decision": state.proposal}
 
-    def sign_off(state: ClaimState) -> dict:
-        """Wait for a handler when the backend says the payout needs one. The node runs again from the top on
-        resume, so an early resume finds the claim still unsigned and waits again."""
+    def pay_node(state: ClaimState) -> dict:
+        """Pay the approval, straight away or after a sign-off. The backend says whether one is needed, refuses
+        anything over the limit without it, and pays only once. The node runs again from the top on resume, so an
+        early resume finds the claim still unsigned and waits again. Waiting and paying are one step on purpose:
+        saving a step in between would be several more trips to the database for a handler to wait through."""
         needed = needs_sign_off(engine, ref, state.claim_id)
-        if needed and get_payment(engine, state.claim_id) is None:
+        if needed:
+            first_time = get_payment(engine, state.claim_id) is None
             hold_for_sign_off(engine, ref, state.claim_id)
-            recorder(state.claim_id)("status", {"status": "awaiting_approval"})
-        elif needed:
-            hold_for_sign_off(engine, ref, state.claim_id)  # a repeat, in case a stop came between its two steps
+            if first_time:
+                recorder(state.claim_id)("status", {"status": "awaiting_approval"})
         while needed:
             interrupt({"claim_id": state.claim_id, "payout": state.decision["payout"], "waiting_for": "sign-off"})
             needed = needs_sign_off(engine, ref, state.claim_id)
-        return {}
-
-    def pay_node(state: ClaimState) -> dict:
-        """Pay the approval. The backend refuses anything over the limit without a sign-off, and pays only once."""
         if pay(engine, ref, state.claim_id)["paid_now"]:
             payment = get_payment(engine, state.claim_id)
             recorder(state.claim_id)("status", {
@@ -136,7 +134,7 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
         return "decide" if state.proposal is not None else "model"
 
     def after_decide(state: ClaimState) -> str:
-        return "sign_off" if state.decision["decision"] == "approve" else END
+        return "pay" if state.decision["decision"] == "approve" else END
 
     builder = StateGraph(ClaimState)
     builder.add_node("prepare", prepare)
@@ -144,14 +142,12 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
     builder.add_node("tools", ToolNode(offered, handle_tool_errors=_tool_refused))
     builder.add_node("tools_done", tools_done)
     builder.add_node("decide", decide)
-    builder.add_node("sign_off", sign_off)
     builder.add_node("pay", pay_node)
     builder.add_edge(START, "prepare")
     builder.add_edge("prepare", "model")
     builder.add_conditional_edges("model", after_model, ["tools", "decide"])
     builder.add_edge("tools", "tools_done")
     builder.add_conditional_edges("tools_done", after_tools, ["model", "decide"])
-    builder.add_conditional_edges("decide", after_decide, ["sign_off", END])
-    builder.add_edge("sign_off", "pay")
+    builder.add_conditional_edges("decide", after_decide, ["pay", END])
     builder.add_edge("pay", END)
     return builder.compile(checkpointer=checkpointer)
