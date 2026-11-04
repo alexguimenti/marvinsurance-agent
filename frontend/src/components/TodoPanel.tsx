@@ -23,7 +23,10 @@ export default function TodoPanel({ run, todo }: { run: Run | null; todo: TodoIt
           {run.usage?.cost_usd != null && ` · ${formatCost(run.usage.cost_usd)}`}
         </p>
       </div>
-      {todo.length === 0 && run.status === 'running' && <p className="muted">The agent is planning.</p>}
+      {todo.length === 0 && run.alive && <p className="muted">The agent is planning.</p>}
+      {run.status === 'running' && !run.alive && (
+        <p className="muted">This run was stopped. The next run finishes it, with its own limit and claims.</p>
+      )}
       {todo.length > 0 && (
         <ol className="todo">
           {todo.map((item) => (

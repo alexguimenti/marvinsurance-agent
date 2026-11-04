@@ -223,3 +223,14 @@ def test_backend_restart_changes_nothing(db_path, data_dir):
     with TestClient(create_app(settings)) as client:  # a stopped run is the next run's to finish, not the backend's
         assert client.get("/runs/latest").json()["run"]["status"] == "running"
         assert client.get("/claims/CLM-1001").json()["status"] == "in_progress"
+
+
+def test_a_run_says_whether_its_process_is_alive(client, db_path):
+    assert client.post("/runs", json={"limit": 1}).status_code == 202
+    assert client.get("/runs/latest").json()["run"]["alive"] is False  # finished
+    conn = connect(db_path)
+    conn.execute("INSERT INTO runs (status, model, heartbeat_at) VALUES ('running', 'm', CURRENT_TIMESTAMP)")
+    assert client.get("/runs/latest").json()["run"]["alive"] is True
+    conn.execute("UPDATE runs SET heartbeat_at = NULL WHERE status = 'running'")
+    run = client.get("/runs/latest").json()["run"]
+    assert run["status"] == "running" and run["alive"] is False  # stopped: the next run finishes it

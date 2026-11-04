@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiError, getClaim, startRun, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
-import { DOCUMENT_LABEL, describeUsage, formatUsd, humanize, stampFor } from '../format'
+import { DOCUMENT_LABEL, describeUsage, formatTime, formatUsd, humanize, runRefused, stampFor } from '../format'
 import { usePolling } from '../usePolling'
 import Trace from './Trace'
 
@@ -29,7 +29,7 @@ export default function ClaimDetail() {
       await startRun({ claimIds: [id] })
       await load()
     } catch (e) {
-      setError(e instanceof ApiError && e.status === 409 ? 'A run is already in progress.' : 'Could not start this claim.')
+      setError(runRefused(e instanceof ApiError ? e.status : undefined, 'Could not start this claim.'))
     }
   }
 
@@ -66,6 +66,19 @@ export default function ClaimDetail() {
         <div className="notice">
           Held for approval: the payout of {formatUsd(payment.amount)} is above the $1,000 limit and waits for a handler.{' '}
           <Link to="/approvals">Go to approvals</Link>
+        </div>
+      )}
+
+      {payment?.status === 'signed_off' && (
+        <div className="notice">
+          Signed off by {payment.approved_by_name ?? payment.approved_by}. The agent is paying {formatUsd(payment.amount)} now.
+        </div>
+      )}
+
+      {payment?.status === 'paid' && payment.approved_by && (
+        <div className="notice">
+          Paid {formatUsd(payment.amount)}, signed off by {payment.approved_by_name ?? payment.approved_by}
+          {payment.approved_at && <> on {formatTime(payment.approved_at)}</>}.
         </div>
       )}
 

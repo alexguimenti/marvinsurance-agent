@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, getLatestRun, listClaims, startRun, type ClaimSummary, type LatestRun } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import TodoPanel from '../components/TodoPanel'
-import { STATUS_LABEL, formatUsd, humanize, stampFor } from '../format'
+import { STATUS_LABEL, formatUsd, humanize, runRefused, stampFor } from '../format'
 import { usePolling } from '../usePolling'
 
 const POLL_MS = 2000
@@ -39,17 +39,20 @@ export default function Queue() {
   async function onRunQueue() {
     setStarting(true)
     try {
-      await startRun(selected.size ? { claimIds: [...selected] } : { limit: Number(limit) || undefined })
+      // a blank limit means every waiting claim; at least 1, so a stopped run can still be finished
+      await startRun(selected.size ? { claimIds: [...selected] } : { limit: Number(limit) || Math.max(waitingIds.length, 1) })
       setSelected(new Set())
       await load()
     } catch (e) {
-      setError(e instanceof ApiError && e.status === 409 ? 'A run is already in progress.' : 'Could not start the run.')
+      setError(runRefused(e instanceof ApiError ? e.status : undefined, 'Could not start the run.'))
     } finally {
       setStarting(false)
     }
   }
 
-  const running = latest?.run?.status === 'running'
+  const running = latest?.run?.alive === true
+  // a stopped claim or run has work left even with nothing waiting
+  const unfinished = (claims ?? []).some((c) => c.status === 'in_progress') || latest?.run?.status === 'running'
   const waitingIds = (claims ?? []).filter((c) => c.status === 'waiting').map((c) => c.claim_id)
   const allTicked = waitingIds.length > 0 && waitingIds.every((id) => selected.has(id))
 
@@ -91,7 +94,7 @@ export default function Queue() {
               />
             </label>
           )}
-          <button className="btn btn-primary" onClick={onRunQueue} disabled={starting || running || !counts.waiting}>
+          <button className="btn btn-primary" onClick={onRunQueue} disabled={starting || running || (!counts.waiting && !unfinished)}>
             {selected.size ? `Run selected (${selected.size})` : 'Run queue'}
           </button>
         </div>

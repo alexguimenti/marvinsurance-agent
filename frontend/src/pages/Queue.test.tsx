@@ -55,15 +55,53 @@ describe('Queue', () => {
     await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ limit: 5 }))
   })
 
-  it('"Run queue" with no limit runs everything', async () => {
+  it('"Run queue" with no limit asks for every waiting claim', async () => {
     const { calls } = mockApi({
       '/api/runs/latest': NO_RUN,
-      '/api/claims': [claim('CLM-1', 'waiting')],
+      '/api/claims': [claim('CLM-1', 'waiting'), claim('CLM-2', 'waiting'), claim('CLM-3', 'decided')],
       'POST /api/runs': { run_id: 1 },
     })
     renderAt(<Queue />, '/')
     await userEvent.click(await screen.findByRole('button', { name: /run queue/i }))
-    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({}))
+    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ limit: 2 }))
+  })
+
+  it('can finish a run whose process has gone, even with nothing waiting', async () => {
+    const stopped = { run_id: 7, status: 'running', alive: false, cap: 5, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null }
+    const { calls } = mockApi({
+      '/api/runs/latest': { run: stopped, todo: [] },
+      '/api/claims': [claim('CLM-3', 'in_progress')],
+      'POST /api/runs': { run_id: 1 },
+    })
+    renderAt(<Queue />, '/')
+    await userEvent.click(await screen.findByRole('button', { name: /run queue/i }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ limit: 1 }))
+  })
+
+  it('does not offer a second run while one is alive', async () => {
+    const live = { run_id: 7, status: 'running', alive: true, cap: 5, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null }
+    mockApi({ '/api/runs/latest': { run: live, todo: [] }, '/api/claims': [claim('CLM-1', 'waiting')] })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-1')
+    await waitFor(() => expect(screen.getByRole('button', { name: /run queue/i })).toBeDisabled())
+  })
+
+  it('has nothing to offer when every claim is finished', async () => {
+    mockApi({ '/api/runs/latest': NO_RUN, '/api/claims': [claim('CLM-3', 'decided')] })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-3')
+    expect(screen.getByRole('button', { name: /run queue/i })).toBeDisabled()
+  })
+
+  it('says so when the agent is not running', async () => {
+    mockApi({
+      '/api/runs/latest': NO_RUN,
+      '/api/claims': [claim('CLM-1', 'waiting')],
+      'POST /api/runs': { status: 503, body: { detail: 'the agent is not running' } },
+    })
+    renderAt(<Queue />, '/')
+    await userEvent.click(await screen.findByRole('button', { name: /run queue/i }))
+    expect(await screen.findByText(/the agent is not running/i)).toBeInTheDocument()
   })
 
   it('says so when a run is already in progress', async () => {

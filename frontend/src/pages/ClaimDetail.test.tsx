@@ -71,11 +71,12 @@ describe('ClaimDetail', () => {
       '/api/claims/CLM-1011': waiting,
       '/api/claims/CLM-1011/trace': [],
       '/api/runs/latest': NO_RUN,
-      'POST /api/runs': { run_id: 1 },
+      'POST /api/runs/selected': { run_id: 1 },
     })
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
     await userEvent.click(await screen.findByRole('button', { name: /run this claim/i }))
-    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ claim_ids: ['CLM-1011'] }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.url).toBe('/api/runs/selected'))
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ claim_ids: ['CLM-1011'] })
   })
 
   it('says so when a run is already going', async () => {
@@ -83,11 +84,52 @@ describe('ClaimDetail', () => {
     mockApi({
       '/api/claims/CLM-1011': waiting,
       '/api/claims/CLM-1011/trace': [],
-      'POST /api/runs': { status: 409, body: { detail: 'a run is already in progress' } },
+      'POST /api/runs/selected': { status: 409, body: { detail: 'a run is already in progress' } },
     })
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
     await userEvent.click(await screen.findByRole('button', { name: /run this claim/i }))
     expect(await screen.findByText('A run is already in progress.')).toBeInTheDocument()
+  })
+
+  it('shows who signed off and when on a paid claim', async () => {
+    mockApi(routes('decided', {
+      payment_id: 'PAY-1', status: 'paid', amount: 1150, approved_by: 'HND-01', approved_by_name: 'Dana Whitfield',
+      approved_at: '2026-11-04T15:30:00+00:00', paid_at: '2026-11-04T15:30:02+00:00',
+    }))
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    const line = await screen.findByText(/signed off by dana whitfield/i)
+    expect(line).toHaveTextContent('$1,150.00')
+    expect(line).toHaveTextContent('2026')
+    expect(screen.getByText('Approve')).toBeInTheDocument()
+  })
+
+  it('shows in progress, with no held notice, between the sign-off and the payment', async () => {
+    mockApi(routes('in_progress', {
+      payment_id: 'PAY-1', status: 'signed_off', amount: 1150, approved_by: 'HND-01', approved_by_name: 'Dana Whitfield',
+      approved_at: '2026-11-04T15:30:00+00:00', paid_at: null,
+    }))
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByText(/signed off by dana whitfield.*the agent is paying/i)).toBeInTheDocument()
+    expect(screen.queryByText(/held for approval/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Pending sign-off')).toBeInTheDocument()
+  })
+
+  it('does not call a claim approved while its payment is still to come', async () => {
+    mockApi(routes('in_progress', null))
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByText('Pending sign-off')).toBeInTheDocument()
+  })
+
+  it('says so when the agent is not running', async () => {
+    const waiting = { ...detail('waiting'), decision: null }
+    mockApi({
+      '/api/claims/CLM-1011': waiting,
+      '/api/claims/CLM-1011/trace': [],
+      'POST /api/runs/selected': { status: 503, body: { detail: 'the agent is not running' } },
+    })
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    await userEvent.click(await screen.findByRole('button', { name: /run this claim/i }))
+    expect(await screen.findByText(/the agent is not running/i)).toBeInTheDocument()
   })
 
   it('does not ask for the latest run', async () => {

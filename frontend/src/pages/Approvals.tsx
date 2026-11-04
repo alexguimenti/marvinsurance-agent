@@ -49,7 +49,7 @@ export default function Approvals() {
         <div>
           <p className="eyebrow">Sign-off</p>
           <h1>Approvals</h1>
-          <p className="lede">Payouts above $1,000 wait here until a handler signs them off.</p>
+          <p className="lede">Payouts above $1,000 wait here until a handler signs them off. The agent then pays them.</p>
         </div>
         <div className="row">
           <label htmlFor="handler">Approve as</label>

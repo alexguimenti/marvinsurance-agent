@@ -32,8 +32,11 @@ export interface Payment {
   payment_id: string
   claim_id: string
   amount: number
-  status: 'paid' | 'held' | 'void'
+  status: 'paid' | 'held' | 'signed_off'
   approved_by: string | null
+  approved_by_name?: string | null
+  approved_at?: string | null
+  paid_at?: string | null
 }
 
 export interface ClaimDetailData {
@@ -69,6 +72,7 @@ export interface ReadSection {
 export interface Run {
   run_id: number
   status: 'running' | 'finished' | 'failed'
+  alive: boolean // false for a running run whose process has gone: the next run finishes it
   cap: number | null
   model: string
   summary: string | null
@@ -156,11 +160,10 @@ const post = (body?: unknown): RequestInit => ({
 export const listClaims = () => request<ClaimSummary[]>('/claims')
 export const getClaim = (id: string) => request<ClaimDetailData>(`/claims/${id}`)
 export const getTrace = (id: string) => request<TraceEvent[]>(`/claims/${id}/trace`)
-export const startRun = ({ claimIds, limit }: { claimIds?: string[]; limit?: number } = {}) =>
-  request<{ run_id: number }>(
-    '/runs',
-    post({ ...(claimIds ? { claim_ids: claimIds } : {}), ...(limit ? { limit } : {}) }),
-  )
+export const startRun = (what: { limit: number } | { claimIds: string[] }) =>
+  'claimIds' in what
+    ? request<{ run_id: number }>('/runs/selected', post({ claim_ids: what.claimIds }))
+    : request<{ run_id: number }>('/runs', post({ limit: what.limit }))
 export const getLatestRun = () => request<LatestRun>('/runs/latest')
 export const getInstructions = () => request<{ run: string; claim: string }>('/instructions')
 export const listApprovals = () => request<Approval[]>('/approvals')

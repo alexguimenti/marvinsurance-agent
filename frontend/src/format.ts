@@ -55,11 +55,23 @@ export function describeUsage(u: {
 }
 
 /**
- * The stamp for a claim. An approval above the limit is only the agent's opinion until a handler
- * signs it off, so it must not read APPROVE while the payment is still held.
+ * The stamp for a claim. An approval is only the agent's opinion until it is paid, so it must not
+ * read APPROVE while the payment is held for a handler, or signed off and still to be made.
  */
 export function stampFor(status: string, decision: 'approve' | 'decline' | 'refer'): { key: string; label: string } {
-  if (status === 'awaiting_approval' && decision === 'approve') return { key: 'pending', label: 'Pending sign-off' }
+  if ((status === 'awaiting_approval' || status === 'in_progress') && decision === 'approve') {
+    return { key: 'pending', label: 'Pending sign-off' }
+  }
   return { key: decision, label: DECISION_LABEL[decision] }
 }
 
+/** A date and time from the API, for people. */
+export const formatTime = (iso: string) =>
+  new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+
+/** Why a run did not start. */
+export function runRefused(status: number | undefined, otherwise: string): string {
+  if (status === 409) return 'A run is already in progress.'
+  if (status === 503) return 'The agent is not running. Start it with npm run dev.'
+  return otherwise
+}

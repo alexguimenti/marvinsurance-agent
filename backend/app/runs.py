@@ -43,7 +43,7 @@ def _running(engine: Engine):
         return conn.execute(select(runs).where(runs.c.status == "running")).mappings().first()
 
 
-def _is_alive(row, now: datetime) -> bool:
+def is_alive(row, now: datetime) -> bool:
     beat = row["heartbeat_at"]
     if beat is None:
         return False
@@ -54,13 +54,13 @@ def _is_alive(row, now: datetime) -> bool:
 def live_run(engine: Engine, now: datetime):
     """The running run, if its process is still beating."""
     row = _running(engine)
-    return row if row is not None and _is_alive(row, now) else None
+    return row if row is not None and is_alive(row, now) else None
 
 
 def stale_run(engine: Engine, now: datetime):
     """The running run, if its process has gone: it is the next run's to finish."""
     row = _running(engine)
-    return row if row is not None and not _is_alive(row, now) else None
+    return row if row is not None and not is_alive(row, now) else None
 
 
 def touch(engine: Engine, run_id: int) -> None:

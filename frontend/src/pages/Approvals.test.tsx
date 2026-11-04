@@ -26,7 +26,7 @@ describe('Approvals', () => {
       '/api/handlers': handlers,
       'POST /api/payments/PAY-CLM-1003/approve': () => {
         approved = true
-        return { payment_id: 'PAY-CLM-1003', status: 'paid' }
+        return { payment_id: 'PAY-CLM-1003', status: 'signed_off' }
       },
     })
     renderAt(<Approvals />, '/approvals')

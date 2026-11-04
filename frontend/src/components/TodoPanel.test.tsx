@@ -6,6 +6,7 @@ import TodoPanel from './TodoPanel'
 const run = (over: Partial<Run> = {}): Run => ({
   run_id: 3,
   status: 'running',
+  alive: true,
   cap: 5,
   model: 'deepseek/deepseek-v4.1-flash',
   summary: null,

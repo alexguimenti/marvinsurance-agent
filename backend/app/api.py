@@ -2,6 +2,7 @@ import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Mapping
 
 import httpx
@@ -74,6 +75,7 @@ def _run(row: Mapping | None) -> dict | None:
     out = {k: row[k] for k in ("run_id", "status", "cap", "model", "summary", "error")}
     out["started_at"], out["finished_at"] = iso(row["started_at"]), iso(row["finished_at"])
     out["usage"] = json.loads(row["usage"]) if row["usage"] else None
+    out["alive"] = row["status"] == "running" and runs.is_alive(row, datetime.now(timezone.utc))
     return out
 
 
