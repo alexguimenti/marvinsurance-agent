@@ -94,7 +94,7 @@ scripts/dev.mjs          npm run dev
 **Interfaces:**
 - Produces: `calculate_payout(items: list[LineItem], third_party_paid: float, deductible: float, benefit_max: float | None, approval_limit: float) -> dict` returning `payout`, `steps`, `approval_limit`, `needs_sign_off`. `POST /payouts/calculate`, `operation_id="calculate_payout"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_payout_says_whether_it_needs_a_sign_off():
@@ -111,10 +111,10 @@ def test_api_payout_takes_the_limit_from_company_json(client):
     assert client.post("/payouts/calculate", json=body).status_code == 422
 ```
 
-- [ ] **Step 2: Run them.** `cd backend; .venv/Scripts/python -m pytest tests/test_payout.py tests/test_api.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Remove the defaults so every input is required, here and on the `calculate_payout` tool. `LineItem.item_limit` becomes required but nullable. The tool and the route pass `ref.company["payout_approval_limit"]`. Tell the model in `instructions_claim.md` to always pass all inputs and to ignore `needs_sign_off` when deciding.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(payout): the payout operation takes the limit from company settings`.
+- [x] **Step 2: Run them.** `cd backend; .venv/Scripts/python -m pytest tests/test_payout.py tests/test_api.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement.** Remove the defaults so every input is required, here and on the `calculate_payout` tool. `LineItem.item_limit` becomes required but nullable. The tool and the route pass `ref.company["payout_approval_limit"]`. Tell the model in `instructions_claim.md` to always pass all inputs and to ignore `needs_sign_off` when deciding.
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(payout): the payout operation takes the limit from company settings`.
 
 ### Task 2: Tracing in Langfuse
 
@@ -124,11 +124,11 @@ def test_api_payout_takes_the_limit_from_company_json(client):
 - Produces: `session_name(claim_id: str, thread_id: str) -> str` = `"CLM-1003:CLM-1003-1"`. `trace_config(claim_id: str, thread_id: str, model: str, handler_factory=...) -> dict` returning `callbacks` and `metadata` (`langfuse_session_id`, `langfuse_trace_name` = `"claim CLM-1003"`, `langfuse_tags` = `[claim_id, model]`). `flush_traces() -> None`.
 - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` are read from `os.environ` only (as the labs name them). Without them `trace_config` returns only `metadata` and `flush_traces` does nothing.
 
-- [ ] **Step 1: Write the failing tests**: `test_no_keys_no_callbacks`, `test_keys_add_the_handler` (fake `handler_factory`, `monkeypatch.setenv`), `test_session_named_after_claim_and_thread`, `test_keys_in_dot_env_alone_do_nothing`, `test_a_failing_handler_factory_never_fails_the_claim` (returns config without callbacks).
-- [ ] **Step 2: Run them.** Expected: FAIL, module missing.
-- [ ] **Step 3: Implement** using `langfuse.langchain.CallbackHandler` and the `Langfuse` client as in `labs/week2day2_mex.ipynb`. Import langfuse lazily so tests never load a client. After installing, confirm `from langfuse.langchain import CallbackHandler` still works: the dry run resolves langfuse 5.1.0, and the labs may have used another version. Add a `thread_id` argument to `Agent.decide`, which the runner passes as `f"{claim_id}-{attempts + 1}"`, and flush afterwards. Task 7 moves this into the worker.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(tracing): trace each claim in a Langfuse session named after the claim and its thread`.
+- [x] **Step 1: Write the failing tests**: `test_no_keys_no_callbacks`, `test_keys_add_the_handler` (fake `handler_factory`, `monkeypatch.setenv`), `test_session_named_after_claim_and_thread`, `test_keys_in_dot_env_alone_do_nothing`, `test_a_failing_handler_factory_never_fails_the_claim` (returns config without callbacks).
+- [x] **Step 2: Run them.** Expected: FAIL, module missing.
+- [x] **Step 3: Implement** using `langfuse.langchain.CallbackHandler` and the `Langfuse` client as in `labs/week2day2_mex.ipynb`. Import langfuse lazily so tests never load a client. After installing, confirm `from langfuse.langchain import CallbackHandler` still works: the dry run resolves langfuse 5.1.0, and the labs may have used another version. Add a `thread_id` argument to `Agent.decide`, which the runner passes as `f"{claim_id}-{attempts + 1}"`, and flush afterwards. Task 7 moves this into the worker.
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(tracing): trace each claim in a Langfuse session named after the claim and its thread`.
 
 ### Task 3: SQLAlchemy Core, still on SQLite
 
@@ -145,12 +145,12 @@ No behavior changes. This is the largest mechanical task; every later one builds
 - `init_schema` is idempotent and safe when two processes start together: it retries on `DBAPIError`, because each process's `create_all` can lose the race to create a table. The backend, the service and `uv run -m agent` each call it and seed at startup.
 - `migrate()` and `ADDED_COLUMNS` go. `create_all` plus a reseed replaces them. An old `farting.db` is not upgraded: Task 11 documents deleting it.
 
-- [ ] **Step 1: Write the failing tests** in `test_db.py`: `test_tables_exist_after_init`, `test_insert_or_ignore_keeps_the_first_row`, `test_make_engine_caps_connections` (`engine.pool.size() == 4`, `_max_overflow == 0`), `test_reset_leaves_every_claim_waiting`, `test_two_processes_can_init_together` (threads on one SQLite file), `test_only_one_run_can_be_running`. Delete the migration tests.
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement `db.py`, then port each module with its tests, one at a time**: seed, payments, runs, runner, tools, agent, orchestrator, api. Turn on `PRAGMA journal_mode=WAL` and a 10 s timeout in a `connect` event. Rows become `.mappings()` results.
-- [ ] **Step 4: Check nothing is left.** `grep -rn "sqlite3" backend/app scripts` returns nothing. Expected: empty.
-- [ ] **Step 5: Run `npm run check`.** Expected: all green, same test counts apart from the replaced migration tests.
-- [ ] **Step 6: Commit** `refactor(db): SQLAlchemy Core, one query for SQLite and Postgres`.
+- [x] **Step 1: Write the failing tests** in `test_db.py`: `test_tables_exist_after_init`, `test_insert_or_ignore_keeps_the_first_row`, `test_make_engine_caps_connections` (`engine.pool.size() == 4`, `_max_overflow == 0`), `test_reset_leaves_every_claim_waiting`, `test_two_processes_can_init_together` (threads on one SQLite file), `test_only_one_run_can_be_running`. Delete the migration tests.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement `db.py`, then port each module with its tests, one at a time**: seed, payments, runs, runner, tools, agent, orchestrator, api. Turn on `PRAGMA journal_mode=WAL` and a 10 s timeout in a `connect` event. Rows become `.mappings()` results.
+- [x] **Step 4: Check nothing is left.** `grep -rn "sqlite3" backend/app scripts` returns nothing. Expected: empty.
+- [x] **Step 5: Run `npm run check`.** Expected: all green, same test counts apart from the replaced migration tests.
+- [x] **Step 6: Commit** `refactor(db): SQLAlchemy Core, one query for SQLite and Postgres`.
 
 ### Task 4: Supabase and reseeding
 
@@ -162,7 +162,7 @@ No behavior changes. This is the largest mechanical task; every later one builds
 - `UNDERCOVER_AGENT` follows the same rule as `DATABASE_URL`: from the process environment only.
 - `conftest.py` deletes `DATABASE_URL`, `LANGFUSE_*` and `UNDERCOVER_AGENT` from the environment for every test. `check.mjs` deletes them before spawning.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_database_url_in_dot_env_alone_is_ignored(tmp_path, monkeypatch):
@@ -182,10 +182,10 @@ def test_postgres_url_uses_psycopg_and_the_connection_cap(monkeypatch):
 
 Review Focus 4 needs the checkpointer, so its test is in Task 7. Until then `reset_db.py` leaves the `clear_checkpoints` call out.
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Then, with `.env` moved aside, run the backend tests.
-- [ ] **Step 4: Run `npm run check`.** Expected: green.
-- [ ] **Step 5: Commit** `feat(db): Supabase when DATABASE_URL is in the environment; schema undercover; reseed`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** Then, with `.env` moved aside, run the backend tests.
+- [x] **Step 4: Run `npm run check`.** Expected: green.
+- [x] **Step 5: Commit** `feat(db): Supabase when DATABASE_URL is in the environment; schema undercover; reseed`.
 
 ### Task 5: Operations that happen once, and a sign-off that does not pay
 
@@ -197,11 +197,11 @@ Review Focus 4 needs the checkpointer, so its test is in Task 7. Until then `res
 - Produces in `app/payments.py`: `sign_off(engine, ref, payment_id, handler_id) -> Payment` sets `signed_off`, `approved_by`, `approved_at` and moves the claim to `in_progress`, in one transaction; a repeat changes nothing. `pay(engine, ref, claim_id) -> dict` takes the amount from the recorded decision, never from the caller; a repeat returns the claim; over the limit with no sign-off raises `SignOffRequired`; it sets `decided` and `paid_at`.
 - `record_decision` also writes the manual and wording versions as `runner.py` does today.
 
-- [ ] **Step 1: Write the failing tests**: `test_repeating_a_decision_counts_as_done`, `test_a_different_decision_is_refused`, `test_needs_sign_off_is_the_backends_call` (limit, at the limit, decline), `test_pay_within_limit`, `test_pay_over_limit_without_sign_off_is_refused`, `test_paying_twice_pays_once`, `test_pay_amount_comes_from_the_decision`, `test_sign_off_does_not_pay` (`status == "signed_off"`, `paid_at is None`, claim `in_progress`, `approved_by`/`approved_at` set), `test_sign_off_twice_keeps_the_first_handler`, `test_handler_without_the_right_is_refused` (kept), `test_api_approve_returns_the_signed_off_payment`.
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** `runner.py` calls `record_decision`, `hold_for_sign_off` and `pay` for now, so the suite stays meaningful until Task 7; `_check_payment` goes. The old `request_payment` function stays only for the tool of that name, until Task 6 removes both. `/approvals` keeps listing `held`.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS. Update those that expected the sign-off to pay.
-- [ ] **Step 5: Commit** `feat(payments): repeats count as done; a sign-off records who and when, and does not pay`.
+- [x] **Step 1: Write the failing tests**: `test_repeating_a_decision_counts_as_done`, `test_a_different_decision_is_refused`, `test_needs_sign_off_is_the_backends_call` (limit, at the limit, decline), `test_pay_within_limit`, `test_pay_over_limit_without_sign_off_is_refused`, `test_paying_twice_pays_once`, `test_pay_amount_comes_from_the_decision`, `test_sign_off_does_not_pay` (`status == "signed_off"`, `paid_at is None`, claim `in_progress`, `approved_by`/`approved_at` set), `test_sign_off_twice_keeps_the_first_handler`, `test_handler_without_the_right_is_refused` (kept), `test_api_approve_returns_the_signed_off_payment`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** `runner.py` calls `record_decision`, `hold_for_sign_off` and `pay` for now, so the suite stays meaningful until Task 7; `_check_payment` goes. The old `request_payment` function stays only for the tool of that name, until Task 6 removes both. `/approvals` keeps listing `held`.
+- [x] **Step 4: Run all backend tests.** Expected: PASS. Update those that expected the sign-off to pay.
+- [x] **Step 5: Commit** `feat(payments): repeats count as done; a sign-off records who and when, and does not pay`.
 
 ### Task 6: The claim graph
 
@@ -220,7 +220,7 @@ Review Focus 4 needs the checkpointer, so its test is in Task 7. Until then `res
 - `agent.scripted.ScriptedChatModel`: replaces `ScriptedAgent` with the same claims' behavior (CLM-1013 always fails, CLM-1017 fails on the first thread, CLM-1003/1008/1011 approve over the limit), driving the real graph.
 - `instructions_claim.md`: no payment section; finish with `save_decision`; the system pays.
 
-- [ ] **Step 1: Write the failing tests on a stub model and `InMemorySaver`**
+- [x] **Step 1: Write the failing tests on a stub model and `InMemorySaver`**
 
 ```python
 def test_decline_ends_without_a_payment(graph_env): ...
@@ -243,10 +243,10 @@ def test_thirty_model_calls_is_the_most(graph_env):
 def test_model_is_not_offered_a_payment_tool(graph_env): ...
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL, module missing.
-- [ ] **Step 3: Implement**, then port `test_agent.py` and `test_tools.py` (prefetch, section index, prefetched facts traced). `test_evals_isolation.py` must scan `backend/agent/` as well as `backend/app/`, and read the instructions from their new place: moving them must not take them out of the scan.
-- [ ] **Step 4: Run** `tests/test_graph.py tests/test_tools.py tests/test_evals_isolation.py`. Expected: PASS. `test_runner`, `test_orchestrator` and `test_api` may fail here; Task 7 restores them before the commit.
-- [ ] **Step 5: Hold the commit until Task 7 Step 4** if they do, so no commit leaves the suite red.
+- [x] **Step 2: Run them.** Expected: FAIL, module missing.
+- [x] **Step 3: Implement**, then port `test_agent.py` and `test_tools.py` (prefetch, section index, prefetched facts traced). `test_evals_isolation.py` must scan `backend/agent/` as well as `backend/app/`, and read the instructions from their new place: moving them must not take them out of the scan.
+- [x] **Step 4: Run** `tests/test_graph.py tests/test_tools.py tests/test_evals_isolation.py`. Expected: PASS. `test_runner`, `test_orchestrator` and `test_api` may fail here; Task 7 restores them before the commit.
+- [x] **Step 5: Hold the commit until Task 7 Step 4** if they do, so no commit leaves the suite red.
 
 ### Task 7: Working a claim: first time, carrying on, starting afresh
 
@@ -263,7 +263,7 @@ def test_model_is_not_offered_a_payment_tool(graph_env): ...
 - Failure rule: an `Exception` before a decision exists fails the attempt as today (`attempts + 1`, new thread next time, `needs_handler` after `max_attempts`). After a decision exists, it leaves the claim in progress on its thread for carrying on, and the report says so. `KeyboardInterrupt` and kills leave everything as it is.
 - `AgentEnv` dataclass: `engine, ref, settings, graph, model_id`.
 
-- [ ] **Step 1: Write the failing tests on a stub model and `SqliteSaver`.** Stop a claim by having the stub raise `class Stopped(BaseException)`; rebuild the graph on a new saver over the same file to stand in for a new process.
+- [x] **Step 1: Write the failing tests on a stub model and `SqliteSaver`.** Stop a claim by having the stub raise `class Stopped(BaseException)`; rebuild the graph on a new saver over the same file to stand in for a new process.
 
 ```python
 def test_stopped_claim_carries_on_from_its_last_step(env):
@@ -290,10 +290,10 @@ def test_after_the_pause_the_trace_goes_in_the_same_session(env): ...
 def test_score_never_uses_database_url(monkeypatch): ...
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** `agent.toml` and `Settings`: `max_model_calls = 30` in place of `max_steps`. Point `orchestrator.py` and `api.py` at the worker, still in-process, so the suite is whole.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** (with Task 6) `feat(agent): hand-written claim graph with sign-off pause, checkpoints and carrying on`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** `agent.toml` and `Settings`: `max_model_calls = 30` in place of `max_steps`. Point `orchestrator.py` and `api.py` at the worker, still in-process, so the suite is whole.
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** (with Task 6) `feat(agent): hand-written claim graph with sign-off pause, checkpoints and carrying on`.
 
 ### Task 8: A stopped queue run is finished by the next one
 
@@ -306,11 +306,11 @@ def test_score_never_uses_database_url(monkeypatch): ...
 - `recover_after_restart` is deleted. Nothing marks a stopped run failed or puts its claims back any more.
 - Carried-on claims do not count again towards a cap. `set_todo` on an adopted run keeps items already done. The queue agent stays on `create_agent`, and starts a fresh conversation over the same run row.
 
-- [ ] **Step 1: Write the failing tests**: `test_a_run_first_carries_on_stopped_and_signed_off_claims`, `test_stopped_run_is_finished_by_the_next_with_its_cap`, `test_a_live_run_in_another_process_is_refused`, `test_a_dead_run_is_adopted` (both with an injected `now`; Review Focus 5), `test_todo_keeps_done_items_on_an_adopted_run`, `test_backend_restart_changes_nothing` (replaces the recovery tests).
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(queue): a run carries on stopped claims and finishes a stopped run`.
+- [x] **Step 1: Write the failing tests**: `test_a_run_first_carries_on_stopped_and_signed_off_claims`, `test_stopped_run_is_finished_by_the_next_with_its_cap`, `test_a_live_run_in_another_process_is_refused`, `test_a_dead_run_is_adopted` (both with an injected `now`; Review Focus 5), `test_todo_keeps_done_items_on_an_adopted_run`, `test_backend_restart_changes_nothing` (replaces the recovery tests).
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(queue): a run carries on stopped claims and finishes a stopped run`.
 
 ### Task 9: The agent's service, its command line, and the API rules
 
@@ -326,7 +326,7 @@ def test_score_never_uses_database_url(monkeypatch): ...
 - `uv run -m agent [--limit N] [--claims CLM-1,CLM-2]`: loads `<root>/.env` with `python-dotenv` at this entry only. If `/health` answers, it hands the run to the service and follows it; otherwise it runs in-process. Prints the run's summary. Ctrl-C leaves everything to carry on.
 - The backend process keeps 4 connections; the agent's 2 + 2.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_sign_off_reaches_the_service_after_it_is_saved(client, fake_service): ...
@@ -344,10 +344,10 @@ def test_cli_runs_in_process_when_the_service_is_down(cli_env): ...
 def test_cli_hands_over_when_the_service_is_up(cli_env): ...
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Create `uv.lock` with `uv lock` from `backend/`. `grep -rn "langgraph\|langchain" backend/app` must return nothing.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(agent): the agent's own service; a sign-off reaches it once saved`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** Create `uv.lock` with `uv lock` from `backend/`. `grep -rn "langgraph\|langchain" backend/app` must return nothing.
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(agent): the agent's own service; a sign-off reaches it once saved`.
 
 ### Task 10: The dashboard
 
@@ -357,11 +357,11 @@ def test_cli_hands_over_when_the_service_is_up(cli_env): ...
 - `/claims/{id}` adds `payment.approved_by_name`, resolved from `data/handlers.json`, with a test in `test_api.py`. `payment.approved_at` and `payment.paid_at` already come from Task 5.
 - `startRun` picks the route: `{limit}` or `{claimIds}`. A blank Limit sends the number of waiting claims, at least 1, so a stopped run can still be finished from an empty queue.
 
-- [ ] **Step 1: Write the failing tests**: `ClaimDetail` "shows who signed off and when on a paid claim"; "shows in progress, and no held notice, between the sign-off and the payment" (`status: in_progress`, `payment.status: signed_off`); `Queue` "says the agent is not running on a 503"; `Approvals` "a signed-off payment leaves the list"; `startRun` sends a limit when the field is blank.
-- [ ] **Step 2: Run them.** `cd frontend; npx vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement**, reusing the existing styles. `stampFor` keeps "Pending sign-off" until the payment is `paid`. `ClaimDetail` already polls every 2 s, within the five seconds asked for.
-- [ ] **Step 4: Run** `npx vitest run; npx tsc -b; npx oxlint --deny-warnings src`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(frontend): in progress after a sign-off; the payment shows who and when`.
+- [x] **Step 1: Write the failing tests**: `ClaimDetail` "shows who signed off and when on a paid claim"; "shows in progress, and no held notice, between the sign-off and the payment" (`status: in_progress`, `payment.status: signed_off`); `Queue` "says the agent is not running on a 503"; `Approvals` "a signed-off payment leaves the list"; `startRun` sends a limit when the field is blank.
+- [x] **Step 2: Run them.** `cd frontend; npx vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement**, reusing the existing styles. `stampFor` keeps "Pending sign-off" until the payment is `paid`. `ClaimDetail` already polls every 2 s, within the five seconds asked for.
+- [x] **Step 4: Run** `npx vitest run; npx tsc -b; npx oxlint --deny-warnings src`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(frontend): in progress after a sign-off; the payment shows who and when`.
 
 ### Task 11: `npm run dev` and the end-to-end tests
 
@@ -371,7 +371,7 @@ def test_cli_hands_over_when_the_service_is_up(cli_env): ...
 - `npm run dev`: `process.loadEnvFile('.env')` when present, then starts the backend on 8000 (with `--reload --no-access-log`), the service on 8002 (no reload: a reload would stop a claim), and Vite on 5173. Output prefixed by part. Ctrl-C ends all three, with `taskkill /T /F` on Windows. If one dies, it stops the others and says which.
 - `e2e/stand_in_agent.py` on port 8003: the real scripted service for runs, whose `/claims/{id}/resume` only records the id. `GET /received` returns the ids. The e2e backend gets `UNDERCOVER_AGENT=http://127.0.0.1:8003` and `AGENT_PROVIDER=scripted`. The backend and the stand-in share one throwaway database, `e2e/.tmp/e2e.db`, as the backend and the service do in production. `clean.mjs` also removes its checkpoints file.
 
-- [ ] **Step 1: Write the failing e2e test** in `02-approval.spec.ts`:
+- [x] **Step 1: Write the failing e2e test** in `02-approval.spec.ts`:
 
 ```ts
 test('a sign-off on the dashboard reaches the agent service', async ({ page, request }) => {
@@ -385,11 +385,11 @@ test('a sign-off on the dashboard reaches the agent service', async ({ page, req
 })
 ```
 
-- [ ] **Step 2: Run it.** `cd e2e; npm test`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Port the other specs to the new routes and to `in_progress` after a sign-off. A paid screen is covered by Task 10's test and the live run.
-- [ ] **Step 4: Move `.env` aside and run `npm run check`; put `.env` back.** Expected: all green with no network.
-- [ ] **Step 5: Start `npm run dev` on Windows**, with the owner's 8000 and 5173 servers stopped first, by the owner. Check all three answer, then Ctrl-C and confirm that no process is left on the three ports. Expected: all answer, none left.
-- [ ] **Step 6: Commit** `feat: npm run dev starts all three parts; e2e checks a sign-off reaches the service`.
+- [x] **Step 2: Run it.** `cd e2e; npm test`. Expected: FAIL.
+- [x] **Step 3: Implement.** Port the other specs to the new routes and to `in_progress` after a sign-off. A paid screen is covered by Task 10's test and the live run.
+- [x] **Step 4: Move `.env` aside and run `npm run check`; put `.env` back.** Expected: all green with no network.
+- [x] **Step 5: Start `npm run dev` on Windows**, with the owner's 8000 and 5173 servers stopped first, by the owner. Check all three answer, then Ctrl-C and confirm that no process is left on the three ports. Expected: all answer, none left.
+- [x] **Step 6: Commit** `feat: npm run dev starts all three parts; e2e checks a sign-off reaches the service`.
 
 ### Task 12: The documents
 
@@ -402,8 +402,8 @@ test('a sign-off on the dashboard reaches the agent service', async ({ page, req
 - `TECH_STACK.md`: Supabase, SQLAlchemy, LangGraph, Langfuse, the service, the API rules, the new environment variables.
 - `COMMANDS.md`: `npm run dev`, `npm run reseed`, `uv run -m agent`, and that an old `farting.db` should be deleted.
 
-- [ ] **Step 1: Write them**, then check each command in `COMMANDS.md` by running it, except the live ones.
-- [ ] **Step 2: Commit** `docs: describe the durable agent; add process, standards and status`.
+- [x] **Step 1: Write them**, then check each command in `COMMANDS.md` by running it, except the live ones.
+- [x] **Step 2: Commit** `docs: describe the durable agent; add process, standards and status`.
 
 ### Task 13: Live verification
 
@@ -411,16 +411,20 @@ Needs the owner. This task spends money on OpenRouter and writes to Supabase and
 
 **Files:** Create `scripts/check_langfuse.py` (prints a session's trace count and times, no claim text). Move `backend/.mcp.json` to the root `.mcp.json`. Record results in `docs/STATUS.md`.
 
-- [ ] **Step 1: Prepare with the owner.** The Supabase MCP server is configured in `backend/`, so a session opened at the root does not load it. After the move, the owner restarts the session and authenticates with `/mcp`. The owner stops any old servers on 8000 and 5173 and closes the lab notebooks: the lab's checkpoint pool alone holds up to 5 connections, and they count towards the 12. Take a baseline of `pg_stat_activity` for user postgres before starting anything.
-- [ ] **Step 2: Reseed.** `npm run reseed`. Expected: 25 claims. Through the MCP server, the tables are in schema `undercover` with RLS on.
-- [ ] **Step 3: Live run.** `npm run dev`, then a run capped at five on the default model. Expected: five claims worked. During the run, `pg_stat_activity` for user postgres shows no more than 12.
-- [ ] **Step 4: Sign off through the Playwright MCP server.** Expected: the over-limit claim waits, then shows as paid within five seconds, with the handler and the time. If the run holds no claim, because the live model decided otherwise, reseed and run again with `--claims` naming five claims that include CLM-1003, CLM-1008 and CLM-1011, which the scripted agent treats as over the limit.
-- [ ] **Step 5: Langfuse.** `scripts/check_langfuse.py <session>`. Expected: traces from before and after the sign-off in the held claim's session.
-- [ ] **Step 6: Kill test.** Reseed. `uv run -m agent --limit 5` with the service stopped; after a claim's first steps, kill that process. Run again after 45 s. Expected: same `thread_id`, same `attempts`, one decision.
-- [ ] **Step 7: Commit** `docs: record the live verification`.
+- [x] **Step 1: Prepare with the owner.** The Supabase MCP server is configured in `backend/`, so a session opened at the root does not load it. After the move, the owner restarts the session and authenticates with `/mcp`. The owner stops any old servers on 8000 and 5173 and closes the lab notebooks: the lab's checkpoint pool alone holds up to 5 connections, and they count towards the 12. Take a baseline of `pg_stat_activity` for user postgres before starting anything.
+- [x] **Step 2: Reseed.** `npm run reseed`. Expected: 25 claims. Through the MCP server, the tables are in schema `undercover` with RLS on.
+- [x] **Step 3: Live run.** `npm run dev`, then a run capped at five on the default model. Expected: five claims worked. During the run, `pg_stat_activity` for user postgres shows no more than 12.
+- [x] **Step 4: Sign off through the Playwright MCP server.** Expected: the over-limit claim waits, then shows as paid within five seconds, with the handler and the time. If the run holds no claim, because the live model decided otherwise, reseed and run again with `--claims` naming five claims that include CLM-1003, CLM-1008 and CLM-1011, which the scripted agent treats as over the limit.
+- [x] **Step 5: Langfuse.** `scripts/check_langfuse.py <session>`. Expected: traces from before and after the sign-off in the held claim's session.
+- [x] **Step 6: Kill test.** Reseed. `uv run -m agent --limit 5` with the service stopped; after a claim's first steps, kill that process. Run again after 45 s. Expected: same `thread_id`, same `attempts`, one decision.
+- [x] **Step 7: Commit** `docs: record the live verification`.
 
 Found in this task: a sign-off first took 21 s to show as paid, because a query cost four trips of 220 ms and a new connection 6.5 s. Statements now commit by themselves, connections open at startup, and waiting and paying are one step of the graph (the plan had `sign_off` and `pay` as two).
 
 ## Done means
 
 Each line under "What done looks like" in `docs/DURABLE.md` has its evidence: tests in Tasks 1 to 11, measurements in Task 13, documents in Task 12.
+
+## Results
+
+See `docs/STATUS.md`. One line of "What done looks like" is not met as written: the peak of connections for user postgres was 15, not 12, with a lab notebook's four among them, and it was read with SQL because the Supabase MCP server was not loaded in that session.
