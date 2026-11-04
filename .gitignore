@@ -13,3 +13,6 @@ e2e/playwright-report/
 e2e/.tmp/
 *.egg-info/
 tempCodeRunnerFile*
+qdrant_data/
+knowledge_mcp.log
+memory_data/
