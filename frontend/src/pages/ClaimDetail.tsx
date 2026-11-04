@@ -7,6 +7,7 @@ import { usePolling } from '../usePolling'
 import Trace from './Trace'
 
 const POLL_MS = 2000
+const POLL_WORKING_MS = 1000
 
 export default function ClaimDetail() {
   const { id = '' } = useParams()
@@ -22,7 +23,8 @@ export default function ClaimDetail() {
     }
   }, [id])
 
-  usePolling(load, POLL_MS)
+  // quicker while the agent is at it: a signed-off claim should show as paid within seconds
+  usePolling(load, data?.status === 'in_progress' ? POLL_WORKING_MS : POLL_MS)
 
   async function onRun() {
     try {

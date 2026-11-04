@@ -33,13 +33,13 @@ def make_checkpointer(settings: Settings) -> Iterator[BaseCheckpointSaver]:
     if settings.database_url:
         with ConnectionPool(
             settings.database_url,
-            min_size=1,
+            min_size=MAX_CONNECTIONS,  # opened now: a new one to Supabase takes seconds
             max_size=MAX_CONNECTIONS,
             open=True,
-            check=ConnectionPool.check_connection,  # replaces connections the pooler closed while idle
             configure=_search_path,
             kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},  # what PostgresSaver needs
         ) as pool:
+            pool.wait(timeout=60)
             saver = PostgresSaver(pool)
             saver.setup()  # creates the tables the first time, and does nothing after that
             with pool.connection() as connection:

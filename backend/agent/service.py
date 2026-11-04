@@ -38,6 +38,13 @@ def prepare_database(settings: Settings) -> None:
         engine.dispose()
 
 
+def resume(env: AgentEnv, claim_id: str) -> None:
+    """Pay a signed-off claim. A connection the pooler closed while idle fails the first try, so there is a second."""
+    carry_on(env, claim_id)
+    if claim_id in signed_off_claims(env.engine):
+        carry_on(env, claim_id)
+
+
 def create_service(settings: Settings, inline: bool = False) -> FastAPI:
     """With inline, work happens before a call returns, which is what tests want."""
     holder: dict[str, AgentEnv] = {}
@@ -62,7 +69,7 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
             holder["env"] = env
             # A sign-off is already a person's decision and costs no model call. Stopped work waits for a run.
             for claim_id in signed_off_claims(env.engine):
-                in_background(f"resume {claim_id}", carry_on, env, claim_id)
+                in_background(f"resume {claim_id}", resume, env, claim_id)
             yield
 
     app = FastAPI(title="Farting Agent service", lifespan=lifespan)
@@ -103,7 +110,7 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
     def resume_claim(claim_id: str):
         """Pick a claim back up after its sign-off, and pay it."""
         _known(claim_id)
-        in_background(f"resume {claim_id}", carry_on, holder["env"], claim_id)
+        in_background(f"resume {claim_id}", resume, holder["env"], claim_id)
         return {"claim_id": claim_id}
 
     return app

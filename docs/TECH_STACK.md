@@ -19,6 +19,7 @@ Technology choices for the Farting Agent pilot. See `SPEC.md` for what we are bu
 - The database holds the app's state: claims and their status and failed attempts, agent decisions and rationales, the step-by-step activity trace, payments with who signed off and when, and runs with their to-do list and events.
 - **Supabase** is used only when `DATABASE_URL`, the session pooler connection string, is in the process environment. `npm run dev` and `npm run reseed` pass `.env`; the tests never do, and run on throwaway SQLite files. A `DATABASE_URL` in `.env` alone does nothing.
 - **SQLAlchemy Core** means each query is written once for both. All our tables, the checkpointer's included, are in the schema `undercover`, set on each Postgres connection, with row level security on.
+- **Round trips:** every statement commits by itself and connections are opened at startup, so a query is one trip to Supabase and a sign-off can show as paid within five seconds (see `CODE_STANDARDS.md`).
 - **Connections:** the free plan allows 15 at once through the session pooler, across every process, so each process uses at most 4: the backend 4, the agent 2 for records and 2 for checkpoints.
 - `npm run reseed` makes our tables again, clears the checkpoints and loads the claims, on whichever database is in `.env`.
 - The seed claims are loaded at startup when missing, and by the reseed. Policies, customers, plans, handlers and company settings are read from `data/`.

@@ -204,3 +204,24 @@ def test_every_operation_follows_the_api_rules(db_path, data_dir, make):
         if name.endswith("Error"):
             continue
         assert set(model.get("required", [])) == set(model.get("properties", {})), f"{name}: an optional input"
+
+
+def test_a_resume_that_loses_its_connection_tries_once_more(db_path, data_dir, monkeypatch):
+    import agent.service as service_module
+
+    engine = hold(db_path, data_dir)
+    sign_off(engine, Reference(data_dir), "PAY-CLM-1003", "HND-01")
+    real = service_module.carry_on
+    calls = []
+
+    def flaky(env, claim_id):
+        calls.append(claim_id)
+        if len(calls) == 1:
+            return f"{claim_id}: an error after the decision (OperationalError: the connection was closed)."
+        return real(env, claim_id)
+
+    monkeypatch.setattr(service_module, "carry_on", flaky)
+    with TestClient(create_service(make_settings(db_path, data_dir), inline=True)):
+        pass
+    assert calls == ["CLM-1003", "CLM-1003"]
+    assert get_payment(engine, "CLM-1003").status == "paid"

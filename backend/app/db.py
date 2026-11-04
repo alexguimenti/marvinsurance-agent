@@ -1,4 +1,5 @@
 """The records: one set of tables and queries for SQLite and Postgres, through SQLAlchemy Core."""
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
@@ -123,9 +124,11 @@ run_events = Table(
 
 
 def make_engine(settings: Settings, max_connections: int) -> Engine:
-    """A pool of at most max_connections. Operations open short transactions, so a few go a long way."""
+    """A pool of at most max_connections, where every statement commits by itself: BEGIN, COMMIT and a ping per
+    checkout would make each query four trips to Supabase. So each statement must be safe on its own, and an
+    operation must be safe to repeat if it stops between two. One statement, with its constraints, is atomic."""
     if settings.database_url:
-        return _postgres_engine(settings.database_url, max_connections)
+        return _postgres_engine(settings.database_url, max_connections).execution_options(isolation_level="AUTOCOMMIT")
     engine = create_engine(
         f"sqlite:///{settings.db_path}",
         pool_size=max_connections,
@@ -137,12 +140,27 @@ def make_engine(settings: Settings, max_connections: int) -> Engine:
     def _wal(dbapi_connection, _record):
         dbapi_connection.execute("PRAGMA journal_mode=WAL")
 
-    return engine
+    return engine.execution_options(isolation_level="AUTOCOMMIT")
+
+
+def warm_up(engine: Engine, connections: int) -> None:
+    """Open the pool's connections now. A new one to Supabase takes seconds, too long to find out during a sign-off."""
+    start = threading.Barrier(connections)
+
+    def open_one() -> None:
+        with engine.connect():
+            start.wait(timeout=60)  # held until all are open, so each opens a connection of its own
+
+    threads = [threading.Thread(target=open_one) for _ in range(connections)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
 
 def _postgres_engine(database_url: str, max_connections: int) -> Engine:
     url = make_url(database_url).set(drivername="postgresql+psycopg")
-    engine = create_engine(url, pool_size=max_connections, max_overflow=0, pool_pre_ping=True, pool_recycle=300)
+    engine = create_engine(url, pool_size=max_connections, max_overflow=0, pool_recycle=1800)
 
     @event.listens_for(engine, "connect")
     def _search_path(dbapi_connection, _record):

@@ -71,11 +71,12 @@ def needs_sign_off(engine: Engine, ref: Reference, claim_id: str) -> bool:
     """The backend's answer, for the agent: is this an approval over the limit that no handler has signed off?"""
     limit = ref.company["payout_approval_limit"]
     with engine.connect() as conn:
-        decision = conn.execute(
-            select(decisions.c.decision, decisions.c.payout).where(decisions.c.claim_id == claim_id)
+        row = conn.execute(
+            select(decisions.c.decision, decisions.c.payout, payments.c.approved_by)
+            .select_from(decisions.outerjoin(payments, decisions.c.claim_id == payments.c.claim_id))
+            .where(decisions.c.claim_id == claim_id)
         ).first()
-        approved_by = conn.execute(select(payments.c.approved_by).where(payments.c.claim_id == claim_id)).scalar_one_or_none()
-    return decision is not None and decision[0] == "approve" and decision[1] > limit and approved_by is None
+    return row is not None and row[0] == "approve" and row[1] > limit and row[2] is None
 
 
 def hold_for_sign_off(engine: Engine, ref: Reference, claim_id: str) -> dict:

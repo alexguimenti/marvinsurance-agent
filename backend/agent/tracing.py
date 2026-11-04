@@ -29,6 +29,15 @@ def _handler():
     return CallbackHandler(public_key=os.environ["LANGFUSE_PUBLIC_KEY"])
 
 
+def warm_up_tracing() -> None:
+    """Load the client now, not during the first sign-off."""
+    if _enabled():
+        try:
+            _handler()
+        except Exception as exc:
+            log.warning("Langfuse is not available: %s", exc)
+
+
 def session_name(claim_id: str, thread_id: str) -> str:
     return f"{claim_id}:{thread_id}"
 

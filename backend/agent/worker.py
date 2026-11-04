@@ -5,21 +5,19 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Iterator
 
-from langgraph.types import Command
 from sqlalchemy import Engine, select, update
 
 from agent.checkpoints import make_checkpointer
 from agent.graph import build_claim_graph
-from agent.tracing import flush_traces, trace_config
+from agent.tracing import flush_traces, trace_config, warm_up_tracing
 from app.claims import get_claim, needs_sign_off
 from app.config import Settings
-from app.db import claims, make_engine, payments
+from app.db import claims, make_engine, payments, warm_up
 from app.payments import get_payment
 from app.reference import Reference
 from app.runs import add_trace_event, todo_for_claim
 
 RECORD_CONNECTIONS = 2  # with the checkpointer's 2, the 4 a process may use
-RESUME = {"signed_off": True}
 
 
 @dataclass
@@ -59,6 +57,8 @@ def open_env(settings: Settings, model=None, model_id: str | None = None) -> Ite
 
             model, model_id = chat_model(settings), settings.agent_model
     engine = make_engine(settings, max_connections=RECORD_CONNECTIONS)
+    warm_up(engine, RECORD_CONNECTIONS)
+    warm_up_tracing()
     try:
         with make_checkpointer(settings) as saver:
             graph = build_claim_graph(engine, Reference(settings.data_dir), model, model_id,
@@ -119,7 +119,7 @@ def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, att
     try:
         result = invoke(env, claim_id, thread_id, graph_input)
         if result.get("__interrupt__") and not needs_sign_off(env.engine, env.ref, claim_id):
-            invoke(env, claim_id, thread_id, Command(resume=RESUME))  # signed off while the graph was pausing
+            invoke(env, claim_id, thread_id, None)  # signed off while the graph was pausing
     except Exception as exc:  # any model, tool or database failure; a kill or Ctrl-C is not one of these
         if get_claim(env.engine, claim_id)["decision"] is None:
             return _fail(env, claim_id, thread_id, run_id, attempt, max_attempts, exc)
@@ -162,23 +162,29 @@ def work_claim(env: AgentEnv, claim_id: str, run_id: int | None = None, max_atte
 def carry_on(env: AgentEnv, claim_id: str) -> str:
     """Pick a claim up from where it got to, on the same thread and with the same attempts. For a claim stopped
     partway, or signed off. Anything else is left alone."""
-    claim = get_claim(env.engine, claim_id)
+    with env.engine.connect() as conn:
+        claim = conn.execute(
+            select(claims.c.status, claims.c.thread_id, claims.c.attempts, claims.c.run_id, payments.c.status.label("payment"))
+            .select_from(claims.outerjoin(payments, claims.c.claim_id == payments.c.claim_id))
+            .where(claims.c.claim_id == claim_id)
+        ).mappings().one()
     thread_id = claim["thread_id"]
     if claim["status"] != "in_progress" or thread_id is None:
         return f"{claim_id}: not worked, the claim is {claim['status'].replace('_', ' ')}."
     with env.working(claim_id) as free:
         if not free:
             return f"{claim_id}: not worked, it is already being worked."
-        state = env.graph.get_state({"configurable": {"thread_id": thread_id}})
-        if not state.values:  # stopped before the first step was saved
-            graph_input = {"claim_id": claim_id}
-        elif state.interrupts:
-            graph_input = Command(resume=RESUME)
-        elif state.next:
-            graph_input = None
+        if claim["payment"] == "signed_off":
+            graph_input = None  # straight on: the paused step runs again and finds the sign-off
         else:
-            return _report(env, claim_id)  # it had finished; only the last report was lost
-        add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "note": "carried on"})
+            state = env.graph.get_state({"configurable": {"thread_id": thread_id}})
+            if not state.values:  # stopped before the first step was saved
+                graph_input = {"claim_id": claim_id}
+            elif state.next:
+                graph_input = None
+            else:
+                return _report(env, claim_id)  # it had finished; only the last report was lost
+            add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "note": "carried on"})
         attempt = claim["attempts"] + 1
         return _drive(env, claim_id, thread_id, claim["run_id"], attempt, env.settings.agent_max_attempts, graph_input)
 

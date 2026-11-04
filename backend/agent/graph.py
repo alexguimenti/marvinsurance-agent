@@ -109,20 +109,20 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
     def sign_off(state: ClaimState) -> dict:
         """Wait for a handler when the backend says the payout needs one. The node runs again from the top on
         resume, so an early resume finds the claim still unsigned and waits again."""
-        if needs_sign_off(engine, ref, state.claim_id):
-            first_time = get_payment(engine, state.claim_id) is None
+        needed = needs_sign_off(engine, ref, state.claim_id)
+        if needed and get_payment(engine, state.claim_id) is None:
             hold_for_sign_off(engine, ref, state.claim_id)
-            if first_time:
-                recorder(state.claim_id)("status", {"status": "awaiting_approval"})
-        while needs_sign_off(engine, ref, state.claim_id):
+            recorder(state.claim_id)("status", {"status": "awaiting_approval"})
+        elif needed:
+            hold_for_sign_off(engine, ref, state.claim_id)  # a repeat, in case a stop came between its two steps
+        while needed:
             interrupt({"claim_id": state.claim_id, "payout": state.decision["payout"], "waiting_for": "sign-off"})
+            needed = needs_sign_off(engine, ref, state.claim_id)
         return {}
 
     def pay_node(state: ClaimState) -> dict:
         """Pay the approval. The backend refuses anything over the limit without a sign-off, and pays only once."""
-        before = get_payment(engine, state.claim_id)
-        pay(engine, ref, state.claim_id)
-        if before is None or before.status != "paid":
+        if pay(engine, ref, state.claim_id)["paid_now"]:
             payment = get_payment(engine, state.claim_id)
             recorder(state.claim_id)("status", {
                 "status": "paid", "amount": payment.amount, "approved_by": payment.approved_by,

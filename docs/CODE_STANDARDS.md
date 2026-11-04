@@ -17,8 +17,10 @@
 ## The records
 
 - SQLAlchemy Core, so each query is written once for SQLite and Postgres. Tables are defined in `app/db.py`.
-- An operation takes the `Engine` and opens a short transaction. Never hold a connection across a model call, or inside another operation: each process has very few.
-- A step can run again after a restart, so an operation that records something treats a repeat as done, and returns the claim. Something different is refused.
+- An operation takes the `Engine`. Never hold a connection across a model call, or inside another operation: each process has very few.
+- Every statement commits by itself. A trip to Supabase takes about 220 ms, and `BEGIN`, `COMMIT` and a ping per checkout would make each query four trips. `engine.begin()` therefore does not open a transaction here. A single statement, with its constraints, is atomic.
+- So an operation must be safe if it stops between two statements, and when run again. A step can run again after a restart anyway: an operation that records something treats a repeat as done, and returns the claim. Something different is refused.
+- `tests/test_round_trips.py` keeps the path from a sign-off to its payment short.
 - A `DATABASE_URL` or `UNDERCOVER_AGENT` in a `.env` file means nothing on its own: they count only in the process environment.
 
 ## The API

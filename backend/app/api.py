@@ -22,6 +22,7 @@ from app.db import (
     payments,
     plain,
     trace_events,
+    warm_up,
 )
 from app.documents import documents_for
 from app.payments import sign_off
@@ -88,6 +89,7 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
     async def lifespan(_: FastAPI):
         init_schema(engine)
         seed_claims(engine, ref)
+        warm_up(engine, 4)
         yield
         engine.dispose()
 
@@ -110,10 +112,12 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
         with engine.connect() as conn:
             return conn.execute(query).mappings().all()
 
-    def read_sections(claim_id: str) -> list[dict]:
+    def read_sections(rows: list[Mapping]) -> list[dict]:
         """The sections the agent actually read for a claim, in order, each once."""
         read, seen = [], set()
-        for r in trace_rows(claim_id, "tool_result"):
+        for r in rows:
+            if r["kind"] != "tool_result":
+                continue
             result = json.loads(r["content"])
             match = _SECTION_READ.match(str(result.get("content", ""))) if result.get("name") == "read_section" else None
             if not match:
@@ -172,9 +176,18 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
     @app.get("/claims/{claim_id}", operation_id="get_claim")
     def get_claim(claim_id: str):
         """Get one claim with its policy, customer, decision, payment, cost and what the agent read."""
-        row = claim_row(claim_id)
-        decision = one(decisions, decisions.c.claim_id, claim_id)
-        usage = runs.sum_usage([json.loads(u["content"]) for u in trace_rows(claim_id, "usage")])
+        with engine.connect() as conn:  # one connection: this page is asked for every second or two
+            row = conn.execute(select(claims).where(claims.c.claim_id == claim_id)).mappings().first()
+            if row is None:
+                raise HTTPException(404, f"unknown claim {claim_id}")
+            decision = conn.execute(select(decisions).where(decisions.c.claim_id == claim_id)).mappings().first()
+            payment = conn.execute(select(payments).where(payments.c.claim_id == claim_id)).mappings().first()
+            steps = conn.execute(
+                select(trace_events.c.kind, trace_events.c.content)
+                .where(trace_events.c.claim_id == claim_id, trace_events.c.kind.in_(("usage", "tool_result")))
+                .order_by(trace_events.c.seq)
+            ).mappings().all()
+        usage = runs.sum_usage([json.loads(u["content"]) for u in steps if u["kind"] == "usage"])
         claim = json.loads(row["payload"])
         return {
             "claim": claim,
@@ -184,9 +197,9 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
             "policy": ref.policy(claim["policy_id"]),
             "customer": ref.customer(claim["customer_id"]),
             "decision": _decision(decision),
-            "payment": payment_view(one(payments, payments.c.claim_id, claim_id)),
+            "payment": payment_view(payment),
             "usage": usage,
-            "read": read_sections(claim_id),
+            "read": read_sections(steps),
         }
 
     @app.get("/claims/{claim_id}/trace", operation_id="get_claim_trace")
