@@ -112,3 +112,19 @@ def test_env_overrides_toml_model(monkeypatch):
     monkeypatch.delenv("AGENT_CONFIG_FILE", raising=False)
     monkeypatch.setenv("AGENT_MODEL", "x/y")
     assert Settings(_env_file=None).agent_model == "x/y"
+
+
+def test_database_url_in_dot_env_alone_is_ignored(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text("DATABASE_URL=postgresql://nope/nope\nUNDERCOVER_AGENT=http://nope\n")
+    monkeypatch.chdir(tmp_path)
+    settings = Settings(_env_file=tmp_path / ".env")
+    assert settings.database_url is None
+    assert settings.agent_url == "http://127.0.0.1:8002"
+
+
+def test_database_url_and_agent_address_in_the_environment_are_used(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h/d")
+    monkeypatch.setenv("UNDERCOVER_AGENT", "http://127.0.0.1:8003")
+    settings = Settings(_env_file=None)
+    assert settings.database_url == "postgresql://u:p@h/d"
+    assert settings.agent_url == "http://127.0.0.1:8003"

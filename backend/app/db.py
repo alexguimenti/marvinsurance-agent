@@ -1,7 +1,7 @@
 """The records: one set of tables and queries for SQLite and Postgres, through SQLAlchemy Core."""
 import time
 from datetime import datetime, timezone
-from typing import Mapping
+from typing import Iterable, Mapping
 
 from sqlalchemy import (
     Column,
@@ -17,12 +17,16 @@ from sqlalchemy import (
     delete,
     event,
     func,
+    make_url,
+    text,
     update,
 )
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.exc import DBAPIError
 
 from app.config import Settings
+
+SCHEMA = "undercover"  # set on each Postgres connection, so the queries stay the same on SQLite
 
 metadata = MetaData()
 
@@ -118,6 +122,8 @@ run_events = Table(
 
 def make_engine(settings: Settings, max_connections: int) -> Engine:
     """A pool of at most max_connections. Operations open short transactions, so a few go a long way."""
+    if settings.database_url:
+        return _postgres_engine(settings.database_url, max_connections)
     engine = create_engine(
         f"sqlite:///{settings.db_path}",
         pool_size=max_connections,
@@ -132,11 +138,36 @@ def make_engine(settings: Settings, max_connections: int) -> Engine:
     return engine
 
 
+def _postgres_engine(database_url: str, max_connections: int) -> Engine:
+    url = make_url(database_url).set(drivername="postgresql+psycopg")
+    engine = create_engine(url, pool_size=max_connections, max_overflow=0, pool_pre_ping=True, pool_recycle=300)
+
+    @event.listens_for(engine, "connect")
+    def _search_path(dbapi_connection, _record):
+        dbapi_connection.autocommit = True
+        dbapi_connection.execute(f"SET search_path TO {SCHEMA}")
+        dbapi_connection.autocommit = False
+
+    return engine
+
+
+def row_level_security(table_names: Iterable[str]) -> list[str]:
+    """Without this, the project's public API keys could reach the tables. Our owner role is not affected."""
+    return [f"ALTER TABLE {SCHEMA}.{name} ENABLE ROW LEVEL SECURITY" for name in table_names]
+
+
 def init_schema(engine: Engine) -> None:
     """Create what is missing. Two processes starting together can race on a table, so a loser tries again."""
     for attempt in range(5):
         try:
+            if engine.dialect.name == "postgresql":
+                with engine.begin() as conn:
+                    conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}"))
             metadata.create_all(engine)
+            if engine.dialect.name == "postgresql":
+                with engine.begin() as conn:
+                    for statement in row_level_security(metadata.tables):
+                        conn.execute(text(statement))
             return
         except DBAPIError:
             if attempt == 4:

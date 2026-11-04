@@ -3,6 +3,10 @@ import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
+// the checks need no Supabase, Langfuse or running agent, whatever this shell has set
+for (const name of ['DATABASE_URL', 'LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_BASE_URL', 'UNDERCOVER_AGENT']) {
+  delete process.env[name]
+}
 const python = resolve(root, 'backend/.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
 
 const steps = [

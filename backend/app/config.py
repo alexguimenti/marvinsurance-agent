@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, InitSettingsSource, SettingsConfigDi
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_FILE = ROOT / "agent.toml"
+DEFAULT_AGENT_URL = "http://127.0.0.1:8002"
 
 
 def _agent_toml() -> dict:
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
     agent_provider: Literal["openrouter", "scripted"] = "openrouter"
     db_path: str = str(ROOT / "farting.db")
     data_dir: str = str(ROOT / "data")
+    database_url: str | None = None  # from the process environment only: see model_post_init
+    agent_url: str = DEFAULT_AGENT_URL
+
+    def model_post_init(self, _context) -> None:
+        # A .env file must not be enough to point a process at Supabase or at a running agent:
+        # `npm run dev` passes these in the environment, and the tests never do.
+        self.database_url = os.environ.get("DATABASE_URL") or None
+        self.agent_url = os.environ.get("UNDERCOVER_AGENT") or DEFAULT_AGENT_URL
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):

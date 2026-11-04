@@ -10,10 +10,14 @@ dependencies = [
   "langchain-openai",
   "langchain-core",
   "langfuse",
+  "sqlalchemy",
+  "psycopg[binary,pool]",
+  "python-dotenv",
+  "httpx",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx", "watchfiles"]
+dev = ["pytest", "watchfiles"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

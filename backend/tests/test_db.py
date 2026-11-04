@@ -5,7 +5,7 @@ from sqlalchemy import insert, inspect, select
 from sqlalchemy.exc import IntegrityError
 
 from app.config import Settings
-from app.db import claims, init_schema, insert_or_ignore, make_engine, reset_analyses, runs
+from app.db import claims, init_schema, insert_or_ignore, make_engine, metadata, reset_analyses, row_level_security, runs
 from tests.fakes import connect
 
 
@@ -92,3 +92,16 @@ def test_decision_cannot_be_written_twice(db_path):
     conn.execute(sql)
     with pytest.raises(IntegrityError):
         conn.execute(sql)
+
+
+def test_postgres_url_uses_psycopg_and_the_connection_cap(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h/d")
+    engine = make_engine(Settings(_env_file=None), max_connections=2)  # creating an engine opens no connection
+    assert engine.dialect.driver == "psycopg"
+    assert engine.pool.size() == 2 and engine.pool._max_overflow == 0
+
+
+def test_every_table_gets_row_level_security():
+    statements = row_level_security(metadata.tables)
+    assert "ALTER TABLE undercover.claims ENABLE ROW LEVEL SECURITY" in statements
+    assert len(statements) == len(metadata.tables)
