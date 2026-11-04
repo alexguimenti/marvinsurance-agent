@@ -4,6 +4,7 @@
   "description": "Marvin FartInsurance claims desk: one command runs every test suite.",
   "scripts": {
     "check": "node scripts/check.mjs",
+    "dev": "node scripts/dev.mjs",
     "reseed": "node scripts/reseed.mjs"
   }
 }

@@ -19,7 +19,7 @@ const claim = (id: string, status: string, extra = {}) => ({
 
 const NO_RUN = { run: null, todo: [] }
 const latest = (status: string) => ({
-  run: { run_id: 1, status, cap: null, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null },
+  run: { run_id: 1, status, alive: status === 'running', cap: null, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null },
   todo: [{ item_id: 1, position: 1, title: 'Work CLM-1', status: 'in_progress', claim_id: 'CLM-1', note: null }],
 })
 
