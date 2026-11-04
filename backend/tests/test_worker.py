@@ -318,3 +318,27 @@ def test_score_never_uses_database_url(monkeypatch, tmp_path):
     settings = module.isolated_settings(Settings(_env_file=None, agent_provider="scripted"), str(tmp_path / "s.db"))
     assert settings.database_url is None and settings.db_path == str(tmp_path / "s.db")
     assert settings.agent_provider == "scripted"  # the settings it was given, not whatever the machine has
+
+
+def test_a_claim_worked_inside_the_queue_agent_starts_its_own_trace(env_for, monkeypatch):
+    """Langfuse takes the session from a trace's root. A claim is worked inside a tool of the queue agent, and it
+    must not hang under that: the work before a pause would go missing from the claim's session."""
+    from langchain_core.callbacks import BaseCallbackHandler
+    from langchain_core.runnables import RunnableLambda
+
+    import agent.worker as worker_module
+
+    roots = []
+
+    class Recorder(BaseCallbackHandler):
+        def on_chain_start(self, serialized, inputs, *, run_id, parent_run_id=None, metadata=None, **kwargs):
+            roots.append(parent_run_id)
+
+    real = worker_module.trace_config
+    monkeypatch.setattr(worker_module, "trace_config",
+                        lambda *args: {**real(*args), "callbacks": [Recorder()]})
+    env, _ = env_for({CLAIM: [decline()]})
+
+    RunnableLambda(lambda _: work_claim(env, CLAIM)).invoke("the queue agent's tool")
+
+    assert roots[0] is None

@@ -10,7 +10,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-import httpx  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
@@ -23,16 +22,16 @@ from app.db import make_engine  # noqa: E402
 CONNECTIONS = "SELECT count(*) FROM pg_stat_activity WHERE usename = 'postgres'"
 
 
-def langfuse_traces(session: str) -> list[dict]:
-    """Through Langfuse's public API."""
-    answer = httpx.get(
-        f"{os.environ['LANGFUSE_BASE_URL'].rstrip('/')}/api/public/traces",
-        params={"sessionId": session, "limit": 50},
-        auth=(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"]),
-        timeout=30,
+def langfuse_traces(session: str) -> list:
+    """The session's traces through Langfuse's API: their root observations, oldest first."""
+    from langfuse import Langfuse
+
+    client = Langfuse(
+        public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+        secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+        base_url=os.environ.get("LANGFUSE_BASE_URL"),
     )
-    answer.raise_for_status()
-    return answer.json()["data"]
+    return client.api.observations.get_many(session_id=session, is_root_observation=True, fields="core", limit=50).data
 
 
 def main() -> None:
@@ -53,10 +52,10 @@ def main() -> None:
         ).first()
         print("payment:", tuple(payment) if payment else None)
     engine.dispose()
-    traces = sorted(langfuse_traces(session_name(claim_id, row[2])), key=lambda t: t["timestamp"])
+    traces = sorted(langfuse_traces(session_name(claim_id, row[2])), key=lambda t: t.start_time)
     print(f"Langfuse session {session_name(claim_id, row[2])}: {len(traces)} traces")
     for trace in traces:
-        print(" ", trace["timestamp"], trace["name"])
+        print(" ", trace.start_time, trace.name, "trace", trace.trace_id)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 """Working one claim: for the first time, carrying on after a stop or a sign-off, or starting afresh after an error."""
+import contextvars
 import threading
 import time
 from contextlib import contextmanager
@@ -78,7 +79,10 @@ def _config(env: AgentEnv, claim_id: str, thread_id: str) -> dict:
 
 def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input) -> dict:
     try:
-        return env.graph.invoke(graph_input, _config(env, claim_id, thread_id), durability="sync")
+        # In a context of its own: a claim is often worked inside a tool of the queue agent, and Langfuse takes the
+        # session from a trace's root, so hanging under that tool would lose the work from the claim's session.
+        config = _config(env, claim_id, thread_id)
+        return contextvars.Context().run(env.graph.invoke, graph_input, config, durability="sync")
     finally:
         flush_traces()
 
