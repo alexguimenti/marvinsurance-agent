@@ -6,12 +6,12 @@ from app.db import init_schema
 from tests.fakes import connect
 from app.reference import Reference
 from app.seed import seed_claims
-from app.tools import build_tools
+from agent.tools import build_tools
 
 EXPECTED = {
     "get_claim", "get_policy", "get_customer_history", "get_plan",
     "list_sections", "read_section", "search_documents",
-    "lookup_knowledge", "calculate_payout", "request_payment",
+    "lookup_knowledge", "calculate_payout", "save_decision",
 }
 
 
@@ -33,8 +33,19 @@ def unwrap(text: str) -> dict:
     return json.loads(text.removeprefix("<claim_data>").rstrip().removesuffix("</claim_data>"))
 
 
+class Bound:
+    """A tool as the graph calls it, with what it takes from the state filled in."""
+
+    def __init__(self, tool, claim_id):
+        self.tool, self.claim_id = tool, claim_id
+
+    def invoke(self, args):
+        injected = {"claim_id": self.claim_id, "messages": []}
+        return self.tool.invoke({**args, **{k: v for k, v in injected.items() if k in self.tool.args_schema.model_fields}})
+
+
 def tools_for(conn, ref, claim_id="CLM-1001"):
-    return {t.name: t for t in build_tools(conn.engine, ref, claim_id)}
+    return {t.name: Bound(t, claim_id) for t in build_tools(conn.engine, ref)}
 
 
 def test_tools_offer_lookups_not_whole_wording(conn, ref):
@@ -42,9 +53,9 @@ def test_tools_offer_lookups_not_whole_wording(conn, ref):
 
 
 def test_tools_expose_no_file_or_eval_access(conn, ref):
-    for t in build_tools(conn.engine, ref, "CLM-1001"):
-        params = set(t.args)
-        assert not params & {"path", "file", "filename", "claim_id"}, t.name
+    for t in build_tools(conn.engine, ref):
+        offered_to_the_model = set(t.tool_call_schema.model_fields)
+        assert not offered_to_the_model & {"path", "file", "filename", "claim_id", "messages", "proposal"}, t.name
 
 
 def test_get_claim_returns_only_bound_claim(conn, ref):
@@ -111,27 +122,3 @@ def test_calculate_payout_tool_returns_steps(conn, ref):
         "benefit_max": None,
     }))
     assert out["payout"] == 3750.0 and out["steps"] and out["needs_sign_off"] is True
-
-
-def test_request_payment_tool_over_limit_returns_held(conn, ref):
-    out = json.loads(tools_for(conn, ref)["request_payment"].invoke({"amount": 2500.0}))
-    assert out["status"] == "held"
-
-
-def test_rereading_a_section_returns_a_short_reminder(conn, ref):
-    read = tools_for(conn, ref)["read_section"]
-    first = read.invoke({"document": "claims_manual", "section": 7})
-    again = read.invoke({"document": "claims_manual", "section": 7})
-    assert len(first) > 1000
-    assert again.startswith("You already read claims_manual section 7")
-    assert len(again) < 200
-
-
-def test_reading_is_capped_per_claim(conn, ref):
-    from app.tools import MAX_SECTIONS
-
-    read = tools_for(conn, ref)["read_section"]
-    sections = [("policy_wording", n) for n in range(1, 13)]
-    outs = [read.invoke({"document": d, "section": n}) for d, n in sections[:MAX_SECTIONS + 1]]
-    assert all(not o.startswith("Error:") for o in outs[:MAX_SECTIONS])
-    assert outs[MAX_SECTIONS].startswith(f"Error: you have read {MAX_SECTIONS} sections")

@@ -1,0 +1,75 @@
+"""Where a claim's progress is saved after every step: Postgres on Supabase, a SQLite file everywhere else.
+Synchronous on purpose: async Postgres connections don't work with Windows' default event loop."""
+import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Iterator
+
+import psycopg
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+from app.config import Settings
+from app.db import SCHEMA, row_level_security
+
+CHECKPOINT_TABLES = ("checkpoint_migrations", "checkpoints", "checkpoint_blobs", "checkpoint_writes")
+MAX_CONNECTIONS = 2  # with the agent's 2 for records, the 4 a process may use
+
+
+def _search_path(connection: psycopg.Connection) -> None:
+    connection.execute(f"SET search_path TO {SCHEMA}")
+
+
+def checkpoint_file(settings: Settings) -> str:
+    path = Path(settings.db_path)
+    return str(path.with_name(f"{path.stem}.checkpoints.db"))
+
+
+@contextmanager
+def make_checkpointer(settings: Settings) -> Iterator[BaseCheckpointSaver]:
+    if settings.database_url:
+        with ConnectionPool(
+            settings.database_url,
+            min_size=1,
+            max_size=MAX_CONNECTIONS,
+            open=True,
+            check=ConnectionPool.check_connection,  # replaces connections the pooler closed while idle
+            configure=_search_path,
+            kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},  # what PostgresSaver needs
+        ) as pool:
+            saver = PostgresSaver(pool)
+            saver.setup()  # creates the tables the first time, and does nothing after that
+            with pool.connection() as connection:
+                for statement in row_level_security(CHECKPOINT_TABLES):  # checkpoints hold each claim's full text
+                    connection.execute(statement)
+            yield saver
+    else:
+        connection = sqlite3.connect(checkpoint_file(settings), check_same_thread=False)
+        try:
+            saver = SqliteSaver(connection)
+            saver.setup()
+            yield saver
+        finally:
+            connection.close()
+
+
+def clear_checkpoints(settings: Settings) -> None:
+    """Forget every thread, so a reseeded claim cannot pick up an old conversation."""
+    if settings.database_url:
+        with psycopg.connect(settings.database_url, autocommit=True, prepare_threshold=0) as connection:
+            _search_path(connection)
+            for table in CHECKPOINT_TABLES[1:]:
+                if connection.execute("SELECT to_regclass(%s)", (f"{SCHEMA}.{table}",)).fetchone()[0]:
+                    connection.execute(f"DELETE FROM {table}")
+        return
+    connection = sqlite3.connect(checkpoint_file(settings))
+    try:
+        tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table in {"checkpoints", "writes"} & tables:
+            connection.execute(f"DELETE FROM {table}")
+        connection.commit()
+    finally:
+        connection.close()

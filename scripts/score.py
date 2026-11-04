@@ -19,6 +19,13 @@ EVALS = ROOT / "data" / "evals"
 CENTS = 0.01
 
 
+def isolated_settings(db_path: str):
+    """A scoring run never touches the real records, whatever DATABASE_URL says."""
+    from app.config import get_settings
+
+    return get_settings().model_copy(update={"db_path": db_path, "database_url": None})
+
+
 def select_tiny(expected: list[dict]) -> list[dict]:
     return [e for e in expected if e.get("tiny")]
 
@@ -64,26 +71,24 @@ def _decisions_from(engine, claim_ids: set[str]) -> list[dict]:
 
 
 def _run_agent(claims: list[dict], settings) -> list[dict]:
-    from app.agent import build_agent
     from sqlalchemy import insert
 
+    from agent.worker import open_env, work_claim
     from app.db import claims as claims_table, init_schema, make_engine
-    from app.reference import Reference
-    from app.runner import work_claim
 
-    with tempfile.TemporaryDirectory() as tmp:
-        engine = make_engine(settings.model_copy(update={"db_path": str(Path(tmp) / "score.db")}), max_connections=2)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        scratch = isolated_settings(str(Path(tmp) / "score.db"))
+        engine = make_engine(scratch, max_connections=1)
         init_schema(engine)
-        ref = Reference(settings.data_dir)
         with engine.begin() as conn:
             conn.execute(insert(claims_table), [
                 {"claim_id": c["claim_id"], "status": "waiting", "payload": json.dumps(c)} for c in claims
             ])
-        agent = build_agent(settings, engine, ref)
-        for claim in claims:
-            print(f"running {claim['claim_id']} ...", file=sys.stderr)
-            for _ in range(settings.agent_max_attempts):  # a failed attempt puts the claim back in the queue
-                work_claim(engine, ref, agent, claim["claim_id"], None, settings.agent_max_attempts)
+        with open_env(scratch) as env:
+            for claim in claims:
+                print(f"running {claim['claim_id']} ...", file=sys.stderr)
+                for _ in range(settings.agent_max_attempts):  # a failed attempt puts the claim back in the queue
+                    work_claim(env, claim["claim_id"], None, settings.agent_max_attempts)  # one held for sign-off counts
         result = _decisions_from(engine, {c["claim_id"] for c in claims})
         engine.dispose()
         return result

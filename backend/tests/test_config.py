@@ -95,7 +95,7 @@ def test_defaults_without_toml(monkeypatch, tmp_path):
     assert s.agent_max_attempts == 2
     assert s.agent_step_retries == 2
     assert s.agent_claim_timeout_s == 300
-    assert s.agent_max_steps == 40
+    assert s.agent_max_model_calls == 30
     assert s.agent_run_max_steps == 400
 
 

@@ -92,6 +92,7 @@ runs = Table(
     Column("summary", Text),
     Column("error", Text),
     Column("usage", Text),
+    _timestamp("heartbeat_at", default=False),
     _timestamp("started_at"),
     _timestamp("finished_at", default=False),
 )

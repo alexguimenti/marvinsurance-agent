@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app.config import get_settings  # noqa: E402
+from agent.checkpoints import clear_checkpoints  # noqa: E402
 from app.db import make_engine  # noqa: E402
 from app.reference import Reference  # noqa: E402
 from app.seed import reseed  # noqa: E402
@@ -21,6 +22,7 @@ def main() -> None:
     settings = get_settings()
     engine = make_engine(settings, max_connections=2)
     waiting = reseed(engine, Reference(settings.data_dir))
+    clear_checkpoints(settings)
     engine.dispose()
     where = f"Supabase ({engine.url.host})" if settings.database_url else settings.db_path
     print(f"Reseeded {where}. {waiting} claims are waiting.")

@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_no_app_code_references_evals():
     offenders = []
-    for folder in (ROOT / "backend" / "app", ROOT / "frontend" / "src"):
+    for folder in (ROOT / "backend" / "app", ROOT / "backend" / "agent", ROOT / "frontend" / "src"):
         if not folder.exists():
             continue
         for path in folder.rglob("*"):
@@ -20,5 +20,5 @@ def test_instructions_quote_no_claim():
     import re
 
     for name in ("instructions_run.md", "instructions_claim.md"):
-        text = (ROOT / "backend" / "app" / name).read_text(encoding="utf-8")
+        text = (ROOT / "backend" / "agent" / name).read_text(encoding="utf-8")
         assert not re.search(r"CLM-\d{4}", text), name

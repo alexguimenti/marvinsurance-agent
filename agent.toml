@@ -22,6 +22,6 @@ max_attempts = 2
 # Wall-clock limit, in seconds, for one attempt at one claim.
 # claim_timeout_s = 300
 
-# Most steps the agent may take on one claim, and on a whole run.
-# max_steps = 40
+# Most model calls for one claim, and most steps for a whole run.
+# max_model_calls = 30
 # run_max_steps = 400

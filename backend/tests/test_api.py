@@ -3,10 +3,12 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agent import load_instructions
+from agent.prompts import load_instructions
+from agent.service import create_service
+from agent.worker import work_claim
 from app.api import create_app
 from app.config import Settings
-from tests.fakes import connect
+from tests.fakes import agent_env, connect, decline, stub, tool_call
 
 
 def make_settings(db_path, data_dir, **over):
@@ -15,8 +17,10 @@ def make_settings(db_path, data_dir, **over):
 
 @pytest.fixture
 def client(db_path, data_dir):
-    with TestClient(create_app(make_settings(db_path, data_dir))) as c:
-        yield c
+    settings = make_settings(db_path, data_dir)
+    with TestClient(create_service(settings, inline=True)) as service:  # work is done before a call returns
+        with TestClient(create_app(settings, http=service)) as c:
+            yield c
 
 
 def statuses(client):
@@ -38,7 +42,7 @@ def test_get_unknown_claim_404(client):
 
 
 def test_one_named_claim_then_detail_shows_decision(client):
-    assert client.post("/runs", json={"claim_ids": ["CLM-1001"]}).status_code == 202
+    assert client.post("/runs/selected", json={"claim_ids": ["CLM-1001"]}).status_code == 202
     detail = client.get("/claims/CLM-1001").json()
     assert detail["status"] == "decided"
     assert detail["decision"]["decision"] == "approve"
@@ -49,7 +53,8 @@ def test_one_named_claim_then_detail_shows_decision(client):
     assert detail["customer"]["name"] == "Maya Patel"
     trace = client.get("/claims/CLM-1001/trace").json()
     assert [e["seq"] for e in trace] == sorted(e["seq"] for e in trace)
-    assert trace[0]["kind"] == "status" and trace[-1]["kind"] == "decision"
+    assert trace[0]["kind"] == "status" and "decision" in [e["kind"] for e in trace]
+    assert trace[-1]["content"]["status"] == "paid"
 
 
 def test_post_runs_with_limit_works_that_many(client):
@@ -63,14 +68,14 @@ def test_post_runs_with_limit_works_that_many(client):
 
 
 def test_post_runs_with_claim_ids(client):
-    client.post("/runs", json={"claim_ids": ["CLM-1002", "CLM-1001"]})
+    client.post("/runs/selected", json={"claim_ids": ["CLM-1002", "CLM-1001"]})
     s = statuses(client)
     assert s["CLM-1001"] == "decided" and s["CLM-1002"] == "decided"
     assert s["CLM-1003"] == "waiting"
 
 
-def test_run_without_limit_works_the_whole_queue(client):
-    client.post("/runs")
+def test_a_limit_of_every_claim_works_the_whole_queue(client):
+    client.post("/runs", json={"limit": 25})
     values = list(statuses(client).values())
     assert values.count("awaiting_approval") == 3
     assert values.count("needs_handler") == 1
@@ -79,14 +84,13 @@ def test_run_without_limit_works_the_whole_queue(client):
 
 def test_second_run_conflicts(client, db_path):
     conn = connect(db_path)
-    conn.execute("INSERT INTO runs (status, model) VALUES ('running', 'm')")
-    conn.commit()
+    conn.execute("INSERT INTO runs (status, model, heartbeat_at) VALUES ('running', 'm', CURRENT_TIMESTAMP)")
     resp = client.post("/runs", json={"limit": 1})
     assert resp.status_code == 409 and "already in progress" in resp.json()["detail"]
 
 
 def test_post_runs_unknown_claim_404(client):
-    assert client.post("/runs", json={"claim_ids": ["CLM-1001", "CLM-9999"]}).status_code == 404
+    assert client.post("/runs/selected", json={"claim_ids": ["CLM-1001", "CLM-9999"]}).status_code == 404
     assert statuses(client)["CLM-1001"] == "waiting"
 
 
@@ -106,7 +110,7 @@ def test_run_by_id_has_events_and_unknown_is_404(client):
 
 
 def test_needs_handler_claim_after_run(client):
-    client.post("/runs", json={"claim_ids": ["CLM-1013"]})
+    client.post("/runs/selected", json={"claim_ids": ["CLM-1013"]})
     detail = client.get("/claims/CLM-1013").json()
     assert detail["status"] == "needs_handler"
     assert detail["attempts"] == 2 and "scripted failure" in detail["last_error"]
@@ -115,63 +119,41 @@ def test_needs_handler_claim_after_run(client):
 
 
 def test_claim_failing_once_is_decided_in_the_same_run(client):
-    client.post("/runs", json={"claim_ids": ["CLM-1017"]})
+    client.post("/runs/selected", json={"claim_ids": ["CLM-1017"]})
     detail = client.get("/claims/CLM-1017").json()
     assert detail["status"] == "decided" and detail["attempts"] == 1
 
 
-def reader_agent(reads):
-    """A stub claim agent that reports section reads the way LangChainAgent traces them."""
-    from tests.fakes import StubAgent
-
-    class Reader(StubAgent):
-        def decide(self, claim_id, on_event):
-            for document, section, result in reads:
-                on_event("tool_call", {"name": "read_section", "args": {"document": document, "section": section}})
-                on_event("tool_result", {"name": "read_section", "content": result})
-            return super().decide(claim_id, on_event)
-
-    return Reader()
-
-
-def run_with(db_path, data_dir, monkeypatch, agent):
-    import app.orchestrator as orchestrator_module
-
-    monkeypatch.setattr(orchestrator_module, "build_agent", lambda settings, conn, ref: agent)
+def read_with(db_path, data_dir, *reads):
+    """Work a claim on a stub model that reads these sections, and ask the backend what it read."""
+    steps = [tool_call("read_section", {"document": d, "section": n}, f"r{i}") for i, (d, n) in enumerate(reads)]
+    with agent_env(db_path, data_dir, stub({"CLM-1001": [[*steps, decline()]]})) as env:
+        work_claim(env, "CLM-1001")
     with TestClient(create_app(make_settings(db_path, data_dir))) as client:
-        client.post("/runs", json={"claim_ids": ["CLM-1001"]})
         return client.get("/claims/CLM-1001").json()["read"]
 
 
-def test_claim_detail_lists_what_was_read(db_path, data_dir, monkeypatch):
-    read = run_with(db_path, data_dir, monkeypatch, reader_agent([
-        ("claims_manual", 7, "[claims_manual section 7: Interpretation notes, 5000 characters]"),
-        ("policy_wording", 5, "[policy_wording section 5: Baggage and Personal Effects, 900 characters]"),
-        ("claims_manual", 7, "You already read claims_manual section 7 above. Use that text."),
-    ]))
+def test_claim_detail_lists_what_was_read(db_path, data_dir):
+    read = read_with(db_path, data_dir, ("claims_manual", 7), ("policy_wording", 5), ("claims_manual", 7))
     assert read == [
         {"document": "claims_manual", "section": 7, "title": "Interpretation notes"},
         {"document": "policy_wording", "section": 5, "title": "Baggage and Personal Effects"},
     ]
 
 
-def test_a_refused_read_is_not_listed(db_path, data_dir, monkeypatch):
-    read = run_with(db_path, data_dir, monkeypatch, reader_agent([
-        ("claims_manual", 9, "Error: you have read 8 sections, the most for one claim. Decide with what you have."),
-        ("claims_manual", 99, "Error: claims_manual has no section 99. Documents: policy_wording, claims_manual."),
-    ]))
-    assert read == []
+def test_a_refused_read_is_not_listed(db_path, data_dir):
+    assert read_with(db_path, data_dir, ("claims_manual", 99)) == []
 
 
 def test_post_runs_with_an_empty_claim_list_422(client):
-    assert client.post("/runs", json={"claim_ids": []}).status_code == 422
+    assert client.post("/runs/selected", json={"claim_ids": []}).status_code == 422
     assert client.get("/runs/latest").json()["run"] is None
 
 
 def test_claim_usage_sums_every_attempt(client, db_path):
-    client.post("/runs", json={"claim_ids": ["CLM-1001"]})
-    assert client.get("/claims/CLM-1001").json()["usage"] is None  # the scripted agent reports none
+    client.post("/runs/selected", json={"claim_ids": ["CLM-1001"]})
     conn = connect(db_path)
+    conn.execute("DELETE FROM trace_events WHERE kind='usage'")
     usage = {"calls": 2, "input_tokens": 300, "output_tokens": 130, "reasoning_tokens": 0, "cost_usd": 0.0035}
     for seq in (98, 99):
         conn.execute("INSERT INTO trace_events (claim_id, seq, kind, content) VALUES ('CLM-1001', ?, 'usage', ?)",
@@ -181,20 +163,21 @@ def test_claim_usage_sums_every_attempt(client, db_path):
     assert total["calls"] == 4 and total["cost_usd"] == pytest.approx(0.007)
 
 
-def test_sign_off_leaves_the_claim_in_progress_and_does_not_pay(client):
-    client.post("/runs")
+def test_sign_off_is_recorded_and_the_agent_pays(client):
+    client.post("/runs", json={"limit": 25})
     held = client.get("/approvals").json()
     assert {h["claim_id"] for h in held} == {"CLM-1003", "CLM-1008", "CLM-1011"}
     pid = held[0]["payment_id"]
     resp = client.post(f"/payments/{pid}/approve", json={"handler_id": "HND-01"})
     assert resp.status_code == 200 and resp.json()["status"] == "signed_off"
     assert resp.json()["approved_by"] == "HND-01" and resp.json()["approved_at"] and resp.json()["paid_at"] is None
-    assert client.get(f"/claims/{held[0]['claim_id']}").json()["status"] == "in_progress"
+    detail = client.get(f"/claims/{held[0]['claim_id']}").json()
+    assert detail["status"] == "decided" and detail["payment"]["status"] == "paid"  # the service heard, and paid
     assert len(client.get("/approvals").json()) == 2
 
 
 def test_approve_with_unauthorized_handler_403(client):
-    client.post("/runs")
+    client.post("/runs", json={"limit": 25})
     pid = client.get("/approvals").json()[0]["payment_id"]
     assert client.post(f"/payments/{pid}/approve", json={"handler_id": "HND-99"}).status_code == 403
     assert len(client.get("/approvals").json()) == 3
@@ -229,30 +212,14 @@ def test_no_route_serves_evals(client, path):
     assert client.get(path).status_code == 404
 
 
-def test_restart_recovers_running_run(db_path, data_dir):
+def test_backend_restart_changes_nothing(db_path, data_dir):
     settings = make_settings(db_path, data_dir)
     with TestClient(create_app(settings)):
         pass
     conn = connect(db_path)
     conn.execute("INSERT INTO runs (status, model) VALUES ('running', 'm')")
-    conn.execute("UPDATE claims SET status='in_progress', run_id=1 WHERE claim_id='CLM-1001'")
-    conn.execute("INSERT INTO trace_events (claim_id, seq, kind, content) VALUES ('CLM-1001', 1, 'status', ?)",
-                 (json.dumps({"status": "in_progress"}),))
-    conn.commit()
-    conn.close()
+    conn.execute("UPDATE claims SET status='in_progress', run_id=1, thread_id='CLM-1001-1' WHERE claim_id='CLM-1001'")
 
-    with TestClient(create_app(settings)) as client:
-        assert client.get("/runs/latest").json()["run"]["status"] == "failed"
-        assert statuses(client)["CLM-1001"] == "waiting"
-        assert len(client.get("/claims/CLM-1001/trace").json()) == 2  # the old trace is kept
-        assert client.post("/runs", json={"claim_ids": ["CLM-1001"]}).status_code == 202
-        assert client.get("/claims/CLM-1001").json()["status"] == "decided"
-
-
-def test_api_payout_takes_the_limit_from_company_json(client):
-    body = {"items": [{"description": "a", "amount": 1200, "item_limit": None}],
-            "third_party_paid": 0, "deductible": 200, "benefit_max": None}
-    answer = client.post("/payouts/calculate", json=body).json()
-    assert answer["payout"] == 1000 and answer["approval_limit"] == 1000 and answer["needs_sign_off"] is False
-    del body["deductible"]
-    assert client.post("/payouts/calculate", json=body).status_code == 422
+    with TestClient(create_app(settings)) as client:  # a stopped run is the next run's to finish, not the backend's
+        assert client.get("/runs/latest").json()["run"]["status"] == "running"
+        assert client.get("/claims/CLM-1001").json()["status"] == "in_progress"
