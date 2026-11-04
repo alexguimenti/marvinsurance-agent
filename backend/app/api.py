@@ -1,17 +1,26 @@
 import json
 import re
-import sqlite3
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Annotated, Iterator
+from typing import Mapping
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select, update
 
 from app import runs
 from app.agent import claim_prompt, load_instructions
 from app.config import Settings
-from app.db import connect, init_schema
+from app.db import (
+    claims,
+    decisions,
+    init_schema,
+    iso,
+    make_engine,
+    payments,
+    plain,
+    trace_events,
+)
 from app.documents import documents_for
 from app.orchestrator import run_harness
 from app.payments import approve_payment
@@ -40,7 +49,7 @@ class RunBody(BaseModel):
     limit: int | None = Field(default=None, ge=1)
 
 
-def _decision(row: sqlite3.Row | None) -> dict | None:
+def _decision(row: Mapping | None) -> dict | None:
     if row is None:
         return None
     return {
@@ -52,14 +61,15 @@ def _decision(row: sqlite3.Row | None) -> dict | None:
         "model": row["model"],
         "manual_version": row["manual_version"],
         "wording_version": row["wording_version"],
-        "created_at": row["created_at"],
+        "created_at": iso(row["created_at"]),
     }
 
 
-def _run(row: sqlite3.Row | None) -> dict | None:
+def _run(row: Mapping | None) -> dict | None:
     if row is None:
         return None
-    out = {k: row[k] for k in ("run_id", "status", "cap", "model", "summary", "error", "started_at", "finished_at")}
+    out = {k: row[k] for k in ("run_id", "status", "cap", "model", "summary", "error")}
+    out["started_at"], out["finished_at"] = iso(row["started_at"]), iso(row["finished_at"])
     out["usage"] = json.loads(row["usage"]) if row["usage"] else None
     return out
 
@@ -67,48 +77,39 @@ def _run(row: sqlite3.Row | None) -> dict | None:
 def create_app(settings: Settings) -> FastAPI:
     ref = Reference(settings.data_dir)
     docs = documents_for(ref)
-
-    def db() -> Iterator[sqlite3.Connection]:
-        """One connection per request, closed when the request ends."""
-        conn = connect(settings.db_path)
-        try:
-            yield conn
-        finally:
-            conn.close()
-
-    Conn = Annotated[sqlite3.Connection, Depends(db)]
+    engine = make_engine(settings, max_connections=4)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        conn = connect(settings.db_path)
-        init_schema(conn)
-        seed_claims(conn, ref)
-        runs.recover_after_restart(conn)  # a server stopped mid-run leaves the run and its claims hanging
-        conn.close()
+        init_schema(engine)
+        seed_claims(engine, ref)
+        runs.recover_after_restart(engine)  # a server stopped mid-run leaves the run and its claims hanging
         yield
+        engine.dispose()
 
     app = FastAPI(title="Farting Agent", lifespan=lifespan)
 
-    def claim_row(conn: sqlite3.Connection, claim_id: str) -> sqlite3.Row:
-        row = conn.execute("SELECT * FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()
+    def one(table, key, value) -> Mapping | None:
+        with engine.connect() as conn:
+            return conn.execute(select(table).where(key == value)).mappings().first()
+
+    def claim_row(claim_id: str) -> Mapping:
+        row = one(claims, claims.c.claim_id, claim_id)
         if row is None:
             raise HTTPException(404, f"unknown claim {claim_id}")
         return row
 
-    def work_run(run_id: int) -> None:
-        conn = connect(settings.db_path)  # a background task outlives the request, so it has its own connection
-        try:
-            run_harness(conn, ref, settings, run_id)
-        finally:
-            conn.close()
+    def trace_rows(claim_id: str, kind: str | None = None) -> list[Mapping]:
+        query = select(trace_events).where(trace_events.c.claim_id == claim_id).order_by(trace_events.c.seq)
+        if kind:
+            query = query.where(trace_events.c.kind == kind)
+        with engine.connect() as conn:
+            return conn.execute(query).mappings().all()
 
-    def read_sections(conn: sqlite3.Connection, claim_id: str) -> list[dict]:
+    def read_sections(claim_id: str) -> list[dict]:
         """The sections the agent actually read for a claim, in order, each once."""
-        rows = conn.execute(
-            "SELECT content FROM trace_events WHERE claim_id = ? AND kind = 'tool_result' ORDER BY seq", (claim_id,)
-        )
         read, seen = [], set()
-        for r in rows:
+        for r in trace_rows(claim_id, "tool_result"):
             result = json.loads(r["content"])
             match = _SECTION_READ.match(str(result.get("content", ""))) if result.get("name") == "read_section" else None
             if not match:
@@ -124,11 +125,15 @@ def create_app(settings: Settings) -> FastAPI:
         return read
 
     @app.get("/claims")
-    def list_claims(conn: Conn):
-        rows = conn.execute(
-            "SELECT c.claim_id, c.status, c.attempts, c.payload, d.decision, d.payout "
-            "FROM claims c LEFT JOIN decisions d USING (claim_id) ORDER BY c.claim_id"
-        ).fetchall()
+    def list_claims():
+        query = (
+            select(claims.c.claim_id, claims.c.status, claims.c.attempts, claims.c.payload,
+                   decisions.c.decision, decisions.c.payout)
+            .select_from(claims.outerjoin(decisions, claims.c.claim_id == decisions.c.claim_id))
+            .order_by(claims.c.claim_id)
+        )
+        with engine.connect() as conn:
+            rows = conn.execute(query).mappings().all()
         out = []
         for r in rows:
             claim = json.loads(r["payload"])
@@ -146,12 +151,11 @@ def create_app(settings: Settings) -> FastAPI:
         return out
 
     @app.get("/claims/{claim_id}")
-    def get_claim(claim_id: str, conn: Conn):
-        row = claim_row(conn, claim_id)
-        decision = conn.execute("SELECT * FROM decisions WHERE claim_id = ?", (claim_id,)).fetchone()
-        payment = conn.execute("SELECT * FROM payments WHERE claim_id = ?", (claim_id,)).fetchone()
-        usage = runs.sum_usage([json.loads(u["content"]) for u in conn.execute(
-            "SELECT content FROM trace_events WHERE claim_id = ? AND kind = 'usage'", (claim_id,))])
+    def get_claim(claim_id: str):
+        row = claim_row(claim_id)
+        decision = one(decisions, decisions.c.claim_id, claim_id)
+        payment = one(payments, payments.c.claim_id, claim_id)
+        usage = runs.sum_usage([json.loads(u["content"]) for u in trace_rows(claim_id, "usage")])
         claim = json.loads(row["payload"])
         return {
             "claim": claim,
@@ -161,46 +165,43 @@ def create_app(settings: Settings) -> FastAPI:
             "policy": ref.policy(claim["policy_id"]),
             "customer": ref.customer(claim["customer_id"]),
             "decision": _decision(decision),
-            "payment": dict(payment) if payment else None,
+            "payment": plain(payment) if payment else None,
             "usage": usage,
-            "read": read_sections(conn, claim_id),
+            "read": read_sections(claim_id),
         }
 
     @app.get("/claims/{claim_id}/trace")
-    def get_trace(claim_id: str, conn: Conn):
-        claim_row(conn, claim_id)
-        rows = conn.execute(
-            "SELECT seq, kind, content, created_at FROM trace_events WHERE claim_id = ? ORDER BY seq", (claim_id,)
-        ).fetchall()
+    def get_trace(claim_id: str):
+        claim_row(claim_id)
         return [{"seq": r["seq"], "kind": r["kind"], "content": json.loads(r["content"]),
-                 "created_at": r["created_at"]} for r in rows]
+                 "created_at": iso(r["created_at"])} for r in trace_rows(claim_id)]
 
     @app.post("/runs", status_code=202)
-    def start_run(background: BackgroundTasks, conn: Conn, body: RunBody | None = None):
+    def start_run(background: BackgroundTasks, body: RunBody | None = None):
         body = body or RunBody()
         model = "scripted" if settings.agent_provider == "scripted" else settings.agent_model
         for claim_id in body.claim_ids or []:
-            claim_row(conn, claim_id)
+            claim_row(claim_id)
         try:
-            run_id = runs.start_run(conn, model, body.limit, body.claim_ids)
+            run_id = runs.start_run(engine, model, body.limit, body.claim_ids)
         except runs.RunActive as exc:
             raise HTTPException(409, str(exc))
-        background.add_task(work_run, run_id)
+        background.add_task(run_harness, engine, ref, settings, run_id)
         return {"run_id": run_id}
 
-    def run_view(conn: sqlite3.Connection, row: sqlite3.Row | None) -> dict:
-        return {"run": _run(row), "todo": runs.todo_list(conn, row["run_id"]) if row else []}
+    def run_view(row: Mapping | None) -> dict:
+        return {"run": _run(row), "todo": runs.todo_list(engine, row["run_id"]) if row else []}
 
     @app.get("/runs/latest")
-    def latest_run(conn: Conn):
-        return run_view(conn, conn.execute("SELECT * FROM runs ORDER BY run_id DESC LIMIT 1").fetchone())
+    def latest_run():
+        return run_view(runs.latest_run(engine))
 
     @app.get("/runs/{run_id}")
-    def get_run(run_id: int, conn: Conn):
-        row = runs.get_run(conn, run_id)
+    def get_run(run_id: int):
+        row = runs.get_run(engine, run_id)
         if row is None:
             raise HTTPException(404, f"unknown run {run_id}")
-        return {**run_view(conn, row), "events": runs.run_events(conn, run_id)}
+        return {**run_view(row), "events": runs.run_events(engine, run_id)}
 
     @app.get("/instructions")
     def instructions():
@@ -213,12 +214,18 @@ def create_app(settings: Settings) -> FastAPI:
                                 ref.company["payout_approval_limit"])
 
     @app.get("/approvals")
-    def approvals(conn: Conn):
-        rows = conn.execute(
-            "SELECT p.payment_id, p.claim_id, p.amount, p.status, p.created_at, c.payload, d.rationale "
-            "FROM payments p JOIN claims c USING (claim_id) LEFT JOIN decisions d USING (claim_id) "
-            "WHERE p.status = 'held' ORDER BY p.claim_id"
-        ).fetchall()
+    def approvals():
+        query = (
+            select(payments, claims.c.payload, decisions.c.rationale)
+            .select_from(
+                payments.join(claims, payments.c.claim_id == claims.c.claim_id)
+                .outerjoin(decisions, payments.c.claim_id == decisions.c.claim_id)
+            )
+            .where(payments.c.status == "held")
+            .order_by(payments.c.claim_id)
+        )
+        with engine.connect() as conn:
+            rows = conn.execute(query).mappings().all()
         out = []
         for r in rows:
             claim = json.loads(r["payload"])
@@ -242,19 +249,20 @@ def create_app(settings: Settings) -> FastAPI:
         ]
 
     @app.post("/payments/{payment_id}/approve")
-    def approve(payment_id: str, body: ApproveBody, conn: Conn):
+    def approve(payment_id: str, body: ApproveBody):
         try:
-            payment = approve_payment(conn, payment_id, body.handler_id, ref)
+            payment = approve_payment(engine, payment_id, body.handler_id, ref)
         except LookupError:
             raise HTTPException(404, f"unknown payment {payment_id}")
         except PermissionError as exc:
             raise HTTPException(403, str(exc))
         if payment.status == "paid":
-            conn.execute(
-                "UPDATE claims SET status='decided' WHERE claim_id = ? AND status='awaiting_approval'",
-                (payment.claim_id,),
-            )
-            conn.commit()
+            with engine.begin() as conn:
+                conn.execute(
+                    update(claims)
+                    .where(claims.c.claim_id == payment.claim_id, claims.c.status == "awaiting_approval")
+                    .values(status="decided")
+                )
         return asdict(payment)
 
     return app

@@ -1,9 +1,10 @@
 import json
-import sqlite3
 from dataclasses import asdict
 
 from langchain_core.tools import BaseTool, tool
+from sqlalchemy import Engine, select
 
+from app.db import claims
 from app.documents import DOCUMENTS, documents_for
 from app.payments import request_payment as create_payment
 from app.payout import LineItem, calculate_payout as compute_payout
@@ -13,14 +14,14 @@ from app.reference import Reference
 MAX_SECTIONS = 8
 
 
-def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list[BaseTool]:
+def build_tools(engine: Engine, ref: Reference, claim_id: str) -> list[BaseTool]:
     """Read-only tools bound to a single claim. None of them takes a path or a claim id."""
     docs = documents_for(ref)
     unknown = f"Documents: {', '.join(DOCUMENTS)}."
 
     def claim() -> dict:
-        row = conn.execute("SELECT payload FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()
-        return json.loads(row["payload"])
+        with engine.connect() as conn:
+            return json.loads(conn.execute(select(claims.c.payload).where(claims.c.claim_id == claim_id)).scalar_one())
 
     @tool
     def get_claim() -> str:
@@ -102,7 +103,7 @@ def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list
     def request_payment(amount: float) -> str:
         """Request payment of an approved claim. Amounts above the approval limit are held for a person."""
         limit = ref.company["payout_approval_limit"]
-        return json.dumps(asdict(create_payment(conn, claim_id, amount, limit)))
+        return json.dumps(asdict(create_payment(engine, claim_id, amount, limit)))
 
     return [
         get_claim, get_policy, get_customer_history, get_plan,

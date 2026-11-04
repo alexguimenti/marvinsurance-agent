@@ -4,7 +4,8 @@ import pytest
 
 from app.agent import build_agent
 from app.config import Settings
-from app.db import connect, init_schema
+from app.db import init_schema
+from tests.fakes import connect
 from app.reference import Reference
 from app.runner import work_claim
 from app.seed import seed_claims
@@ -20,12 +21,12 @@ pytestmark = pytest.mark.skipif(
 
 def test_real_model_decides_one_routine_claim(tmp_path, data_dir):
     conn = connect(str(tmp_path / "smoke.db"))
-    init_schema(conn)
+    init_schema(conn.engine)
     ref = Reference(data_dir)
-    seed_claims(conn, ref)
+    seed_claims(conn.engine, ref)
     agent = build_agent(settings.model_copy(update={"agent_provider": "openrouter"}), conn, ref)
 
-    line = work_claim(conn, ref, agent, "CLM-1001")
+    line = work_claim(conn.engine, ref, agent, "CLM-1001")
 
     assert line.startswith("CLM-1001: ")
     events = conn.execute("SELECT kind FROM trace_events WHERE claim_id='CLM-1001'").fetchall()

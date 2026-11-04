@@ -2,7 +2,8 @@ import json
 
 import pytest
 
-from app.db import connect, init_schema
+from app.db import init_schema
+from tests.fakes import connect
 from app.reference import Reference
 from app.seed import seed_claims
 from app.tools import build_tools
@@ -22,8 +23,8 @@ def ref(data_dir):
 @pytest.fixture
 def conn(db_path, ref):
     c = connect(db_path)
-    init_schema(c)
-    seed_claims(c, ref)
+    init_schema(c.engine)
+    seed_claims(c.engine, ref)
     return c
 
 
@@ -33,7 +34,7 @@ def unwrap(text: str) -> dict:
 
 
 def tools_for(conn, ref, claim_id="CLM-1001"):
-    return {t.name: t for t in build_tools(conn, ref, claim_id)}
+    return {t.name: t for t in build_tools(conn.engine, ref, claim_id)}
 
 
 def test_tools_offer_lookups_not_whole_wording(conn, ref):
@@ -41,7 +42,7 @@ def test_tools_offer_lookups_not_whole_wording(conn, ref):
 
 
 def test_tools_expose_no_file_or_eval_access(conn, ref):
-    for t in build_tools(conn, ref, "CLM-1001"):
+    for t in build_tools(conn.engine, ref, "CLM-1001"):
         params = set(t.args)
         assert not params & {"path", "file", "filename", "claim_id"}, t.name
 

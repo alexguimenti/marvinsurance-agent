@@ -1,6 +1,55 @@
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 
+from app.config import Settings
+from app.db import make_engine
+
+
+class _Row:
+    """A row readable by column name or by position."""
+
+    def __init__(self, mapping):
+        self._values = dict(mapping)
+
+    def __getitem__(self, key):
+        return list(self._values.values())[key] if isinstance(key, int) else self._values[key]
+
+    def __iter__(self):
+        return iter(self._values.values())
+
+    def keys(self):
+        return self._values.keys()
+
+
+class _Rows(list):
+    def fetchone(self):
+        return self[0] if self else None
+
+    def fetchall(self):
+        return list(self)
+
+
+class RawDb:
+    """Lets a test look at or arrange the tables in plain SQL. Operations take `.engine`."""
+
+    def __init__(self, engine):
+        self.engine = engine
+
+    def execute(self, sql: str, params=()):
+        with self.engine.begin() as conn:
+            result = conn.exec_driver_sql(sql, tuple(params))
+            return _Rows(_Row(r) for r in result.mappings().all()) if result.returns_rows else _Rows()
+
+    def commit(self):
+        pass
+
+    def close(self):
+        self.engine.dispose()
+
+
+def connect(db_path: str) -> RawDb:
+    return RawDb(make_engine(Settings(_env_file=None, db_path=db_path), max_connections=4))
+
 
 class FakeToolModel(GenericFakeChatModel):
     """Plays back scripted AI messages and records everything it is shown."""

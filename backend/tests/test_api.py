@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.agent import load_instructions
 from app.api import create_app
 from app.config import Settings
-from app.db import connect
+from tests.fakes import connect
 
 
 def make_settings(db_path, data_dir, **over):

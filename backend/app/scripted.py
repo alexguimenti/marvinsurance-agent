@@ -1,11 +1,12 @@
 """Deterministic stand-ins for the model, used by the tests and the e2e runs (AGENT_PROVIDER=scripted).
 They never call a model, and fail on purpose on a few claims so recovery can be exercised."""
 import json
-import sqlite3
 
 from langchain_core.tools import BaseTool
+from sqlalchemy import Engine, select
 
 from app.agent import CalcStep, Decision, Emit
+from app.db import claims
 
 
 # Over-limit approvals used by the scripted provider, so the approval flow can be exercised.
@@ -21,18 +22,18 @@ class ScriptedAgent:
     model_id = "scripted"
     usage = None
 
-    def __init__(self, conn: sqlite3.Connection):
-        self.conn = conn
+    def __init__(self, engine: Engine):
+        self.engine = engine
 
     def decide(self, claim_id: str, on_event: Emit) -> Decision:
-        row = self.conn.execute("SELECT payload FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()
-        claim = json.loads(row["payload"])
+        with self.engine.connect() as conn:
+            row = conn.execute(select(claims.c.payload, claims.c.attempts).where(claims.c.claim_id == claim_id)).mappings().one()
+        claim, attempts = json.loads(row["payload"]), row["attempts"]
         on_event("tool_call", {"name": "get_claim", "args": {}})
         on_event("tool_result", {"name": "get_claim", "content": claim["summary"]})
         on_event("tool_call", {"name": "read_section", "args": {"document": "policy_wording", "section": 10}})
         on_event("tool_result", {"name": "read_section",
                                  "content": "[policy_wording section 10: How we work out your payment, 600 characters]"})
-        attempts = self.conn.execute("SELECT attempts FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()[0]
         if claim_id in _SCRIPTED_ALWAYS_FAILS or (claim_id in _SCRIPTED_FAILS_ONCE and attempts == 0):
             raise RuntimeError("scripted failure")
         if claim_id in _SCRIPTED_OVER_LIMIT:

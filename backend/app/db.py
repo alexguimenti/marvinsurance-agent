@@ -1,105 +1,169 @@
-import sqlite3
+"""The records: one set of tables and queries for SQLite and Postgres, through SQLAlchemy Core."""
+import time
+from datetime import datetime, timezone
+from typing import Mapping
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS claims (
-    claim_id TEXT PRIMARY KEY,
-    status TEXT NOT NULL,
-    payload TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS decisions (
-    claim_id TEXT PRIMARY KEY,
-    decision TEXT NOT NULL,
-    payout REAL NOT NULL,
-    calculation TEXT NOT NULL,
-    rationale TEXT NOT NULL,
-    citations TEXT NOT NULL,
-    model TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS trace_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    claim_id TEXT NOT NULL,
-    seq INTEGER NOT NULL,
-    kind TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS payments (
-    payment_id TEXT PRIMARY KEY,
-    claim_id TEXT NOT NULL UNIQUE,
-    amount REAL NOT NULL,
-    status TEXT NOT NULL,
-    approved_by TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS runs (
-    run_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    status TEXT NOT NULL,
-    cap INTEGER,
-    scope TEXT,
-    model TEXT NOT NULL,
-    summary TEXT,
-    error TEXT,
-    usage TEXT,
-    started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    finished_at TEXT
-);
-CREATE TABLE IF NOT EXISTS todo_items (
-    item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id INTEGER NOT NULL,
-    position INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    status TEXT NOT NULL,
-    claim_id TEXT,
-    note TEXT
-);
-CREATE TABLE IF NOT EXISTS run_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id INTEGER NOT NULL,
-    seq INTEGER NOT NULL,
-    kind TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-"""
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Engine,
+    Float,
+    Index,
+    Integer,
+    MetaData,
+    Table,
+    Text,
+    create_engine,
+    delete,
+    event,
+    func,
+    update,
+)
+from sqlalchemy.dialects import postgresql, sqlite
+from sqlalchemy.exc import DBAPIError
 
-# Columns added after the pilot. migrate() adds any that an older database lacks.
-ADDED_COLUMNS = [
-    ("claims", "attempts", "INTEGER NOT NULL DEFAULT 0"),
-    ("claims", "last_error", "TEXT"),
-    ("claims", "run_id", "INTEGER"),
-    ("trace_events", "run_id", "INTEGER"),
-    ("decisions", "manual_version", "TEXT"),
-    ("decisions", "wording_version", "TEXT"),
-]
+from app.config import Settings
+
+metadata = MetaData()
 
 
-def connect(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+def _timestamp(name: str, *, default: bool = True) -> Column:
+    return Column(name, DateTime(timezone=True), server_default=func.now() if default else None)
 
 
-def init_schema(conn: sqlite3.Connection) -> None:
-    conn.executescript(SCHEMA)
-    migrate(conn)
-    conn.commit()
+claims = Table(
+    "claims", metadata,
+    Column("claim_id", Text, primary_key=True),
+    Column("status", Text, nullable=False),
+    Column("payload", Text, nullable=False),
+    Column("attempts", Integer, nullable=False, server_default="0"),
+    Column("last_error", Text),
+    Column("run_id", Integer),
+)
+
+decisions = Table(
+    "decisions", metadata,
+    Column("claim_id", Text, primary_key=True),
+    Column("decision", Text, nullable=False),
+    Column("payout", Float, nullable=False),
+    Column("calculation", Text, nullable=False),
+    Column("rationale", Text, nullable=False),
+    Column("citations", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("manual_version", Text),
+    Column("wording_version", Text),
+    _timestamp("created_at"),
+)
+
+trace_events = Table(
+    "trace_events", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("claim_id", Text, nullable=False),
+    Column("seq", Integer, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("content", Text, nullable=False),
+    Column("run_id", Integer),
+    _timestamp("created_at"),
+)
+
+payments = Table(
+    "payments", metadata,
+    Column("payment_id", Text, primary_key=True),
+    Column("claim_id", Text, nullable=False, unique=True),
+    Column("amount", Float, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("approved_by", Text),
+    _timestamp("created_at"),
+    _timestamp("updated_at"),
+)
+
+runs = Table(
+    "runs", metadata,
+    Column("run_id", Integer, primary_key=True, autoincrement=True),
+    Column("status", Text, nullable=False),
+    Column("cap", Integer),
+    Column("scope", Text),
+    Column("model", Text, nullable=False),
+    Column("summary", Text),
+    Column("error", Text),
+    Column("usage", Text),
+    _timestamp("started_at"),
+    _timestamp("finished_at", default=False),
+)
+# One run at a time holds across processes, whoever asks.
+Index("one_running_run", runs.c.status, unique=True,
+      sqlite_where=runs.c.status == "running", postgresql_where=runs.c.status == "running")
+
+todo_items = Table(
+    "todo_items", metadata,
+    Column("item_id", Integer, primary_key=True, autoincrement=True),
+    Column("run_id", Integer, nullable=False),
+    Column("position", Integer, nullable=False),
+    Column("title", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("claim_id", Text),
+    Column("note", Text),
+)
+
+run_events = Table(
+    "run_events", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("run_id", Integer, nullable=False),
+    Column("seq", Integer, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("content", Text, nullable=False),
+    _timestamp("created_at"),
+)
 
 
-def migrate(conn: sqlite3.Connection) -> None:
-    """Bring a database made by an earlier version up to date, keeping its rows."""
-    for table, column, ddl in ADDED_COLUMNS:
-        if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
-    conn.commit()
+def make_engine(settings: Settings, max_connections: int) -> Engine:
+    """A pool of at most max_connections. Operations open short transactions, so a few go a long way."""
+    engine = create_engine(
+        f"sqlite:///{settings.db_path}",
+        pool_size=max_connections,
+        max_overflow=0,
+        connect_args={"timeout": 10, "check_same_thread": False},
+    )
+
+    @event.listens_for(engine, "connect")
+    def _wal(dbapi_connection, _record):
+        dbapi_connection.execute("PRAGMA journal_mode=WAL")
+
+    return engine
 
 
-def reset_analyses(conn: sqlite3.Connection) -> None:
+def init_schema(engine: Engine) -> None:
+    """Create what is missing. Two processes starting together can race on a table, so a loser tries again."""
+    for attempt in range(5):
+        try:
+            metadata.create_all(engine)
+            return
+        except DBAPIError:
+            if attempt == 4:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+
+
+def insert_or_ignore(bind, table: Table):
+    """An INSERT that leaves an existing row alone, on either database."""
+    dialect = postgresql if bind.dialect.name == "postgresql" else sqlite
+    return dialect.insert(table).on_conflict_do_nothing()
+
+
+def plain(row: Mapping) -> dict:
+    """A row as JSON-ready values. SQLite's timestamps come back naive, and are UTC."""
+    return {key: iso(value) if isinstance(value, datetime) else value for key, value in row.items()}
+
+
+def iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+
+
+def reset_analyses(engine: Engine) -> None:
     """Forget every analysis: decisions, traces, payments and runs go, and each claim is waiting again."""
-    for table in ("trace_events", "payments", "decisions", "runs", "todo_items", "run_events"):
-        conn.execute(f"DELETE FROM {table}")
-    conn.execute("UPDATE claims SET status = 'waiting', attempts = 0, last_error = NULL, run_id = NULL")
-    conn.commit()
-
+    with engine.begin() as conn:
+        for table in (trace_events, payments, decisions, runs, todo_items, run_events):
+            conn.execute(delete(table))
+        conn.execute(update(claims).values(status="waiting", attempts=0, last_error=None, run_id=None))

@@ -53,32 +53,39 @@ def _load(name: str) -> list[dict]:
     return json.loads((EVALS / name).read_text(encoding="utf-8"))
 
 
-def _decisions_from(conn, claim_ids: set[str]) -> list[dict]:
-    rows = conn.execute("SELECT claim_id, decision, payout FROM decisions").fetchall()
+def _decisions_from(engine, claim_ids: set[str]) -> list[dict]:
+    from sqlalchemy import select
+
+    from app.db import decisions
+
+    with engine.connect() as conn:
+        rows = conn.execute(select(decisions.c.claim_id, decisions.c.decision, decisions.c.payout)).mappings().all()
     return [dict(r) for r in rows if r["claim_id"] in claim_ids]
 
 
 def _run_agent(claims: list[dict], settings) -> list[dict]:
     from app.agent import build_agent
-    from app.db import connect, init_schema
+    from sqlalchemy import insert
+
+    from app.db import claims as claims_table, init_schema, make_engine
     from app.reference import Reference
     from app.runner import work_claim
 
     with tempfile.TemporaryDirectory() as tmp:
-        conn = connect(str(Path(tmp) / "score.db"))
-        init_schema(conn)
+        engine = make_engine(settings.model_copy(update={"db_path": str(Path(tmp) / "score.db")}), max_connections=2)
+        init_schema(engine)
         ref = Reference(settings.data_dir)
-        for claim in claims:
-            conn.execute("INSERT INTO claims (claim_id, status, payload) VALUES (?, 'waiting', ?)",
-                         (claim["claim_id"], json.dumps(claim)))
-        conn.commit()
-        agent = build_agent(settings, conn, ref)
+        with engine.begin() as conn:
+            conn.execute(insert(claims_table), [
+                {"claim_id": c["claim_id"], "status": "waiting", "payload": json.dumps(c)} for c in claims
+            ])
+        agent = build_agent(settings, engine, ref)
         for claim in claims:
             print(f"running {claim['claim_id']} ...", file=sys.stderr)
             for _ in range(settings.agent_max_attempts):  # a failed attempt puts the claim back in the queue
-                work_claim(conn, ref, agent, claim["claim_id"], None, settings.agent_max_attempts)
-        result = _decisions_from(conn, {c["claim_id"] for c in claims})
-        conn.close()
+                work_claim(engine, ref, agent, claim["claim_id"], None, settings.agent_max_attempts)
+        result = _decisions_from(engine, {c["claim_id"] for c in claims})
+        engine.dispose()
         return result
 
 
@@ -106,10 +113,10 @@ def main() -> None:
     if args.run:
         decisions = _run_agent([c for c in claims if c["claim_id"] in ids], settings)
     else:
-        from app.db import connect
-        conn = connect(settings.db_path)
-        decisions = _decisions_from(conn, ids)
-        conn.close()
+        from app.db import make_engine
+        engine = make_engine(settings, max_connections=2)
+        decisions = _decisions_from(engine, ids)
+        engine.dispose()
 
     result = score(decisions, expected)
     print(f"model: {settings.agent_model}  split: {args.split}  claims: {len(expected)}")

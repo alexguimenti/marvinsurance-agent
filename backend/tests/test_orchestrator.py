@@ -6,7 +6,8 @@ from langchain_core.messages import AIMessage
 from app import runs
 from app.agent import LangChainAgent
 from app.config import Settings
-from app.db import connect, init_schema
+from app.db import init_schema
+from tests.fakes import connect
 from app.orchestrator import LangChainOrchestrator, build_run_tools, run_harness
 from app.reference import Reference
 from app.scripted import ScriptedAgent, ScriptedOrchestrator
@@ -29,8 +30,8 @@ def ref(data_dir):
 @pytest.fixture
 def conn(db_path, ref):
     c = connect(db_path)
-    init_schema(c)
-    seed_claims(c, ref)
+    init_schema(c.engine)
+    seed_claims(c.engine, ref)
     return c
 
 
@@ -45,12 +46,12 @@ def statuses(conn, ids=None):
 
 
 def run_row(conn, run_id):
-    return runs.get_run(conn, run_id)
+    return runs.get_run(conn.engine, run_id)
 
 
 def scripted_run(conn, ref, settings, agent=None, cap=None, scope=None):
-    run_id = runs.start_run(conn, "scripted", cap=cap, scope=scope)
-    run_harness(conn, ref, settings, run_id, ScriptedOrchestrator(), agent or ScriptedAgent(conn))
+    run_id = runs.start_run(conn.engine, "scripted", cap=cap, scope=scope)
+    run_harness(conn.engine, ref, settings, run_id, ScriptedOrchestrator(), agent or ScriptedAgent(conn.engine))
     return run_id
 
 
@@ -60,7 +61,7 @@ def test_scripted_run_with_cap_works_that_many_and_leaves_the_rest(conn, ref, se
     assert values.count("waiting") == 20
     row = run_row(conn, run_id)
     assert row["status"] == "finished" and row["summary"]
-    assert [i["status"] for i in runs.todo_list(conn, run_id)] == ["done"] * 5
+    assert [i["status"] for i in runs.todo_list(conn.engine, run_id)] == ["done"] * 5
 
 
 def test_run_without_cap_works_every_waiting_claim(conn, ref, settings):
@@ -97,11 +98,11 @@ def test_claim_failing_once_is_retried_in_the_same_run_and_decided(conn, ref, se
 
 
 def tools(conn, ref, run_id, agent=None):
-    return {t.name: t for t in build_run_tools(conn, ref, agent or StubAgent(), run_id, 2)}
+    return {t.name: t for t in build_run_tools(conn.engine, ref, agent or StubAgent(), run_id, 2)}
 
 
 def test_work_claim_tool_refuses_past_the_cap_and_outside_scope(conn, ref):
-    run_id = runs.start_run(conn, "m", cap=1, scope=["CLM-1001", "CLM-1002"])
+    run_id = runs.start_run(conn.engine, "m", cap=1, scope=["CLM-1001", "CLM-1002"])
     agent = StubAgent()
     t = tools(conn, ref, run_id, agent)
     assert t["work_claim"].invoke({"claim_id": "CLM-1004"}) == "CLM-1004: not worked, it is not part of this run."
@@ -113,7 +114,7 @@ def test_work_claim_tool_refuses_past_the_cap_and_outside_scope(conn, ref):
 
 
 def test_list_waiting_claims_shows_scope_cap_and_taken(conn, ref):
-    run_id = runs.start_run(conn, "m", cap=1, scope=["CLM-1001", "CLM-1002"])
+    run_id = runs.start_run(conn.engine, "m", cap=1, scope=["CLM-1001", "CLM-1002"])
     listed = json.loads(tools(conn, ref, run_id)["list_waiting_claims"].invoke({}))
     assert (listed["cap"], listed["taken"]) == (1, 0)
     assert [c["claim_id"] for c in listed["claims"]] == ["CLM-1001", "CLM-1002"]
@@ -121,7 +122,7 @@ def test_list_waiting_claims_shows_scope_cap_and_taken(conn, ref):
 
 
 def test_finish_run_refuses_while_claims_are_missed(conn, ref):
-    run_id = runs.start_run(conn, "m", scope=["CLM-1001"])
+    run_id = runs.start_run(conn.engine, "m", scope=["CLM-1001"])
     t = tools(conn, ref, run_id)
     assert t["finish_run"].invoke({"summary": "all done"}) == "Not finished. Still to work: CLM-1001"
     t["work_claim"].invoke({"claim_id": "CLM-1001"})
@@ -130,7 +131,7 @@ def test_finish_run_refuses_while_claims_are_missed(conn, ref):
 
 
 def test_todo_tools_return_errors_as_text(conn, ref):
-    run_id = runs.start_run(conn, "m")
+    run_id = runs.start_run(conn.engine, "m")
     t = tools(conn, ref, run_id)
     planned = json.loads(t["set_todo"].invoke({"items": [{"title": "Work CLM-1001", "claim_id": "CLM-1001"}]}))
     assert planned[0]["status"] == "todo"
@@ -144,7 +145,7 @@ def subagent(conn, ref, *claims):
     for i, _ in enumerate(claims):
         messages += [tool_call("Decision", DECISION, f"d{i}")]
     model = script(*messages)
-    return LangChainAgent(model, conn, ref, "fake/sub"), model
+    return LangChainAgent(model, conn.engine, ref, "fake/sub"), model
 
 
 def test_langchain_orchestrator_sees_only_one_line_reports(conn, ref, settings):
@@ -154,8 +155,8 @@ def test_langchain_orchestrator_sees_only_one_line_reports(conn, ref, settings):
         tool_call("finish_run", {"summary": "One claim declined."}, "f1"),
         AIMessage(content="Done."),
     )
-    run_id = runs.start_run(conn, "fake/boss", scope=["CLM-1001"])
-    run_harness(conn, ref, settings, run_id, LangChainOrchestrator(boss, "fake/boss", 50), agent)
+    run_id = runs.start_run(conn.engine, "fake/boss", scope=["CLM-1001"])
+    run_harness(conn.engine, ref, settings, run_id, LangChainOrchestrator(boss, "fake/boss", 50), agent)
 
     shown = boss.seen[-1]
     tool_text = [m.content for m in shown if m.type == "tool"]
@@ -166,8 +167,8 @@ def test_langchain_orchestrator_sees_only_one_line_reports(conn, ref, settings):
 
 def test_each_claim_gets_a_fresh_subagent(conn, ref, settings):
     agent, sub = subagent(conn, ref, "CLM-1001", "CLM-1002")
-    run_id = runs.start_run(conn, "scripted", scope=["CLM-1001", "CLM-1002"])
-    run_harness(conn, ref, settings, run_id, ScriptedOrchestrator(), agent)
+    run_id = runs.start_run(conn.engine, "scripted", scope=["CLM-1001", "CLM-1002"])
+    run_harness(conn.engine, ref, settings, run_id, ScriptedOrchestrator(), agent)
     first_call_of_second_claim = sub.seen[1]
     # the system prompt, the request and the facts fetched for it: nothing from CLM-1001
     assert "CLM-1002" in first_call_of_second_claim[1].content
@@ -185,10 +186,10 @@ class Exploding:
 
 
 def test_orchestrator_crash_fails_the_run_and_frees_claims(conn, ref, settings):
-    run_id = runs.start_run(conn, "boom", scope=FIVE)
+    run_id = runs.start_run(conn.engine, "boom", scope=FIVE)
     conn.execute("UPDATE claims SET status='in_progress', run_id=? WHERE claim_id='CLM-1007'", (run_id,))
     conn.commit()
-    run_harness(conn, ref, settings, run_id, Exploding(), StubAgent())
+    run_harness(conn.engine, ref, settings, run_id, Exploding(), StubAgent())
     row = run_row(conn, run_id)
     assert row["status"] == "failed" and "orchestrator crashed" in row["error"]
     assert "in_progress" not in statuses(conn).values()
@@ -197,8 +198,8 @@ def test_orchestrator_crash_fails_the_run_and_frees_claims(conn, ref, settings):
 
 def test_orchestrator_stopping_early_records_missed_claims(conn, ref, settings):
     boss = script(AIMessage(content="I will stop here."))
-    run_id = runs.start_run(conn, "fake/boss", scope=["CLM-1001", "CLM-1002"])
-    run_harness(conn, ref, settings, run_id, LangChainOrchestrator(boss, "fake/boss", 50), StubAgent())
+    run_id = runs.start_run(conn.engine, "fake/boss", scope=["CLM-1001", "CLM-1002"])
+    run_harness(conn.engine, ref, settings, run_id, LangChainOrchestrator(boss, "fake/boss", 50), StubAgent())
     row = run_row(conn, run_id)
     assert row["status"] == "failed"
     assert "CLM-1001" in row["error"] and "CLM-1002" in row["error"]
@@ -209,8 +210,8 @@ class Thrifty(ScriptedOrchestrator):
 
 
 def test_run_usage_sums_orchestrator_and_claims(conn, ref, settings):
-    run_id = runs.start_run(conn, "scripted", scope=["CLM-1001", "CLM-1002"])
-    run_harness(conn, ref, settings, run_id, Thrifty(), StubAgent())
+    run_id = runs.start_run(conn.engine, "scripted", scope=["CLM-1001", "CLM-1002"])
+    run_harness(conn.engine, ref, settings, run_id, Thrifty(), StubAgent())
     usage = json.loads(run_row(conn, run_id)["usage"])
     assert usage["calls"] == 1 + 2 * 2
     assert usage["cost_usd"] == pytest.approx(0.0005 + 2 * 0.001)
@@ -218,7 +219,7 @@ def test_run_usage_sums_orchestrator_and_claims(conn, ref, settings):
 
 def test_run_events_record_the_orchestrator_steps(conn, ref, settings):
     run_id = scripted_run(conn, ref, settings, scope=["CLM-1001"])
-    kinds = [e["kind"] for e in runs.run_events(conn, run_id)]
+    kinds = [e["kind"] for e in runs.run_events(conn.engine, run_id)]
     assert "tool_call" in kinds and "tool_result" in kinds
 
 

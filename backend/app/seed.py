@@ -1,14 +1,15 @@
 import json
-import sqlite3
 
+from sqlalchemy import Engine, func, select
+
+from app.db import claims, insert_or_ignore
 from app.reference import Reference
 
 
-def seed_claims(conn: sqlite3.Connection, ref: Reference) -> int:
-    for claim in ref.claims:
+def seed_claims(engine: Engine, ref: Reference) -> int:
+    with engine.begin() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO claims (claim_id, status, payload) VALUES (?, 'waiting', ?)",
-            (claim["claim_id"], json.dumps(claim)),
+            insert_or_ignore(conn, claims),
+            [{"claim_id": c["claim_id"], "status": "waiting", "payload": json.dumps(c)} for c in ref.claims],
         )
-    conn.commit()
-    return conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
+        return conn.execute(select(func.count()).select_from(claims)).scalar_one()

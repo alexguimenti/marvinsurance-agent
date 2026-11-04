@@ -1,5 +1,4 @@
 import re
-import sqlite3
 import time
 from pathlib import Path
 from typing import Callable, Literal, Protocol
@@ -9,9 +8,11 @@ from langchain.agents.structured_output import ToolStrategy
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, model_validator
+from sqlalchemy import Engine, select
 
 from agent.tracing import flush_traces, trace_config
 from app.config import Settings
+from app.db import claims
 from app.reference import Reference
 from app.tools import build_tools
 
@@ -91,10 +92,10 @@ class Agent(Protocol):
 
 
 class LangChainAgent:
-    def __init__(self, model, conn: sqlite3.Connection, ref: Reference, model_id: str,
+    def __init__(self, model, engine: Engine, ref: Reference, model_id: str,
                  max_steps: int = 40, timeout_s: float = 300):
         self.model = model
-        self.conn = conn
+        self.engine = engine
         self.ref = ref
         self.model_id = model_id
         self.max_steps = max_steps
@@ -102,7 +103,7 @@ class LangChainAgent:
         self.usage: dict | None = None
 
     def decide(self, claim_id: str, on_event: Emit) -> Decision:
-        tools = {t.name: t for t in build_tools(self.conn, self.ref, claim_id)}
+        tools = {t.name: t for t in build_tools(self.engine, self.ref, claim_id)}
         agent = create_agent(
             self.model,
             [t for name, t in tools.items() if name not in PREFETCHED and name != "list_sections"],
@@ -117,7 +118,8 @@ class LangChainAgent:
         def keep_usage(usage: dict) -> None:
             self.usage = usage  # kept up to date, so a failed attempt still reports its cost
 
-        attempts = self.conn.execute("SELECT attempts FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()[0]
+        with self.engine.connect() as conn:
+            attempts = conn.execute(select(claims.c.attempts).where(claims.c.claim_id == claim_id)).scalar_one()
         tracing = trace_config(claim_id, f"{claim_id}-{attempts + 1}", self.model_id)
         try:
             decision = run_graph(agent, prompt, self.max_steps, on_event, keep_usage, self.timeout_s, tracing)
@@ -211,12 +213,12 @@ def _section_summary(args: dict, content: str) -> str:
     return f"[{args.get('document')} section {args.get('section')}: {title}, {len(content)} characters]"
 
 
-def build_agent(settings: Settings, conn: sqlite3.Connection, ref: Reference) -> Agent:
+def build_agent(settings: Settings, engine: Engine, ref: Reference) -> Agent:
     if settings.agent_provider == "scripted":
         from app.scripted import ScriptedAgent  # stand-in for tests and e2e runs
 
-        return ScriptedAgent(conn)
-    return LangChainAgent(chat_model(settings), conn, ref, settings.agent_model,
+        return ScriptedAgent(engine)
+    return LangChainAgent(chat_model(settings), engine, ref, settings.agent_model,
                           max_steps=settings.agent_max_steps, timeout_s=settings.agent_claim_timeout_s)
 
 
