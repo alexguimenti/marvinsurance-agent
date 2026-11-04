@@ -57,3 +57,12 @@ def test_run_agent_decides_each_claim_through_work_claim(data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", data_dir=data_dir)
     decisions = _run_agent(picked, settings)
     assert sorted(d["claim_id"] for d in decisions) == ["CLM-1001", "CLM-1017"]
+
+
+def test_a_test_cannot_reach_a_real_model():
+    import pytest
+    from langchain_openai import ChatOpenAI
+
+    model = ChatOpenAI(model="x", api_key="not-a-key", base_url="http://127.0.0.1:9", max_retries=0)
+    with pytest.raises(AssertionError, match="real model"):
+        model.invoke("hello")

@@ -5,6 +5,7 @@ import pytest
 from agent.checkpoints import clear_checkpoints
 from agent.worker import carry_on, signed_off_claims, stopped_claims, work_claim
 from app.claims import get_claim
+from app.config import Settings
 from app.payments import get_payment, sign_off
 from app.reference import Reference
 from app.seed import reseed
@@ -314,6 +315,6 @@ def test_score_never_uses_database_url(monkeypatch, tmp_path):
     spec = importlib.util.spec_from_file_location("score_script", root / "scripts" / "score.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    settings = module.isolated_settings(str(tmp_path / "s.db"))
+    settings = module.isolated_settings(Settings(_env_file=None, agent_provider="scripted"), str(tmp_path / "s.db"))
     assert settings.database_url is None and settings.db_path == str(tmp_path / "s.db")
-    assert settings.agent_url  # still a whole Settings
+    assert settings.agent_provider == "scripted"  # the settings it was given, not whatever the machine has

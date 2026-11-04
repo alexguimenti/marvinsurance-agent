@@ -19,11 +19,9 @@ EVALS = ROOT / "data" / "evals"
 CENTS = 0.01
 
 
-def isolated_settings(db_path: str):
+def isolated_settings(settings, db_path: str):
     """A scoring run never touches the real records, whatever DATABASE_URL says."""
-    from app.config import get_settings
-
-    return get_settings().model_copy(update={"db_path": db_path, "database_url": None})
+    return settings.model_copy(update={"db_path": db_path, "database_url": None})
 
 
 def select_tiny(expected: list[dict]) -> list[dict]:
@@ -77,7 +75,7 @@ def _run_agent(claims: list[dict], settings) -> list[dict]:
     from app.db import claims as claims_table, init_schema, make_engine
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        scratch = isolated_settings(str(Path(tmp) / "score.db"))
+        scratch = isolated_settings(settings, str(Path(tmp) / "score.db"))
         engine = make_engine(scratch, max_connections=1)
         init_schema(engine)
         with engine.begin() as conn:

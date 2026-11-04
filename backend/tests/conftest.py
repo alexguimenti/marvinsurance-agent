@@ -14,6 +14,19 @@ def no_outside_world(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def no_model_calls(request, monkeypatch):
+    """Tests never call a model. A request that gets this far is a bug in the test or the code."""
+    if request.node.get_closest_marker("live") or "test_openrouter_smoke" in request.node.nodeid:
+        return
+
+    def refuse(self, *args, **kwargs):
+        raise AssertionError("a test tried to call a real model")
+
+    monkeypatch.setattr("langchain_openai.ChatOpenAI._generate", refuse)
+    monkeypatch.setattr("langchain_openai.ChatOpenAI._stream", refuse)
+
+
 @pytest.fixture
 def data_dir() -> str:
     return str(DATA_DIR)
