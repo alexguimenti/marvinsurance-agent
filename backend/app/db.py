@@ -14,12 +14,10 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
-    delete,
     event,
     func,
     make_url,
     text,
-    update,
 )
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.exc import DBAPIError
@@ -43,6 +41,7 @@ claims = Table(
     Column("attempts", Integer, nullable=False, server_default="0"),
     Column("last_error", Text),
     Column("run_id", Integer),
+    Column("thread_id", Text),
 )
 
 decisions = Table(
@@ -77,6 +76,8 @@ payments = Table(
     Column("amount", Float, nullable=False),
     Column("status", Text, nullable=False),
     Column("approved_by", Text),
+    _timestamp("approved_at", default=False),
+    _timestamp("paid_at", default=False),
     _timestamp("created_at"),
     _timestamp("updated_at"),
 )
@@ -192,9 +193,5 @@ def iso(value: datetime | None) -> str | None:
     return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
 
 
-def reset_analyses(engine: Engine) -> None:
-    """Forget every analysis: decisions, traces, payments and runs go, and each claim is waiting again."""
-    with engine.begin() as conn:
-        for table in (trace_events, payments, decisions, runs, todo_items, run_events):
-            conn.execute(delete(table))
-        conn.execute(update(claims).values(status="waiting", attempts=0, last_error=None, run_id=None))
+def drop_tables(engine: Engine) -> None:
+    metadata.drop_all(engine)

@@ -181,14 +181,15 @@ def test_claim_usage_sums_every_attempt(client, db_path):
     assert total["calls"] == 4 and total["cost_usd"] == pytest.approx(0.007)
 
 
-def test_approve_flow_moves_claim_to_decided(client):
+def test_sign_off_leaves_the_claim_in_progress_and_does_not_pay(client):
     client.post("/runs")
     held = client.get("/approvals").json()
     assert {h["claim_id"] for h in held} == {"CLM-1003", "CLM-1008", "CLM-1011"}
     pid = held[0]["payment_id"]
     resp = client.post(f"/payments/{pid}/approve", json={"handler_id": "HND-01"})
-    assert resp.status_code == 200 and resp.json()["status"] == "paid"
-    assert client.get(f"/claims/{held[0]['claim_id']}").json()["status"] == "decided"
+    assert resp.status_code == 200 and resp.json()["status"] == "signed_off"
+    assert resp.json()["approved_by"] == "HND-01" and resp.json()["approved_at"] and resp.json()["paid_at"] is None
+    assert client.get(f"/claims/{held[0]['claim_id']}").json()["status"] == "in_progress"
     assert len(client.get("/approvals").json()) == 2
 
 

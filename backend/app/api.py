@@ -6,7 +6,7 @@ from typing import Mapping
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app import runs
 from app.agent import claim_prompt, load_instructions
@@ -23,7 +23,7 @@ from app.db import (
 )
 from app.documents import documents_for
 from app.orchestrator import run_harness
-from app.payments import approve_payment
+from app.payments import sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.seed import seed_claims
@@ -251,18 +251,11 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post("/payments/{payment_id}/approve")
     def approve(payment_id: str, body: ApproveBody):
         try:
-            payment = approve_payment(engine, payment_id, body.handler_id, ref)
+            payment = sign_off(engine, ref, payment_id, body.handler_id)
         except LookupError:
             raise HTTPException(404, f"unknown payment {payment_id}")
         except PermissionError as exc:
             raise HTTPException(403, str(exc))
-        if payment.status == "paid":
-            with engine.begin() as conn:
-                conn.execute(
-                    update(claims)
-                    .where(claims.c.claim_id == payment.claim_id, claims.c.status == "awaiting_approval")
-                    .values(status="decided")
-                )
         return asdict(payment)
 
     return app

@@ -3,9 +3,9 @@ import json
 from sqlalchemy import Engine, delete, func, insert, select, update
 
 from app.agent import Agent, Decision, rationale_warnings
-from app.db import claims, decisions, payments, trace_events
-from app.documents import documents_for
-from app.payments import request_payment
+from app.db import claims, payments, trace_events
+from app.claims import hold_for_sign_off, needs_sign_off, record_decision
+from app.payments import pay
 from app.reference import Reference
 from app.runs import todo_for_claim
 
@@ -101,27 +101,15 @@ def work_claim(
 
     for warning in rationale_warnings(decision.rationale):
         trace("warning", {"message": warning})
-    status, outcome = "decided", decision.decision
+    outcome = decision.decision
+    record_decision(engine, ref, claim_id, decision.model_dump(), agent.model_id)
     if decision.decision == "approve":
-        payment = request_payment(engine, claim_id, decision.payout, ref.company["payout_approval_limit"])
-        held = payment.status == "held"
-        status = "awaiting_approval" if held else "decided"
-        outcome = f"approve ${decision.payout:,.2f}, {'held for sign-off' if held else 'paid'}"
-
-    docs = documents_for(ref)
-    with engine.begin() as conn:
-        conn.execute(insert(decisions).values(
-            claim_id=claim_id,
-            decision=decision.decision,
-            payout=decision.payout,
-            calculation=json.dumps([s.model_dump() for s in decision.calculation]),
-            rationale=decision.rationale,
-            citations=json.dumps(decision.citations),
-            model=agent.model_id,
-            manual_version=docs.version("claims_manual"),
-            wording_version=docs.version("policy_wording"),
-        ))
-        conn.execute(update(claims).where(claims.c.claim_id == claim_id).values(status=status))
+        if needs_sign_off(engine, ref, claim_id):
+            hold_for_sign_off(engine, ref, claim_id)
+            outcome = f"approve ${decision.payout:,.2f}, held for sign-off"
+        else:
+            pay(engine, ref, claim_id)
+            outcome = f"approve ${decision.payout:,.2f}, paid"
     trace("decision", decision.model_dump())
     _record_usage(trace, agent)
     if run_id is not None:

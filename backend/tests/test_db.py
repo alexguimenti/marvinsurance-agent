@@ -5,7 +5,9 @@ from sqlalchemy import insert, inspect, select
 from sqlalchemy.exc import IntegrityError
 
 from app.config import Settings
-from app.db import claims, init_schema, insert_or_ignore, make_engine, metadata, reset_analyses, row_level_security, runs
+from app.db import claims, init_schema, insert_or_ignore, make_engine, metadata, row_level_security, runs
+from app.reference import Reference
+from app.seed import reseed
 from tests.fakes import connect
 
 
@@ -65,7 +67,7 @@ def test_only_one_run_can_be_running(db_path):
         c.execute(insert(runs).values(status="running", model="m"))
 
 
-def test_reset_leaves_every_claim_waiting(db_path):
+def test_reseed_leaves_every_claim_waiting_and_nothing_else(db_path, data_dir):
     conn = connect(db_path)
     init_schema(conn.engine)
     conn.execute("INSERT INTO claims (claim_id, status, payload, attempts, last_error, run_id) "
@@ -77,11 +79,20 @@ def test_reset_leaves_every_claim_waiting(db_path):
     conn.execute("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model) "
                  "VALUES ('CLM-1001', 'decline', 0, '[]', 'r', '[]', 'm')")
 
-    reset_analyses(conn.engine)
+    assert reseed(conn.engine, Reference(data_dir)) == 25
 
     for table in ("runs", "todo_items", "run_events", "payments", "decisions", "trace_events"):
         assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0, table
-    assert tuple(conn.execute("SELECT status, attempts, last_error, run_id FROM claims").fetchone()) == ("waiting", 0, None, None)
+    assert {tuple(r) for r in conn.execute("SELECT status, attempts, last_error, run_id FROM claims").fetchall()} == {
+        ("waiting", 0, None, None)
+    }
+
+
+def test_reseed_brings_an_older_database_up_to_date(db_path, data_dir):
+    conn = connect(db_path)
+    conn.execute("CREATE TABLE claims (claim_id TEXT PRIMARY KEY, status TEXT NOT NULL, payload TEXT NOT NULL)")
+    reseed(conn.engine, Reference(data_dir))
+    assert conn.execute("SELECT attempts, thread_id FROM claims").fetchone()[0] == 0
 
 
 def test_decision_cannot_be_written_twice(db_path):
