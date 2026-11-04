@@ -71,8 +71,8 @@ Every claim has one status:
 | Status | Meaning |
 |---|---|
 | Waiting | In the queue, not yet picked up |
-| In progress | The agent is working on it |
-| Awaiting approval | Decided and approved, but the payout is over $1,000 and waits for a person |
+| In progress | The agent is working on it, or has been stopped partway and will carry on, or a handler has signed off and the agent is paying |
+| Awaiting approval | Decided and approved, but the payout is over $1,000. The agent has stopped and waits for a person |
 | Decided | Finished: approved and paid (simulated), declined or referred |
 | Needs a handler | The agent failed on it twice and made no decision. A person has to take it |
 
@@ -84,7 +84,7 @@ The pilot needs these views. Everyone sees everything.
 2. **Claim detail**: the full claim (story, items, documents, policy and customer context), the agent's decision, payout and rationale, the sections of the wording and the manual it read, and, for a claim left for a handler, how many attempts failed and why.
 3. **Agent activity**: what the agent is doing on a claim, step by step, while it works (the trace of what it reads, checks and decides).
 4. **Agent instructions**: the instructions for running the queue and for working a claim, so the team can see and review them.
-5. **Approvals**: payments waiting for sign-off, with an approve action for authorized handlers.
+5. **Approvals**: payments waiting for sign-off, with an approve action for authorized handlers. A handler can only sign off for now; rejecting a held payout comes later. The claim then shows who signed off and when.
 
 Visual style follows `docs/DESIGN.md`.
 
@@ -110,11 +110,14 @@ Evaluation scores two things per claim: the decision, and the payout.
 
 ## 9. Decisions made in the pilot
 
-- **Trigger:** a "Run queue" button starts one run of the agent over the waiting claims, optionally capped at a number of claims ("Limit"); ticked claims, or one claim's "Run this claim" button, start a run limited to those claims. Only one run at a time; claims are worked one after another. Hosting is local only.
+- **Trigger:** a "Run queue" button starts one run of the agent over the waiting claims, optionally capped at a number of claims ("Limit"); ticked claims, or one claim's "Run this claim" button, start a run limited to those claims. Only one run at a time; claims are worked one after another. The backend passes the request to the agent's service, and the dashboard says so if the service is not running. `uv run -m agent` also starts a run. Hosting is local only.
 - **Runs:** the agent plans a to-do list, chooses the order, hands each claim to a fresh claim agent that reports back in one line, and ends with a summary for handlers. Before it finishes, a check refuses to close the run while a claim within its cap is still owed.
+- **Paying:** paying is a step of the claim agent's work for every approval, straight after the decision when no sign-off is needed. When the backend says a sign-off is needed, the agent stops and waits, keeping everything it has worked out. As soon as a handler signs off, the backend tells the agent's service, which picks the claim up from where it stopped and pays it; the claim shows as in progress in between. If the service can't be reached the sign-off stands, and the agent pays when it next starts or runs. The payment records who signed off and when.
+- **Stopping and carrying on:** progress is saved after every step. A claim stopped partway, by a crash, a restart or Ctrl-C, carries on from its last step the next time the agent runs, on the same thread, and that is not a new attempt. A run first carries on with any claim that was stopped or signed off while the agent was away. A queue run that was stopped is finished by the next run, with its own limit and claims; a limit asked for at that point is not applied. A run counts as stopped when its process has not reported for 45 seconds. Starting the service only pays claims already signed off, so a restart never spends on the model by itself.
+- **Nothing twice:** a step can run again after a restart, so a repeat of a decision or a payment already recorded counts as done and returns the claim. A different decision on a decided claim is refused.
 - **Approver:** with no sign-in, the person approving picks their name from the handlers who may approve over the limit. That handler is stored on the payment.
 - **Referred claims:** a `refer` is a finished decision with no owner and no hand-off screen. It is `decided` and shows in the queue.
-- **Failures:** a single model call that times out or meets a provider error is retried (`step_retries`). A claim attempt that fails (no decision, an error, a timeout, too many steps, or a payment that differs from the decision) is undone: its payment is deleted and the claim goes back in the queue, to be tried again later in the run. A claim that fails twice (`max_attempts` in `agent.toml`) is left for a handler with the status "Needs a handler" and no decision. One failing claim never stops the run, and no claim is decided or paid twice. A server that stops mid-run marks the run failed and puts its claims back in the queue when it starts again.
+- **Failures:** a single model call that times out or meets a provider error is retried (`step_retries`). A claim attempt that fails before a decision (an error, a timeout, more than 30 model calls, or no decision) goes back in the queue and starts afresh on a new thread, later in the run. An error after the decision does not undo it: the claim stays in progress, and the next run carries on from the failed step. A claim that fails twice (`max_attempts` in `agent.toml`) is left for a handler with the status "Needs a handler" and no decision. One failing claim never stops the run.
 
 ## 10. Open questions
 

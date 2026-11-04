@@ -2,31 +2,34 @@
 
 A course project (nothing here is real). The Farting Agent works a travel-insurance claims queue like a human analyst. One run plans the queue as a to-do list, hands each claim to a fresh claim agent, and finishes with a summary for the handlers. The claim agent reads the claim, the policy and the customer's history, looks up the sections of the policy wording and the claims manual it needs, then approves, declines or refers. Payouts above $1,000 wait for a handler.
 
-See `docs/SPEC.md` for what we build, `docs/TECH_STACK.md` for the stack, `docs/plans/HARNESS.md` for the harness requirements, and `docs/plans/` for the finished implementation plans.
+See `docs/SPEC.md` for what we build, `docs/TECH_STACK.md` for the stack, `docs/STATUS.md` for where it stands, `docs/plans/HARNESS.md` for the harness requirements, and `docs/plans/` for the finished implementation plans.
 
 ## Status
 
 - **Pilot** (`docs/plans/PLAN.md`): done. Queue, claim detail, live activity, instructions and approvals; the $1,000 limit enforced by the payment code.
 - **Harness** (`docs/plans/PLAN_HARNESS.md`): done. One run works the whole queue, or a capped part of it, through a to-do list shown on the queue page. Each claim gets a fresh claim agent. The agent looks up sections of the policy wording and the claims manual, and the claim page shows what it read. A claim that fails goes back in the queue; one that fails twice is left for a handler ("Needs a handler"). Default model: DeepSeek V4.1 Flash, low reasoning effort.
-- Not built: sign-in, real payments, messages to customers, stopping a run midway.
+- **Durable agent** (`docs/PLAN_DURABLE.md`): done. See `docs/STATUS.md`. The claim agent waits for a sign-off and then pays, carries on after a restart, and never decides or pays twice. Records on Supabase, traces in Langfuse.
+- Not built: sign-in, real payments, messages to customers, rejecting a held payout.
 
 ## Setup
 
 ```bash
 # backend (Python 3.11+)
-cd backend
-python -m venv .venv
-./.venv/Scripts/python -m pip install -e ".[dev]"     # Windows; use .venv/bin/python elsewhere
+cd backend && uv sync --extra dev
 
 # frontend and e2e
 cd ../frontend && npm install
 cd ../e2e && npm install && npx playwright install chromium
 ```
 
-Create a `.env` in the repo root (git-ignored) with your key:
+Create a `.env` in the repo root (git-ignored):
 
 ```
 OPENROUTER_API_KEY=...
+DATABASE_URL=...            # Supabase session pooler; leave out to use a local SQLite file
+LANGFUSE_PUBLIC_KEY=...     # all three optional: no keys, no tracing
+LANGFUSE_SECRET_KEY=...
+LANGFUSE_BASE_URL=...
 ```
 
 The model and how it thinks are set in **`agent.toml`** at the repo root (committed, no secrets):
@@ -39,7 +42,7 @@ reasoning_effort = "low"                 # "low", "medium" or "high"
 max_attempts = 2                         # failed attempts before a claim is left for a handler
 # step_retries = 2                       # retries of one model call (timeout, provider error)
 # claim_timeout_s = 300                  # time limit for one attempt at one claim
-# max_steps = 40                         # steps for one claim
+# max_model_calls = 30                   # model calls for one claim
 # run_max_steps = 400                    # steps for a whole run
 ```
 
@@ -50,8 +53,7 @@ The environment overrides the file (`AGENT_MODEL`, `AGENT_TEMPERATURE`, `AGENT_R
 All the commands you need every day (start, auto-reload, tests, reset) are in **[COMMANDS.md](COMMANDS.md)**.
 
 ```bash
-cd backend && ./.venv/Scripts/python -m uvicorn app.main:app --port 8000
-cd frontend && npm run dev          # http://localhost:5173, proxies /api to the backend
+npm run dev      # the backend, the agent's service and the dashboard: http://localhost:5173
 ```
 
 Screens: **Claims** (the queue with the agent's to-do list and a run limit, and claim detail with the agent's live activity and what it read), **Approvals** (held payouts) and **Agent instructions** (for running the queue and for working a claim).
@@ -67,21 +69,15 @@ cd frontend && npm test -- --run                       # component tests
 cd e2e && npm test                                     # end-to-end, scripted agent, throwaway database
 ```
 
-No test calls a model. The scripted agent stands in for it, and fails on purpose on two claims so recovery can be tested: CLM-1013 always fails and is left for a handler, and CLM-1017 fails once and is then decided.
+No test calls a model. `npm run check` needs no `.env`. A scripted model stands in, and fails on purpose on two claims so recovery can be tested: CLM-1013 always fails and is left for a handler, and CLM-1017 fails once and is then decided.
 
-## Clear the analyses and test again
+## Reseed and test again
 
-To forget every analysis the agent made (decisions, activity logs, payments, runs and to-do lists) and put all 25 claims back in the queue. Do this before any live run with the real model:
+To forget every analysis the agent made and put all 25 claims back in the queue, on the database in `.env`. Do this before any live run with the real model:
 
 ```powershell
-# from the backend folder
-.\.venv\Scripts\python ..\scripts\reset_db.py
-
-# or from the repo root
-.\backend\.venv\Scripts\python scripts\reset_db.py
+npm run reseed
 ```
-
-It is safe while the backend is running: reload the page and every claim is "Waiting" again. The claims themselves are kept. To start from a completely empty database file instead, stop the backend and delete `farting.db`, `farting.db-wal` and `farting.db-shm` in the repo root; the next start recreates it.
 
 ## Score the agent
 
@@ -106,11 +102,11 @@ Both models approve claims the handlers declined or referred. Of the 6 expected 
 ## Layout
 
 ```
-backend/   FastAPI + SQLite + LangChain agent (app/), tests (tests/)
+backend/   records and API (app/), the agent and its service (agent/), tests (tests/)
 frontend/  React (Vite, TypeScript), Vitest
 e2e/       Playwright
-scripts/   score.py, reset_db.py, check.mjs
+scripts/   dev.mjs, check.mjs, reseed.mjs, reset_db.py, score.py, check_live.py
 data/      seed data; data/evals and data/security are off limits to the app
-docs/      SPEC, TECH_STACK, DESIGN; plans/ holds the finished plans and the harness brief
+docs/      SPEC, TECH_STACK, DESIGN, PROCESS, CODE_STANDARDS, STATUS, the durable brief and plan; plans/ holds finished plans
 labs/, lab1_desk/, lab2_desk/   course notebooks and lab desks (each desk has its own .venv); not part of the app
 ```

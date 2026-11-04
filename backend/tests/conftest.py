@@ -17,7 +17,7 @@ def no_outside_world(monkeypatch):
 @pytest.fixture(autouse=True)
 def no_model_calls(request, monkeypatch):
     """Tests never call a model. A request that gets this far is a bug in the test or the code."""
-    if request.node.get_closest_marker("live") or "test_openrouter_smoke" in request.node.nodeid:
+    if "test_openrouter_smoke" in request.node.nodeid:
         return
 
     def refuse(self, *args, **kwargs):
