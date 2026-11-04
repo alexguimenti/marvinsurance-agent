@@ -173,7 +173,9 @@ def carry_on(env: AgentEnv, claim_id: str) -> str:
             .where(claims.c.claim_id == claim_id)
         ).mappings().one()
     thread_id = claim["thread_id"]
-    if claim["status"] != "in_progress" or thread_id is None:
+    # a signed-off payment counts whatever the claim says: a stop can come between a sign-off's two statements
+    resumable = claim["status"] == "in_progress" or (claim["status"] == "awaiting_approval" and claim["payment"] == "signed_off")
+    if not resumable or thread_id is None:
         return f"{claim_id}: not worked, the claim is {claim['status'].replace('_', ' ')}."
     with env.working(claim_id) as free:
         if not free:
@@ -207,6 +209,6 @@ def signed_off_claims(engine: Engine) -> list[str]:
         return list(conn.execute(
             select(payments.c.claim_id)
             .select_from(payments.join(claims, payments.c.claim_id == claims.c.claim_id))
-            .where(payments.c.status == "signed_off", claims.c.status == "in_progress")
+            .where(payments.c.status == "signed_off", claims.c.status.in_(("in_progress", "awaiting_approval")))
             .order_by(payments.c.claim_id)
         ).scalars())

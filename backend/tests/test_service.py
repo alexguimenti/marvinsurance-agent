@@ -225,3 +225,47 @@ def test_a_resume_that_loses_its_connection_tries_once_more(db_path, data_dir, m
         pass
     assert calls == ["CLM-1003", "CLM-1003"]
     assert get_payment(engine, "CLM-1003").status == "paid"
+
+
+def test_a_resume_that_raises_tries_once_more(db_path, data_dir, monkeypatch):
+    import agent.service as service_module
+
+    engine = hold(db_path, data_dir)
+    sign_off(engine, Reference(data_dir), "PAY-CLM-1003", "HND-01")
+    real = service_module.carry_on
+    calls = []
+
+    def flaky(env, claim_id):
+        calls.append(claim_id)
+        if len(calls) == 1:
+            raise RuntimeError("the connection was closed")
+        return real(env, claim_id)
+
+    monkeypatch.setattr(service_module, "carry_on", flaky)
+    with TestClient(create_service(make_settings(db_path, data_dir), inline=True)):
+        pass
+    assert get_payment(engine, "CLM-1003").status == "paid"
+
+
+def test_the_sweep_pays_a_sign_off_whose_call_was_lost(db_path, data_dir):
+    from agent.service import sweep_signed_off
+
+    settings = make_settings(db_path, data_dir)
+    engine = hold(db_path, data_dir)
+    with open_env(settings) as env:
+        sweep_signed_off(env)  # nothing signed off yet: nothing happens
+        assert get_payment(engine, "CLM-1003").status == "held"
+        sign_off(engine, Reference(data_dir), "PAY-CLM-1003", "HND-01")
+        sweep_signed_off(env)
+    assert get_payment(engine, "CLM-1003").status == "paid"
+
+
+def test_the_sweep_survives_a_database_error(db_path, data_dir, monkeypatch):
+    import agent.service as service_module
+
+    def down(engine):
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr(service_module, "signed_off_claims", down)
+    with open_env(make_settings(db_path, data_dir)) as env:
+        service_module.sweep_signed_off(env)  # logged, and the next sweep tries again

@@ -342,3 +342,15 @@ def test_a_claim_worked_inside_the_queue_agent_starts_its_own_trace(env_for, mon
     RunnableLambda(lambda _: work_claim(env, CLAIM)).invoke("the queue agent's tool")
 
     assert roots[0] is None
+
+
+def test_a_sign_off_stopped_between_its_two_steps_is_still_paid(env_for):
+    """The payment says signed off, but the process died before the claim moved on, or a hold landed just after."""
+    env, _ = env_for({CLAIM: [approve(2000.0)]})
+    work_claim(env, CLAIM)
+    raw(env).execute("UPDATE payments SET status='signed_off', approved_by='HND-01', approved_at=CURRENT_TIMESTAMP")
+    assert claim(env)["status"] == "awaiting_approval"
+    assert signed_off_claims(env.engine) == [CLAIM]
+    assert carry_on(env, CLAIM) == "CLM-1003: approve $2,000.00, paid"
+    assert claim(env)["status"] == "decided"
+    assert signed_off_claims(env.engine) == []

@@ -19,6 +19,7 @@ from app.runs import RunActive
 from app.seed import seed_claims
 
 log = logging.getLogger(__name__)
+SWEEP_S = 30
 
 
 class RunLimit(BaseModel):
@@ -41,9 +42,21 @@ def prepare_database(settings: Settings) -> None:
 
 def resume(env: AgentEnv, claim_id: str) -> None:
     """Pay a signed-off claim. A connection the pooler closed while idle fails the first try, so there is a second."""
-    carry_on(env, claim_id)
+    try:
+        carry_on(env, claim_id)
+    except Exception:
+        log.warning("the first try at %s failed", claim_id, exc_info=True)
     if claim_id in signed_off_claims(env.engine):
         carry_on(env, claim_id)
+
+
+def sweep_signed_off(env: AgentEnv) -> None:
+    """Pay whatever is signed off and still unpaid: the backend's call can be lost, or arrive while the claim is busy."""
+    try:
+        for claim_id in signed_off_claims(env.engine):
+            resume(env, claim_id)
+    except Exception:  # the next sweep tries again
+        log.warning("the sweep for signed-off claims failed", exc_info=True)
 
 
 def create_service(settings: Settings, inline: bool = False) -> FastAPI:
@@ -69,9 +82,16 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
         with open_env(settings) as env:
             holder["env"] = env
             # A sign-off is already a person's decision and costs no model call. Stopped work waits for a run.
-            for claim_id in signed_off_claims(env.engine):
-                in_background(f"resume {claim_id}", resume, env, claim_id)
+            in_background("sweep at start", sweep_signed_off, env)
+            stop = threading.Event()
+            if not inline:
+                def keep_sweeping() -> None:
+                    while not stop.wait(SWEEP_S):
+                        sweep_signed_off(env)
+
+                threading.Thread(target=keep_sweeping, name="sweep", daemon=True).start()
             yield
+            stop.set()
 
     app = FastAPI(title="Farting Agent service", lifespan=lifespan)
 

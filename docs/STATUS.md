@@ -42,6 +42,7 @@ The count was read with SQL from our own connection, not through the Supabase MC
 - A second attempt at a claim has a new thread, so a new Langfuse session. A tag with the claim id finds them all.
 - After a reseed, thread names repeat, so an old Langfuse session gains the new traces.
 - After a hard kill, a run can be finished only once its heartbeat is 45 seconds old.
+- While the service is up it looks for signed-off, unpaid claims every 30 seconds, in case the call from the backend was lost. If the service is down they wait for it to start, or for the next run.
 - Stopping `npm run dev` with Ctrl-C was not exercised by a real keypress; stopping when one part dies was.
 
 ## Not built
