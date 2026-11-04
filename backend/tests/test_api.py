@@ -246,3 +246,12 @@ def test_restart_recovers_running_run(db_path, data_dir):
         assert len(client.get("/claims/CLM-1001/trace").json()) == 2  # the old trace is kept
         assert client.post("/runs", json={"claim_ids": ["CLM-1001"]}).status_code == 202
         assert client.get("/claims/CLM-1001").json()["status"] == "decided"
+
+
+def test_api_payout_takes_the_limit_from_company_json(client):
+    body = {"items": [{"description": "a", "amount": 1200, "item_limit": None}],
+            "third_party_paid": 0, "deductible": 200, "benefit_max": None}
+    answer = client.post("/payouts/calculate", json=body).json()
+    assert answer["payout"] == 1000 and answer["approval_limit"] == 1000 and answer["needs_sign_off"] is False
+    del body["deductible"]
+    assert client.post("/payouts/calculate", json=body).status_code == 422

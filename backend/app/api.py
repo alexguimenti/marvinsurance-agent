@@ -15,6 +15,7 @@ from app.db import connect, init_schema
 from app.documents import documents_for
 from app.orchestrator import run_harness
 from app.payments import approve_payment
+from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.seed import seed_claims
 
@@ -25,6 +26,13 @@ _SECTION_READ = re.compile(r"^\[(\w+) section (\d+): .+, \d+ characters\]$")
 
 class ApproveBody(BaseModel):
     handler_id: str
+
+
+class PayoutBody(BaseModel):
+    items: list[LineItem]
+    third_party_paid: float
+    deductible: float
+    benefit_max: float | None
 
 
 class RunBody(BaseModel):
@@ -197,6 +205,12 @@ def create_app(settings: Settings) -> FastAPI:
     @app.get("/instructions")
     def instructions():
         return {"run": load_instructions("run"), "claim": claim_prompt(ref)}
+
+    @app.post("/payouts/calculate", operation_id="calculate_payout")
+    def payout(body: PayoutBody):
+        """Work out a payout under wording section 10, and say whether it needs a sign-off."""
+        return calculate_payout(body.items, body.third_party_paid, body.deductible, body.benefit_max,
+                                ref.company["payout_approval_limit"])
 
     @app.get("/approvals")
     def approvals(conn: Conn):

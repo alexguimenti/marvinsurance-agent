@@ -88,12 +88,15 @@ def build_tools(conn: sqlite3.Connection, ref: Reference, claim_id: str) -> list
     @tool
     def calculate_payout(
         items: list[LineItem],
-        third_party_paid: float = 0.0,
-        deductible: float = 0.0,
-        benefit_max: float | None = None,
+        third_party_paid: float,
+        deductible: float,
+        benefit_max: float | None,
     ) -> str:
-        """Work out the payout (wording section 10). Pass each item with the per-item limit that applies to it."""
-        return json.dumps(compute_payout(items, third_party_paid, deductible, benefit_max))
+        """Work out the payout (wording section 10). Give every input: each item with the per-item limit
+        that applies to it (null when none), 0 where nothing was paid or no deductible applies, and the
+        benefit maximum (null when none)."""
+        limit = ref.company["payout_approval_limit"]
+        return json.dumps(compute_payout(items, third_party_paid, deductible, benefit_max, limit))
 
     @tool
     def request_payment(amount: float) -> str:

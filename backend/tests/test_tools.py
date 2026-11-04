@@ -104,10 +104,12 @@ def test_lookup_knowledge_by_topic(conn, ref):
 
 def test_calculate_payout_tool_returns_steps(conn, ref):
     out = json.loads(tools_for(conn, ref)["calculate_payout"].invoke({
-        "items": [{"description": "Hospital bill", "amount": 3800}],
+        "items": [{"description": "Hospital bill", "amount": 3800, "item_limit": None}],
+        "third_party_paid": 0,
         "deductible": 50,
+        "benefit_max": None,
     }))
-    assert out["payout"] == 3750.0 and out["steps"]
+    assert out["payout"] == 3750.0 and out["steps"] and out["needs_sign_off"] is True
 
 
 def test_request_payment_tool_over_limit_returns_held(conn, ref):

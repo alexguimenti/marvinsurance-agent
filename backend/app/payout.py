@@ -4,14 +4,15 @@ from pydantic import BaseModel
 class LineItem(BaseModel):
     description: str
     amount: float
-    item_limit: float | None = None
+    item_limit: float | None
 
 
 def calculate_payout(
     items: list[LineItem],
-    third_party_paid: float = 0.0,
-    deductible: float = 0.0,
-    benefit_max: float | None = None,
+    third_party_paid: float,
+    deductible: float,
+    benefit_max: float | None,
+    approval_limit: float,
 ) -> dict:
     """Policy wording section 10: eligible amounts, minus third parties, minus deductible, capped."""
     steps: list[dict] = []
@@ -28,4 +29,5 @@ def calculate_payout(
     if benefit_max is not None and payout > benefit_max:
         steps.append({"step": "Reduced to the benefit maximum", "amount": round(benefit_max - payout, 2)})
         payout = benefit_max
-    return {"payout": round(max(payout, 0.0), 2), "steps": steps}
+    payout = round(max(payout, 0.0), 2)
+    return {"payout": payout, "steps": steps, "approval_limit": approval_limit, "needs_sign_off": payout > approval_limit}
