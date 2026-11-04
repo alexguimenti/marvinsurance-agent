@@ -10,6 +10,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, model_validator
 
+from agent.tracing import flush_traces, trace_config
 from app.config import Settings
 from app.reference import Reference
 from app.tools import build_tools
@@ -116,7 +117,12 @@ class LangChainAgent:
         def keep_usage(usage: dict) -> None:
             self.usage = usage  # kept up to date, so a failed attempt still reports its cost
 
-        decision = run_graph(agent, prompt, self.max_steps, on_event, keep_usage, self.timeout_s)
+        attempts = self.conn.execute("SELECT attempts FROM claims WHERE claim_id = ?", (claim_id,)).fetchone()[0]
+        tracing = trace_config(claim_id, f"{claim_id}-{attempts + 1}", self.model_id)
+        try:
+            decision = run_graph(agent, prompt, self.max_steps, on_event, keep_usage, self.timeout_s, tracing)
+        finally:
+            flush_traces()
         if decision is None:
             raise ValueError("the agent finished without a decision")
         on_event("decision", decision.model_dump())
@@ -172,7 +178,7 @@ def _emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
 
 
 def run_graph(graph, messages: str | list, max_steps: int, on_event: Emit,
-              on_usage: Callable[[dict | None], None], timeout_s: float | None = None):
+              on_usage: Callable[[dict | None], None], timeout_s: float | None = None, config: dict | None = None):
     """Stream a LangChain agent from a request (text, or the opening messages), tracing every new message
     and keeping its usage up to date. Returns its structured response, or None when it has none."""
     if isinstance(messages, str):
@@ -181,7 +187,7 @@ def run_graph(graph, messages: str | list, max_steps: int, on_event: Emit,
     calls: dict[str, dict] = {}  # tool call id -> its arguments, to describe the result
     deadline = time.monotonic() + timeout_s if timeout_s else None
     result = None
-    config = {"recursion_limit": max_steps}
+    config = {**(config or {}), "recursion_limit": max_steps}
     for chunk in graph.stream({"messages": messages}, stream_mode="updates", config=config):
         if deadline and time.monotonic() > deadline:
             raise TimeoutError(f"the agent took longer than {timeout_s:g} seconds")

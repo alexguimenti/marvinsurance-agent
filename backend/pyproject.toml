@@ -9,6 +9,7 @@ dependencies = [
   "langchain",
   "langchain-openai",
   "langchain-core",
+  "langfuse",
 ]
 
 [project.optional-dependencies]
@@ -23,7 +24,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["app"]
+packages = ["app", "agent"]
 
 [tool.setuptools.package-data]
-app = ["instructions.md"]
+app = ["*.md"]
+agent = ["*.md"]
