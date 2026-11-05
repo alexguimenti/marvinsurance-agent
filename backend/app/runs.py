@@ -71,8 +71,8 @@ def stop_running(engine: Engine) -> list[int]:
 # --- which claims a run works ------------------------------------------------------------------
 
 def _queue_claims():
-    """The queue's own claims."""
-    return select(claims.c.claim_id)
+    """The queue's own claims: an evaluation's copies never show in it."""
+    return select(claims.c.claim_id).where(claims.c.copy_of.is_(None))
 
 
 def claims_to_dispatch(engine: Engine) -> list[str]:

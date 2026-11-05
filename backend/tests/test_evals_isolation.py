@@ -3,17 +3,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_no_app_code_references_evals():
-    offenders = []
-    for folder in (ROOT / "backend" / "app", ROOT / "backend" / "agent", ROOT / "frontend" / "src"):
-        if not folder.exists():
-            continue
-        for path in folder.rglob("*"):
-            if path.is_file() and path.suffix in {".py", ".ts", ".tsx", ".js", ".md", ".css", ".html"}:
-                text = path.read_text(encoding="utf-8", errors="ignore").lower()
-                if "evals" in text or "security/" in text:
-                    offenders.append(str(path.relative_to(ROOT)))
+def _texts(folder):
+    for path in folder.rglob("*"):
+        if path.is_file() and path.suffix in {".py", ".ts", ".tsx", ".js", ".md", ".css", ".html"}:
+            yield path, path.read_text(encoding="utf-8", errors="ignore").lower()
+
+
+def test_the_agent_never_reads_the_evals_or_the_answer_key():
+    offenders = [str(p.relative_to(ROOT)) for p, text in _texts(ROOT / "backend" / "agent")
+                 if "evals" in text or "answer_key" in text or "security/" in text]
     assert offenders == []
+
+
+def test_only_seeding_reads_data_evals_and_only_scoring_reads_the_answer_key():
+    evals, key = [], []
+    for folder in (ROOT / "backend" / "app", ROOT / "frontend" / "src"):
+        for path, text in _texts(folder):
+            name = path.name
+            if ('"evals"' in text or "evals/" in text or "security/" in text) and name != "seed.py":
+                evals.append(name)
+            if "answer_key" in text and name not in ("db.py", "seed.py", "scoring.py"):
+                key.append(name)
+    assert (evals, key) == ([], [])
 
 
 def test_instructions_quote_no_claim():

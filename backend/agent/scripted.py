@@ -48,7 +48,8 @@ class ScriptedChatModel(BaseChatModel):
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
         claim_id = re.search(r"Decide claim (\S+)\.", next(m.content for m in messages if m.type == "human"))[1]
-        if claim_id in _ALWAYS_FAILS or (claim_id in _FAILS_ONCE and claim_id not in self.tried):
+        original = re.sub(r"^E\d+-", "", claim_id)  # an evaluation's copy behaves as the claim it copies
+        if original in _ALWAYS_FAILS or (original in _FAILS_ONCE and claim_id not in self.tried):
             self.tried.add(claim_id)
             raise RuntimeError("scripted failure")
         if not any(m.type == "tool" and m.name == "read_section" for m in messages):
@@ -56,5 +57,5 @@ class ScriptedChatModel(BaseChatModel):
         else:
             claim_text = next(m.content for m in messages if m.type == "tool" and m.name == "get_claim")
             claim = json.loads(claim_text.removeprefix("<claim_data>").rstrip().removesuffix("</claim_data>"))
-            call = {"name": "save_decision", "args": _decision(claim_id, claim["amount_claimed"]), "id": f"save-{claim_id}"}
+            call = {"name": "save_decision", "args": _decision(original, claim["amount_claimed"]), "id": f"save-{claim_id}"}
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])

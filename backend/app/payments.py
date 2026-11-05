@@ -38,17 +38,24 @@ def sign_off(engine: Engine, ref: Reference, payment_id: str, handler_id: str) -
     handler = next((h for h in ref.handlers if h["handler_id"] == handler_id), None)
     if handler is None or not handler["can_approve_over_limit"]:
         raise PermissionError(f"{handler_id} cannot approve payments over the limit")
+    queue_claims = select(claims.c.claim_id).where(claims.c.copy_of.is_(None))  # nobody signs off a copy
     with engine.begin() as conn:
         row = conn.execute(
             update(payments)
-            .where(payments.c.payment_id == payment_id, payments.c.status == "held")
+            .where(payments.c.payment_id == payment_id, payments.c.status == "held", payments.c.claim_id.in_(queue_claims))
             .values(status="signed_off", approved_by=handler_id, approved_at=func.now(), updated_at=func.now())
             .returning(payments)
         ).mappings().first()
-        if row is None:  # already signed off or paid, or no such payment
-            row = conn.execute(select(payments).where(payments.c.payment_id == payment_id)).mappings().first()
+        if row is None:  # already signed off or paid, an evaluation's copy, or no such payment
+            row = conn.execute(
+                select(payments, claims.c.copy_of)
+                .select_from(payments.join(claims, payments.c.claim_id == claims.c.claim_id))
+                .where(payments.c.payment_id == payment_id)
+            ).mappings().first()
             if row is None:
                 raise LookupError(payment_id)
+            if row["copy_of"] is not None:
+                raise PermissionError("an evaluation's copy cannot be signed off")
         if row["status"] == "signed_off":
             conn.execute(
                 update(claims).where(claims.c.claim_id == row["claim_id"], claims.c.status == "awaiting_approval")

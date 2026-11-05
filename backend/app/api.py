@@ -2,7 +2,7 @@ import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Mapping
+from typing import Literal, Mapping
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, HTTPException
@@ -48,6 +48,12 @@ class PayoutBody(BaseModel):
 
 class DispatchBody(BaseModel):
     workers: int = Field(ge=1, le=25)  # claim agents at once
+
+
+class EvaluationBody(BaseModel):
+    eval_set: Literal["evaluation", "held_out"]
+    tiny: bool  # only the set's five tiny claims
+    workers: int = Field(ge=1, le=25)
 
 
 def _decision(row: Mapping | None) -> dict | None:
@@ -143,6 +149,7 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
             select(claims.c.claim_id, claims.c.status, claims.c.attempts, claims.c.payload,
                    decisions.c.decision, decisions.c.payout)
             .select_from(claims.outerjoin(decisions, claims.c.claim_id == decisions.c.claim_id))
+            .where(claims.c.copy_of.is_(None))  # an evaluation's copies never show in the queue
             .order_by(claims.c.claim_id)
         )
         with engine.connect() as conn:
@@ -184,6 +191,8 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
             "status": row["status"],
             "attempts": row["attempts"],
             "last_error": row["last_error"],
+            "copy_of": row["copy_of"],
+            "evaluation_id": row["evaluation_id"],
             "policy": ref.policy(claim["policy_id"]),
             "customer": ref.customer(claim["customer_id"]),
             "decision": _decision(decision),
@@ -203,6 +212,11 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
     def start_dispatch(body: DispatchBody):
         """Ask the agent to work every claim in progress and every waiting claim, with N claim agents at once."""
         return forward_run("/dispatches", {"workers": body.workers})
+
+    @app.post("/evaluations", status_code=202, operation_id="start_evaluation")
+    def start_evaluation(body: EvaluationBody):
+        """Ask the agent to evaluate copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
+        return forward_run("/evaluations", body.model_dump())
 
     def run_report(row: Mapping) -> dict:
         """A run with its claims, its totals and, once it has ended, its summary from the records."""
@@ -239,7 +253,7 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
                 payments.join(claims, payments.c.claim_id == claims.c.claim_id)
                 .outerjoin(decisions, payments.c.claim_id == decisions.c.claim_id)
             )
-            .where(payments.c.status == "held")
+            .where(payments.c.status == "held", claims.c.copy_of.is_(None))  # nobody signs off a copy
             .order_by(payments.c.claim_id)
         )
         with engine.connect() as conn:

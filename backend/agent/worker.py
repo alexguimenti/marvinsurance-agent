@@ -237,15 +237,32 @@ def work(env: AgentEnv, claim_id: str, run_id: int | None) -> str:
     if status is None:
         return f"{claim_id}: not worked, there is no such claim."
     if status == "waiting":
-        return work_claim(env, claim_id, run_id, env.settings.agent_max_attempts)
-    return carry_on(env, claim_id, run_id)  # it leaves alone anything it cannot carry on, and says so
+        line = work_claim(env, claim_id, run_id, env.settings.agent_max_attempts)
+    else:
+        line = carry_on(env, claim_id, run_id)  # it leaves alone anything it cannot carry on, and says so
+    _clear_finished_copy(env, claim_id)
+    return line
+
+
+def _clear_finished_copy(env: AgentEnv, claim_id: str) -> None:
+    """An evaluation's copy is never carried on or signed off, so once it is decided, held or left for a handler,
+    its saved progress goes. A held approval counts as finished."""
+    with env.engine.connect() as conn:
+        row = conn.execute(select(claims.c.copy_of, claims.c.status, claims.c.attempts)
+                           .where(claims.c.claim_id == claim_id)).mappings().one()
+    if row["copy_of"] is None or row["status"] not in ("decided", "awaiting_approval", "needs_handler"):
+        return
+    with env.claim_graph() as graph:
+        for attempt in range(1, row["attempts"] + 2):  # every thread the copy had, one per attempt
+            graph.checkpointer.delete_thread(f"{claim_id}-{attempt}")
 
 
 def stopped_claims(engine: Engine) -> list[str]:
     """Claims left in progress with a thread: stopped partway, or signed off and not yet paid."""
     with engine.connect() as conn:
         return list(conn.execute(
-            select(claims.c.claim_id).where(claims.c.status == "in_progress", claims.c.thread_id.is_not(None))
+            select(claims.c.claim_id).where(claims.c.status == "in_progress", claims.c.thread_id.is_not(None),
+                                            claims.c.copy_of.is_(None))
             .order_by(claims.c.claim_id)
         ).scalars())
 
@@ -255,6 +272,7 @@ def signed_off_claims(engine: Engine) -> list[str]:
         return list(conn.execute(
             select(payments.c.claim_id)
             .select_from(payments.join(claims, payments.c.claim_id == claims.c.claim_id))
-            .where(payments.c.status == "signed_off", claims.c.status.in_(("in_progress", "awaiting_approval")))
+            .where(payments.c.status == "signed_off", claims.c.status.in_(("in_progress", "awaiting_approval")),
+                   claims.c.copy_of.is_(None))
             .order_by(payments.c.claim_id)
         ).scalars())

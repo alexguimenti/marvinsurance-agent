@@ -61,6 +61,8 @@ export interface ClaimDetailData {
   attempts: number
   last_error: string | null
   read: ReadSection[]
+  copy_of?: string | null // set on an evaluation's copy: the claim it copies
+  evaluation_id?: number | null
 }
 
 export interface ReadSection {

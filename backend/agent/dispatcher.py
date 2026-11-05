@@ -40,9 +40,13 @@ def build_dispatcher(env: AgentEnv, retry: RetryPolicy):
     engine = env.engine
 
     def list_claims(state: DispatchState) -> Command:
-        """List the run's claims and send each to its own claim agent."""
-        claim_ids = [c for c in runs.claims_to_dispatch(engine) if not env.is_working(c)]  # a resume has those
-        runs.add_run_claims(engine, state.run_id, claim_ids)
+        """List the run's claims and send each to its own claim agent. An evaluation's copies were listed when it
+        was created; a dispatch takes every claim in progress and every waiting one."""
+        if runs.get_run(engine, state.run_id)["kind"] == "evaluation":
+            claim_ids = runs.run_claim_ids(engine, state.run_id)
+        else:
+            claim_ids = [c for c in runs.claims_to_dispatch(engine) if not env.is_working(c)]  # a resume has those
+            runs.add_run_claims(engine, state.run_id, claim_ids)
         return Command(goto=[Send("work_claim", ClaimTask(claim_id=c, run_id=state.run_id)) for c in claim_ids])
 
     def work_claim(task: ClaimTask) -> dict:

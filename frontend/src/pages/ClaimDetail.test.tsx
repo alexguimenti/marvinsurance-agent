@@ -44,6 +44,16 @@ function routes(status: string, payment: unknown = null) {
 }
 
 describe('ClaimDetail', () => {
+  it("shows an evaluation's copy as such, with nothing to sign off", async () => {
+    const copy = { ...detail('awaiting_approval', { payment_id: 'PAY-E7-CLM-1011', status: 'held', amount: 2400 }), copy_of: 'CLM-1011', evaluation_id: 7 }
+    mockApi({ '/api/claims/CLM-1011': copy, '/api/claims/CLM-1011/trace': [] })
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByText(/Evaluation copy of/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'evaluation 7' })).toHaveAttribute('href', '/scoreboard/7')
+    expect(screen.queryByText(/held for approval/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /go to approvals/i })).not.toBeInTheDocument()
+  })
+
   it('shows story, items, decision, payout, calculation steps and rationale', async () => {
     mockApi(routes('decided', { payment_id: 'PAY-1', status: 'paid', amount: 1150 }))
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')

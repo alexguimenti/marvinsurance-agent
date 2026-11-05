@@ -50,7 +50,15 @@ export default function ClaimDetail() {
       </div>
       {error && <p className="error">{error}</p>}
 
-      {data.status === 'awaiting_approval' && payment && (
+      {data.copy_of && (
+        <div className="notice notice-copy">
+          Evaluation copy of <Link to={`/claims/${data.copy_of}`}>{data.copy_of}</Link>, worked in{' '}
+          <Link to={`/scoreboard/${data.evaluation_id}`}>evaluation {data.evaluation_id}</Link>. Nobody signs off a copy: a
+          held approval counts as finished.
+        </div>
+      )}
+
+      {data.status === 'awaiting_approval' && payment && !data.copy_of && (
         <div className="notice">
           Held for approval: the payout of {formatUsd(payment.amount)} is above the $1,000 limit and waits for a handler.{' '}
           <Link to="/approvals">Go to approvals</Link>

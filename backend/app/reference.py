@@ -23,6 +23,10 @@ class Reference:
         self._dir = Path(data_dir)
         self._cache: dict[str, object] = {}
 
+    @property
+    def data_dir(self) -> Path:
+        return self._dir
+
     def read(self, name: str):
         if name not in ALLOWED_FILES:
             raise ValueError(f"{name!r} is not an allowed reference file")

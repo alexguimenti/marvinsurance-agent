@@ -46,6 +46,8 @@ claims = Table(
     Column("run_id", Integer),
     Column("thread_id", Text),
     Column("submitted_on", Text),  # the dispatcher works the oldest first
+    Column("copy_of", Text),  # an evaluation's copy: the claim it copies. Copies never show in the queue
+    Column("evaluation_id", Integer),
 )
 
 decisions = Table(
@@ -133,6 +135,30 @@ work_spans = Table(
     Column("run_id", Integer),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("seconds", Float, nullable=False),
+)
+
+# The answer key, seeded from the labelled sets. No claim operation reads these, and the agent never does: the backend
+# scores each evaluation from them. eval_sets says which claims an evaluation copies, and holds no decision.
+held_out_claims = Table(
+    "held_out_claims", metadata,
+    Column("claim_id", Text, primary_key=True),
+    Column("payload", Text, nullable=False),
+)
+
+eval_sets = Table(
+    "eval_sets", metadata,
+    Column("eval_set", Text, primary_key=True),
+    Column("claim_id", Text, primary_key=True),
+    Column("tiny", Boolean, nullable=False),
+)
+
+answer_key = Table(
+    "answer_key", metadata,
+    Column("eval_set", Text, primary_key=True),
+    Column("claim_id", Text, primary_key=True),
+    Column("decision", Text, nullable=False),
+    Column("payout", Float, nullable=False),
+    Column("reason", Text, nullable=False),
 )
 
 # Tables of the queue agent, gone with it. A reseed drops them from an older database.

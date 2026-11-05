@@ -3,7 +3,7 @@ The backend calls it to start a dispatch, and after each sign-off. It answers at
 import logging
 import threading
 from contextlib import asynccontextmanager
-from typing import Callable
+from typing import Callable, Literal
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -14,7 +14,7 @@ from agent.worker import AgentEnv, carry_on, open_env, signed_off_claims
 from app.config import Settings, get_settings
 from app.db import claims, init_schema, make_engine
 from app.reference import Reference
-from app import runs
+from app import evaluations, runs
 from app.seed import seed_claims
 
 log = logging.getLogger(__name__)
@@ -26,6 +26,12 @@ MAX_WORKERS = 25
 
 class DispatchBody(BaseModel):
     workers: int = Field(ge=1, le=MAX_WORKERS)  # claim agents at once
+
+
+class EvaluationBody(BaseModel):
+    eval_set: Literal["evaluation", "held_out"]
+    tiny: bool  # only the set's five tiny claims
+    workers: int = Field(ge=1, le=MAX_WORKERS)
 
 
 def prepare_database(settings: Settings) -> None:
@@ -125,6 +131,13 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
         effort = settings.reasoning_effort if settings.agent_provider == "openrouter" else None
         return start("dispatch", lambda env: runs.start_dispatch(env.engine, body.workers, env.model_id, effort),
                      body.workers)
+
+    @app.post("/evaluations", status_code=202, operation_id="start_evaluation")
+    def start_evaluation(body: EvaluationBody):
+        """Start an evaluation on copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
+        effort = settings.reasoning_effort if settings.agent_provider == "openrouter" else None
+        return start("evaluation", lambda env: evaluations.start_evaluation(
+            env.engine, env.ref, body.eval_set, body.tiny, body.workers, env.model_id, effort), body.workers)
 
     @app.post("/claims/{claim_id}/resume", status_code=202, operation_id="resume_claim")
     def resume_claim(claim_id: str):
