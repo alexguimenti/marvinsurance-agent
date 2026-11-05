@@ -5,6 +5,7 @@
   "scripts": {
     "check": "node scripts/check.mjs",
     "dev": "node scripts/dev.mjs",
-    "reseed": "node scripts/reseed.mjs"
+    "reseed": "node scripts/reseed.mjs",
+    "seed": "node scripts/reseed.mjs"
   }
 }

@@ -10,6 +10,8 @@ from pydantic_settings import BaseSettings, InitSettingsSource, SettingsConfigDi
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_FILE = ROOT / "agent.toml"
 DEFAULT_AGENT_URL = "http://127.0.0.1:8002"
+DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
+DEFAULT_EFFORT = "low"
 
 
 def _agent_toml() -> dict:
@@ -25,9 +27,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
     openrouter_api_key: str | None = None
-    agent_model: str = "deepseek/deepseek-v4.1-flash"
+    agent_model: str = DEFAULT_MODEL  # MODEL_NAME in the environment wins: see model_post_init
     agent_temperature: float = 0.0
-    agent_reasoning_effort: Literal["low", "medium", "high"] | None = "low"
     agent_max_attempts: int = Field(default=2, ge=1, le=10)  # attempts per claim before it is left for a handler
     agent_step_retries: int = Field(default=2, ge=0, le=5)  # retries of one model call (timeout, 429, 5xx)
     agent_claim_timeout_s: float = Field(default=300, gt=0)  # wall-clock limit for one claim attempt
@@ -44,6 +45,12 @@ class Settings(BaseSettings):
         # `npm run dev` passes these in the environment, and the tests never do.
         self.database_url = os.environ.get("DATABASE_URL") or None
         self.agent_url = os.environ.get("UNDERCOVER_AGENT") or DEFAULT_AGENT_URL
+        self.agent_model = os.environ.get("MODEL_NAME") or self.agent_model
+
+    @property
+    def reasoning_effort(self) -> str | None:
+        """Low for the default model. Any other model runs with no effort set, since not every model takes one."""
+        return DEFAULT_EFFORT if self.agent_model == DEFAULT_MODEL else None
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):

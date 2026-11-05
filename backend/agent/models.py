@@ -16,6 +16,6 @@ def chat_model(settings: Settings) -> ChatOpenAI:
         max_retries=settings.agent_step_retries,
         extra_body={
             "usage": {"include": True},  # OpenRouter then reports the dollar cost of each call
-            **({"reasoning": {"effort": settings.agent_reasoning_effort}} if settings.agent_reasoning_effort else {}),
+            **({"reasoning": {"effort": settings.reasoning_effort}} if settings.reasoning_effort else {}),
         },
     )

@@ -1,6 +1,7 @@
 # Which model the Marvin Agent uses, and how it thinks.
 # Safe to commit: no secrets here (the API key lives in .env).
-# Environment variables win over this file: AGENT_MODEL, AGENT_TEMPERATURE, AGENT_REASONING_EFFORT.
+# MODEL_NAME in the environment wins over `model`; AGENT_TEMPERATURE over `temperature`.
+# The default model runs with low reasoning effort. Any other model runs with none set.
 
 [agent]
 # Any model id from https://openrouter.ai/models (ids ending in ":batch" do not work).
@@ -8,9 +9,6 @@ model = "deepseek/deepseek-v4.1-flash"
 
 # 0 gives the most consistent decisions.
 temperature = 0
-
-# How hard a reasoning model thinks: "low", "medium" or "high".
-reasoning_effort = "low"
 
 # Attempts per claim. A claim that fails goes back in the queue; after this many failures
 # it is left for a handler.
