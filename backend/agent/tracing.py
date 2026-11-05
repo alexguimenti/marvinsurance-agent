@@ -42,13 +42,15 @@ def session_name(claim_id: str, thread_id: str) -> str:
     return f"{claim_id}:{thread_id}"
 
 
-def trace_config(claim_id: str, thread_id: str, model: str, handler_factory: Callable = _handler) -> dict:
-    """What a graph run needs for its traces to land in the claim's session."""
+def trace_config(claim_id: str, thread_id: str, model: str, run_id: int | None = None,
+                 handler_factory: Callable = _handler) -> dict:
+    """What a graph run needs for its traces to land in the claim's session, tagged with its run so that a whole
+    dispatch or evaluation can be found together."""
     config: dict = {
         "metadata": {
             "langfuse_session_id": session_name(claim_id, thread_id),
             "langfuse_trace_name": f"claim {claim_id}",
-            "langfuse_tags": [claim_id, model],
+            "langfuse_tags": [claim_id, model, *([f"run-{run_id}"] if run_id is not None else [])],
         }
     }
     if _enabled():

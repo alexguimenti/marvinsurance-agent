@@ -6,7 +6,7 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 
 def chat_model(settings: Settings) -> ChatOpenAI:
-    """The configured OpenRouter model, shared by the claim agent and the queue agent."""
+    """The configured OpenRouter model, for the claim agent."""
     return ChatOpenAI(
         model=settings.agent_model,
         api_key=settings.openrouter_api_key,

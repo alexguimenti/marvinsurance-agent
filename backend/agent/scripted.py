@@ -6,9 +6,6 @@ import re
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_core.tools import BaseTool
-
-from agent.events import Emit
 
 # Over-limit approvals, so the sign-off can be exercised.
 _OVER_LIMIT = {"CLM-1003": 3750.0, "CLM-1008": 2240.0, "CLM-1011": 1150.0}
@@ -61,36 +58,3 @@ class ScriptedChatModel(BaseChatModel):
             claim = json.loads(claim_text.removeprefix("<claim_data>").rstrip().removesuffix("</claim_data>"))
             call = {"name": "save_decision", "args": _decision(claim_id, claim["amount_claimed"]), "id": f"save-{claim_id}"}
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])
-
-
-class ScriptedQueueAgent:
-    """Works claims in id order. Never calls a model."""
-
-    model_id = "scripted"
-    usage = None
-
-    def run(self, tools: list[BaseTool], on_event: Emit, resuming: bool = False) -> None:
-        by_name = {t.name: t for t in tools}
-
-        def call(name: str, args: dict) -> str:
-            on_event("tool_call", {"name": name, "args": args})
-            result = by_name[name].invoke(args)
-            on_event("tool_result", {"name": name, "content": result})
-            return result
-
-        listed = json.loads(call("list_waiting_claims", {}))
-        room = None if listed["cap"] is None else listed["cap"] - listed["taken"]
-        plan = [c["claim_id"] for c in listed["claims"]][:room]
-        call("set_todo", {"items": [{"title": f"Work {cid}", "claim_id": cid} for cid in plan]})
-        reports = [call("work_claim", {"claim_id": cid}) for cid in plan]
-        for _ in range(3):  # claims that came back to the queue are worked again after the others
-            answer = call("finish_run", {"summary": self._summary(reports)})
-            if not answer.startswith("Not finished"):
-                return
-            owed = answer.split(": ", 1)[1].split(", ")
-            reports += [call("work_claim", {"claim_id": cid}) for cid in owed]
-
-    @staticmethod
-    def _summary(reports: list[str]) -> str:
-        latest = {line.split(":", 1)[0]: line for line in reports}
-        return f"Worked {len(latest)} claims.\n" + "\n".join(latest.values())

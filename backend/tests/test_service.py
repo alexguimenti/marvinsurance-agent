@@ -3,7 +3,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agent.service import create_service
-from agent.worker import open_env, work_claim
+from agent.dispatcher import dispatch
+from agent.worker import carry_on, open_env, work_claim
+from app import runs
 from app.api import create_app
 from app.claims import get_claim
 from app.config import Settings
@@ -32,28 +34,51 @@ def test_health(service):
     assert service.get("/health").status_code == 200
 
 
-def test_run_with_a_limit(service, db_path):
-    answer = service.post("/runs", json={"limit": 2})
-    assert answer.status_code == 202 and answer.json()["run_id"] == 1
-    rows = RawDb(engine_for(db_path)).execute("SELECT COUNT(*) FROM claims WHERE status != 'waiting'")
-    assert rows.fetchone()[0] == 2
+def test_service_starts_a_dispatch_with_n(service, db_path):
+    answer = service.post("/dispatches", json={"workers": 4})
+    assert answer.status_code == 202 and answer.json() == {"status": "started"}
+    engine = engine_for(db_path)
+    row = runs.latest_run(engine, "dispatch")
+    assert (row["status"], row["workers"], row["model"], row["reasoning_effort"]) == ("finished", 4, "scripted", "none")
+    rows = RawDb(engine).execute("SELECT COUNT(*) FROM claims WHERE status = 'waiting'")
+    assert rows.fetchone()[0] == 0
 
 
-def test_run_of_selected_claims(service, db_path):
-    assert service.post("/runs/selected", json={"claim_ids": ["CLM-1004"]}).status_code == 202
-    assert get_claim(engine_for(db_path), "CLM-1004")["status"] == "decided"
+@pytest.mark.parametrize("workers", [0, 26])
+def test_service_refuses_n_outside_1_to_25(service, workers):
+    assert service.post("/dispatches", json={"workers": workers}).status_code == 422
 
 
-def test_selected_run_needs_known_claims(service):
-    assert service.post("/runs/selected", json={"claim_ids": ["CLM-9999"]}).status_code == 404
-    assert service.post("/runs/selected", json={"claim_ids": []}).status_code == 422
-
-
-def test_second_run_while_one_is_alive_is_refused(service, db_path):
+def test_service_refuses_a_second_start_while_one_runs(service, db_path):
     RawDb(engine_for(db_path)).execute(
-        "INSERT INTO runs (status, model, heartbeat_at) VALUES ('running', 'm', CURRENT_TIMESTAMP)"
+        "INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')"
     )
-    assert service.post("/runs", json={"limit": 1}).status_code == 409
+    assert service.post("/dispatches", json={"workers": 3}).status_code == 409
+
+
+def test_service_start_marks_a_running_run_stopped(db_path, data_dir):
+    engine = engine_for(db_path)
+    init_schema(engine)
+    RawDb(engine).execute(
+        "INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')"
+    )
+    with TestClient(create_service(make_settings(db_path, data_dir), inline=True)) as service:
+        assert runs.get_run(engine, 1)["status"] == "stopped"
+        assert service.post("/dispatches", json={"workers": 3}).status_code == 202
+
+
+def test_a_sign_off_during_a_dispatch_is_paid_and_not_taken_twice(db_path, data_dir):
+    """The resume holds CLM-1003 while the dispatch runs: the dispatch leaves it to the resume, which pays it."""
+    engine = hold(db_path, data_dir)
+    sign_off(engine, Reference(data_dir), "PAY-CLM-1003", "HND-01")
+    with open_env(make_settings(db_path, data_dir)) as env:
+        with env.working("CLM-1003"):
+            run_id = runs.start_dispatch(env.engine, 3, env.model_id, None)
+            dispatch(env, run_id, 3)
+        assert "CLM-1003" not in runs.run_claim_ids(env.engine, run_id)
+        carry_on(env, "CLM-1003")
+    assert get_payment(engine, "CLM-1003").status == "paid"
+    assert RawDb(engine).execute("SELECT COUNT(*) FROM decisions WHERE claim_id='CLM-1003'").fetchone()[0] == 1
 
 
 def hold(db_path, data_dir):
@@ -116,7 +141,7 @@ def test_a_full_sign_off_through_backend_and_service(db_path, data_dir):
     settings = make_settings(db_path, data_dir)
     with TestClient(create_service(settings, inline=True)) as service:
         with TestClient(create_app(settings, http=service)) as backend:
-            backend.post("/runs/selected", json={"claim_ids": ["CLM-1003"]})
+            backend.post("/dispatches", json={"workers": 3})
             assert backend.get("/claims/CLM-1003").json()["status"] == "awaiting_approval"
             answer = backend.post("/payments/PAY-CLM-1003/approve", json={"handler_id": "HND-01"})
             assert answer.status_code == 200 and answer.json()["status"] == "signed_off"
@@ -172,11 +197,11 @@ def test_a_repeated_sign_off_does_not_call_the_service_again(db_path, data_dir):
     assert len(seen) == 2  # a retry is harmless and helps if the first call was lost
 
 
-def test_run_with_no_agent_is_503(db_path, data_dir):
+def test_a_dispatch_with_no_agent_is_503(db_path, data_dir):
     with TestClient(create_app(make_settings(db_path, data_dir), http=Down())) as backend:
-        answer = backend.post("/runs", json={"limit": 1})
+        answer = backend.post("/dispatches", json={"workers": 3})
         assert answer.status_code == 503 and "not running" in answer.json()["detail"]
-        assert backend.get("/runs/latest").json()["run"] is None
+        assert backend.get("/dispatches/latest").json()["run"] is None
 
 
 @pytest.mark.parametrize("make", [

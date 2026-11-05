@@ -234,9 +234,9 @@ def test_after_the_pause_the_trace_goes_in_the_same_session(env_for, monkeypatch
     sessions = []
     real = worker_module.trace_config
 
-    def spy(claim_id, thread_id, model):
+    def spy(claim_id, thread_id, model, run_id):
         sessions.append((claim_id, thread_id))
-        return real(claim_id, thread_id, model)
+        return real(claim_id, thread_id, model, run_id)
 
     monkeypatch.setattr(worker_module, "trace_config", spy)
     work_claim(env, CLAIM)
@@ -260,7 +260,7 @@ def test_unknown_claim_is_not_worked(env_for):
 
 def test_trace_events_carry_the_run_id(env_for):
     env, _ = env_for()
-    raw(env).execute("INSERT INTO runs (status, model) VALUES ('running', 'm')")
+    raw(env).execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
     work_claim(env, CLAIM, run_id=1)
     assert {r[0] for r in raw(env).execute("SELECT run_id FROM trace_events")} == {1}
     assert claim(env)["run_id"] == 1

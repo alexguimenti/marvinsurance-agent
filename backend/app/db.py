@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Engine,
@@ -44,6 +45,7 @@ claims = Table(
     Column("last_error", Text),
     Column("run_id", Integer),
     Column("thread_id", Text),
+    Column("submitted_on", Text),  # the dispatcher works the oldest first
 )
 
 decisions = Table(
@@ -87,20 +89,29 @@ payments = Table(
 runs = Table(
     "runs", metadata,
     Column("run_id", Integer, primary_key=True, autoincrement=True),
-    Column("status", Text, nullable=False),
-    Column("cap", Integer),
-    Column("scope", Text),
+    Column("kind", Text, nullable=False),  # dispatch or evaluation
+    Column("status", Text, nullable=False),  # running, finished, or stopped when its process went
+    Column("workers", Integer, nullable=False),  # N: claim agents at once
     Column("model", Text, nullable=False),
-    Column("summary", Text),
+    Column("reasoning_effort", Text, nullable=False),  # "none" when none was sent
+    Column("eval_set", Text),
+    Column("tiny", Boolean),
     Column("error", Text),
-    Column("usage", Text),
-    _timestamp("heartbeat_at", default=False),
     _timestamp("started_at"),
     _timestamp("finished_at", default=False),
 )
 # One run at a time holds across processes, whoever asks.
 Index("one_running_run", runs.c.status, unique=True,
       sqlite_where=runs.c.status == "running", postgresql_where=runs.c.status == "running")
+
+run_claims = Table(
+    "run_claims", metadata,
+    Column("run_id", Integer, primary_key=True),
+    Column("claim_id", Text, primary_key=True),
+    Column("position", Integer, nullable=False),
+    _timestamp("started_at", default=False),
+    _timestamp("finished_at", default=False),
+)
 
 model_calls = Table(
     "model_calls", metadata,
@@ -124,26 +135,8 @@ work_spans = Table(
     Column("seconds", Float, nullable=False),
 )
 
-todo_items = Table(
-    "todo_items", metadata,
-    Column("item_id", Integer, primary_key=True, autoincrement=True),
-    Column("run_id", Integer, nullable=False),
-    Column("position", Integer, nullable=False),
-    Column("title", Text, nullable=False),
-    Column("status", Text, nullable=False),
-    Column("claim_id", Text),
-    Column("note", Text),
-)
-
-run_events = Table(
-    "run_events", metadata,
-    Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("run_id", Integer, nullable=False),
-    Column("seq", Integer, nullable=False),
-    Column("kind", Text, nullable=False),
-    Column("content", Text, nullable=False),
-    _timestamp("created_at"),
-)
+# Tables of the queue agent, gone with it. A reseed drops them from an older database.
+LEGACY_TABLES = ("todo_items", "run_events")
 
 
 def make_engine(settings: Settings, max_connections: int) -> Engine:
@@ -238,3 +231,6 @@ def iso(value: datetime | None) -> str | None:
 
 def drop_tables(engine: Engine) -> None:
     metadata.drop_all(engine)
+    with engine.begin() as conn:
+        for name in LEGACY_TABLES:
+            conn.execute(text(f"DROP TABLE IF EXISTS {name}"))

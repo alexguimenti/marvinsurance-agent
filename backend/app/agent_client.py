@@ -27,7 +27,8 @@ def notify_sign_off(http, url: str, claim_id: str) -> None:
         log.warning("the agent did not hear about the sign-off of %s: %s", claim_id, exc)
 
 
-def start_run(http, url: str, path: str, body: dict) -> dict:
+def start(http, url: str, path: str, body: dict) -> dict:
+    """Ask the service to start a dispatch or an evaluation. It answers at once, or refuses while one runs."""
     try:
         answer = http.post(f"{url}{path}", json=body, timeout=10)
     except httpx.HTTPError as exc:

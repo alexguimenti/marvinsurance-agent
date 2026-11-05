@@ -6,7 +6,7 @@ from app.documents import documents_for
 from app.reference import Reference
 
 
-def load_instructions(name: Literal["claim", "run"]) -> str:
+def load_instructions(name: Literal["claim"]) -> str:
     return (Path(__file__).parent / f"instructions_{name}.md").read_text(encoding="utf-8")
 
 

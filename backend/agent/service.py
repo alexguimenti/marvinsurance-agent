@@ -1,5 +1,5 @@
 """The agent's entry point as a web service, separate from the app: `uvicorn agent.service:app --port 8002`.
-The backend calls it to start runs, and after each sign-off."""
+The backend calls it to start a dispatch, and after each sign-off. It answers at once and works in the background."""
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -9,25 +9,23 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from agent.queue import begin_run, work_run
+from agent.dispatcher import dispatch
 from agent.worker import AgentEnv, carry_on, open_env, signed_off_claims
-from app.claims import get_claim
 from app.config import Settings, get_settings
 from app.db import claims, init_schema, make_engine
 from app.reference import Reference
-from app.runs import RunActive
+from app import runs
 from app.seed import seed_claims
 
 log = logging.getLogger(__name__)
 SWEEP_S = 30
 
 
-class RunLimit(BaseModel):
-    limit: int = Field(ge=1)
+MAX_WORKERS = 25
 
 
-class SelectedClaims(BaseModel):
-    claim_ids: list[str] = Field(min_length=1)
+class DispatchBody(BaseModel):
+    workers: int = Field(ge=1, le=MAX_WORKERS)  # claim agents at once
 
 
 def prepare_database(settings: Settings) -> None:
@@ -62,6 +60,7 @@ def sweep_signed_off(env: AgentEnv) -> None:
 def create_service(settings: Settings, inline: bool = False) -> FastAPI:
     """With inline, work happens before a call returns, which is what tests want."""
     holder: dict[str, AgentEnv] = {}
+    busy = threading.Lock()  # one dispatch or evaluation at a time in this process; the runs table holds it across
 
     def in_background(name: str, work: Callable, *args) -> None:
         def guarded() -> None:
@@ -81,6 +80,8 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
         prepare_database(settings)
         with open_env(settings) as env:
             holder["env"] = env
+            for run_id in runs.stop_running(env.engine):  # whatever said running lost its process: this one
+                log.warning("run %s was stopped when the service stopped; the next dispatch carries on its claims", run_id)
             # A sign-off is already a person's decision and costs no model call. Stopped work waits for a run.
             in_background("sweep at start", sweep_signed_off, env)
             stop = threading.Event()
@@ -95,37 +96,35 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
 
     app = FastAPI(title="Marvin Agent service", lifespan=lifespan)
 
-    def start(limit: int | None, claim_ids: list[str] | None) -> dict:
+    def start(name: str, create: Callable[[AgentEnv], int], workers: int) -> dict:
+        """Answer at once: refuse while a run is going, or create the run and work it in the background."""
         env = holder["env"]
-        try:
-            run_id, adopted = begin_run(env, limit, claim_ids)
-        except RunActive as exc:
-            raise HTTPException(409, str(exc))
-        in_background(f"run {run_id}", work_run, env, run_id, adopted)
-        return {"run_id": run_id}
+        if not busy.acquire(blocking=False):
+            raise HTTPException(409, "a dispatch or evaluation is already running")
+        if runs.running_run(env.engine) is not None:
+            busy.release()
+            raise HTTPException(409, "a dispatch or evaluation is already running")
+
+        def go() -> None:
+            try:
+                dispatch(env, create(env), workers)
+            finally:
+                busy.release()
+
+        in_background(name, go)
+        return {"status": "started"}
 
     @app.get("/health", operation_id="get_agent_health")
     def health():
         """Say that the agent is up."""
         return {"status": "ok"}
 
-    @app.post("/runs", status_code=202, operation_id="start_run")
-    def start_run(body: RunLimit):
-        """Start a run over the waiting claims, up to a limit, after carrying on unfinished work."""
-        return start(body.limit, None)
-
-    @app.post("/runs/selected", status_code=202, operation_id="start_selected_run")
-    def start_selected_run(body: SelectedClaims):
-        """Start a run limited to the given claims, after carrying on unfinished work."""
-        for claim_id in body.claim_ids:
-            _known(claim_id)
-        return start(None, body.claim_ids)
-
-    def _known(claim_id: str) -> dict:
-        try:
-            return get_claim(holder["env"].engine, claim_id)
-        except LookupError:
-            raise HTTPException(404, f"unknown claim {claim_id}")
+    @app.post("/dispatches", status_code=202, operation_id="start_dispatch")
+    def start_dispatch(body: DispatchBody):
+        """Start a dispatch of every claim in progress and every waiting claim, with N claim agents at once."""
+        effort = settings.reasoning_effort if settings.agent_provider == "openrouter" else None
+        return start("dispatch", lambda env: runs.start_dispatch(env.engine, body.workers, env.model_id, effort),
+                     body.workers)
 
     @app.post("/claims/{claim_id}/resume", status_code=202, operation_id="resume_claim")
     def resume_claim(claim_id: str):

@@ -1,5 +1,4 @@
 """Each claim run saves its progress through a saver of its own, and claim agents wait for a connection."""
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -10,7 +9,7 @@ from agent.worker import work_claim
 from app.claims import get_claim
 from app.config import Settings
 from app.db import make_engine
-from tests.fakes import StubModel, agent_env, approve, stub
+from tests.fakes import agent_env, approve, counting_stub, stub
 
 
 @pytest.fixture
@@ -24,27 +23,8 @@ def test_each_claim_run_gets_a_saver_of_its_own(env):
         assert a.checkpointer is not b.checkpointer
 
 
-class SlowStub(StubModel):
-    """Takes its time over every reply, and counts how many replies are being written at once."""
-
-    running: int = 0
-    peak: int = 0
-    lock: object = None
-
-    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        with self.lock:
-            self.running += 1
-            self.peak = max(self.peak, self.running)
-        try:
-            time.sleep(0.2)
-            return super()._generate(messages, stop, run_manager, **kwargs)
-        finally:
-            with self.lock:
-                self.running -= 1
-
-
 def test_two_claims_worked_at_once_both_finish(db_path, data_dir):
-    model = SlowStub(outcomes={}, default=approve(100.0), asked=[], shown=[], current={}, calls=0, lock=threading.Lock())
+    model = counting_stub(seconds=0.2, default=approve(100.0))
     with agent_env(db_path, data_dir, model) as env:
         with ThreadPoolExecutor(2) as pool:
             lines = list(pool.map(lambda c: work_claim(env, c), ["CLM-1001", "CLM-1002"]))

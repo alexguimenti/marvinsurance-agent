@@ -18,7 +18,7 @@ from app.config import Settings
 from app.db import claims, make_engine, payments, warm_up
 from app.payments import get_payment
 from app.reference import Reference
-from app.runs import add_trace_event, todo_for_claim
+from app.runs import add_trace_event
 from app.usage import record_work_time
 
 RECORD_CONNECTIONS = 2  # with the checkpointer's 2, the 4 a process may use
@@ -58,6 +58,10 @@ class AgentEnv:
 
     def close(self) -> None:
         self._stack.close()
+
+    def is_working(self, claim_id: str) -> bool:
+        with self._lock:
+            return claim_id in self._working
 
     @contextmanager
     def working(self, claim_id: str) -> Iterator[bool]:
@@ -104,7 +108,7 @@ def _config(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None) ->
         "configurable": {"thread_id": thread_id, "run_id": run_id,
                          "deadline": time.monotonic() + env.settings.agent_claim_timeout_s},
         "recursion_limit": 3 * env.settings.agent_max_model_calls + 10,  # model, tools, tools_done per call
-        **trace_config(claim_id, thread_id, env.model_id),
+        **trace_config(claim_id, thread_id, env.model_id, run_id),
     }
 
 
@@ -123,7 +127,7 @@ def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input, run_id: in
 
 
 def _report(env: AgentEnv, claim_id: str) -> str:
-    """The one line the queue agent gets, from the records."""
+    """The claim's outcome in one line, from the records."""
     claim = get_claim(env.engine, claim_id)
     decision = claim["decision"]
     if decision["decision"] != "approve":
@@ -143,10 +147,8 @@ def _fail(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, atte
         ))
     then = "It goes back in the queue." if status == "waiting" else "It is left for a handler."
     add_trace_event(env.engine, claim_id, "error", {"message": f"Attempt {attempt} of {max_attempts} failed ({message}). {then}"})
-    if run_id is not None:
-        todo_for_claim(env.engine, run_id, claim_id, "todo" if status == "waiting" else "left_for_handler", message)
     if status == "waiting":
-        return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). It is back in the queue: try it again after the others."
+        return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). It is back in the queue."
     return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). Left for a handler."
 
 
@@ -165,13 +167,8 @@ def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, att
         # The decision stands, so this must not start again: the next run carries on from the failed step.
         message = f"{type(exc).__name__}: {exc}"
         add_trace_event(env.engine, claim_id, "error", {"message": f"{message}. The decision stands; the next run carries on from here."})
-        if run_id is not None:
-            todo_for_claim(env.engine, run_id, claim_id, "in_progress", message)
-        return f"{claim_id}: an error after the decision ({message}). The next run carries it on; do not try it again."
-    line = _report(env, claim_id)
-    if run_id is not None:
-        todo_for_claim(env.engine, run_id, claim_id, "done", line.partition(": ")[2])
-    return line
+        return f"{claim_id}: an error after the decision ({message}). The next run carries it on."
+    return _report(env, claim_id)
 
 
 def work_claim(env: AgentEnv, claim_id: str, run_id: int | None = None, max_attempts: int = 2) -> str:
@@ -193,8 +190,6 @@ def work_claim(env: AgentEnv, claim_id: str, run_id: int | None = None, max_atte
         if not free:
             return f"{claim_id}: not worked, it is already being worked."
         add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "model": env.model_id, "attempt": attempt})
-        if run_id is not None:
-            todo_for_claim(env.engine, run_id, claim_id, "in_progress")
         return _drive(env, claim_id, thread_id, run_id, attempt, max_attempts, {"claim_id": claim_id})
 
 
@@ -226,6 +221,9 @@ def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
                 graph_input = None
             else:
                 return _report(env, claim_id)  # it had finished; only the last report was lost
+            if run_id is not None:  # its steps are traced under the run carrying it on
+                with env.engine.begin() as conn:
+                    conn.execute(update(claims).where(claims.c.claim_id == claim_id).values(run_id=run_id))
             add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "note": "carried on"})
         attempt = claim["attempts"] + 1
         return _drive(env, claim_id, thread_id, run_id, attempt, env.settings.agent_max_attempts, graph_input)

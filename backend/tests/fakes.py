@@ -1,4 +1,6 @@
 import re
+import threading
+import time
 from contextlib import contextmanager
 
 from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
@@ -116,6 +118,9 @@ class Stopped(BaseException):
     """Stands in for a kill or Ctrl-C: like them, it is no ordinary error."""
 
 
+_STUB_LOCK = threading.RLock()
+
+
 class StubModel(BaseChatModel):
     """A claim model with no network. Each claim plays its outcomes in order, one per attempt; an outcome is one
     step or a list of steps, one per model call. A step is a decision (dict), an AIMessage, or an exception to raise.
@@ -138,6 +143,11 @@ class StubModel(BaseChatModel):
         return self
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        # Claim agents call one stub from many threads, and its bookkeeping is shared: one at a time.
+        with _STUB_LOCK:
+            return self._step(messages)
+
+    def _step(self, messages) -> ChatResult:
         self.calls += 1
         self.shown.append(list(messages))
         claim_id = re.search(r"Decide claim (\S+)\.", next(m.content for m in messages if m.type == "human"))[1]
@@ -168,6 +178,32 @@ class StubModel(BaseChatModel):
 
 def stub(outcomes: dict | None = None, default=None) -> StubModel:
     return StubModel(outcomes=outcomes or {}, default=default, asked=[], shown=[], current={}, calls=0)
+
+
+class CountingStub(StubModel):
+    """Takes its time over every reply, and counts how many replies are being written at once."""
+
+    seconds: float = 0.05
+    running: int = 0
+    peak: int = 0
+    lock: object = None
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        with self.lock:
+            self.running += 1
+            self.peak = max(self.peak, self.running)
+        try:
+            time.sleep(self.seconds)
+            with self.lock:  # the stub's own bookkeeping is not thread-safe
+                return super()._generate(messages, stop, run_manager, **kwargs)
+        finally:
+            with self.lock:
+                self.running -= 1
+
+
+def counting_stub(seconds: float = 0.05, outcomes: dict | None = None, default=None) -> CountingStub:
+    return CountingStub(outcomes=outcomes or {}, default=default, asked=[], shown=[], current={}, calls=0,
+                        seconds=seconds, lock=threading.Lock())
 
 
 @contextmanager

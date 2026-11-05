@@ -1,5 +1,6 @@
 import json
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -41,8 +42,8 @@ def test_get_unknown_claim_404(client):
     assert client.get("/claims/CLM-9999/trace").status_code == 404
 
 
-def test_one_named_claim_then_detail_shows_decision(client):
-    assert client.post("/runs/selected", json={"claim_ids": ["CLM-1001"]}).status_code == 202
+def test_a_dispatch_then_detail_shows_decision(client):
+    assert client.post("/dispatches", json={"workers": 3}).status_code == 202
     detail = client.get("/claims/CLM-1001").json()
     assert detail["status"] == "decided"
     assert detail["decision"]["decision"] == "approve"
@@ -57,71 +58,59 @@ def test_one_named_claim_then_detail_shows_decision(client):
     assert trace[-1]["content"]["status"] == "paid"
 
 
-def test_post_runs_with_limit_works_that_many(client):
-    resp = client.post("/runs", json={"limit": 3})
-    assert resp.status_code == 202 and resp.json()["run_id"] == 1
-    assert list(statuses(client).values()).count("waiting") == 22
-    latest = client.get("/runs/latest").json()
-    assert latest["run"]["status"] == "finished" and latest["run"]["cap"] == 3
-    assert latest["run"]["summary"]
-    assert [i["status"] for i in latest["todo"]] == ["done"] * 3
-
-
-def test_post_runs_with_claim_ids(client):
-    client.post("/runs/selected", json={"claim_ids": ["CLM-1002", "CLM-1001"]})
-    s = statuses(client)
-    assert s["CLM-1001"] == "decided" and s["CLM-1002"] == "decided"
-    assert s["CLM-1003"] == "waiting"
-
-
-def test_a_limit_of_every_claim_works_the_whole_queue(client):
-    client.post("/runs", json={"limit": 25})
+def test_a_dispatch_works_the_whole_queue(client):
+    client.post("/dispatches", json={"workers": 5})
     values = list(statuses(client).values())
     assert values.count("awaiting_approval") == 3
-    assert values.count("needs_handler") == 1
-    assert values.count("decided") == 21
+    assert values.count("needs_handler") == 1  # CLM-1013 fails every time
+    assert values.count("decided") == 21  # CLM-1017 fails once and is tried again in the same dispatch
 
 
-def test_second_run_conflicts(client, db_path):
-    conn = connect(db_path)
-    conn.execute("INSERT INTO runs (status, model, heartbeat_at) VALUES ('running', 'm', CURRENT_TIMESTAMP)")
-    resp = client.post("/runs", json={"limit": 1})
-    assert resp.status_code == 409 and "already in progress" in resp.json()["detail"]
+def test_backend_forwards_n_to_the_service(db_path, data_dir):
+    class Recorder:
+        calls = []
+
+        def post(self, url, json=None, timeout=None):
+            self.calls.append((url, json))
+            return httpx.Response(202, json={"status": "started"})
+
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Recorder())) as backend:
+        assert backend.post("/dispatches", json={"workers": 3}).status_code == 202
+    assert Recorder.calls == [("http://127.0.0.1:8002/dispatches", {"workers": 3})]
 
 
-def test_post_runs_unknown_claim_404(client):
-    assert client.post("/runs/selected", json={"claim_ids": ["CLM-1001", "CLM-9999"]}).status_code == 404
-    assert statuses(client)["CLM-1001"] == "waiting"
+@pytest.mark.parametrize("workers", [0, 26])
+def test_workers_outside_1_to_25_are_refused(client, workers):
+    assert client.post("/dispatches", json={"workers": workers}).status_code == 422
 
 
-def test_post_runs_limit_zero_422(client):
-    assert client.post("/runs", json={"limit": 0}).status_code == 422
+def test_a_second_dispatch_conflicts(client, db_path):
+    connect(db_path).execute(
+        "INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
+    resp = client.post("/dispatches", json={"workers": 3})
+    assert resp.status_code == 409 and "already running" in resp.json()["detail"]
 
 
-def test_runs_latest_empty(client):
-    assert client.get("/runs/latest").json() == {"run": None, "todo": []}
+def test_latest_dispatch_empty(client):
+    assert client.get("/dispatches/latest").json() == {"run": None, "claims": [], "totals": None, "summary": None}
 
 
-def test_run_by_id_has_events_and_unknown_is_404(client):
-    client.post("/runs", json={"limit": 1})
-    run = client.get("/runs/1").json()
-    assert run["run"]["run_id"] == 1 and run["events"] and len(run["todo"]) == 1
-    assert client.get("/runs/99").status_code == 404
+def test_latest_dispatch_shows_its_claims_summary_and_totals(client):
+    client.post("/dispatches", json={"workers": 5})
+    latest = client.get("/dispatches/latest").json()
+    assert (latest["run"]["status"], latest["run"]["workers"], latest["run"]["kind"]) == ("finished", 5, "dispatch")
+    assert len(latest["claims"]) == 25 and all(c["started_at"] for c in latest["claims"])
+    assert [p["claim_id"] for p in latest["summary"]["awaiting_sign_off"]] == ["CLM-1003", "CLM-1008", "CLM-1011"]
+    assert latest["summary"]["left_for_handler"] == ["CLM-1013"]
+    assert latest["totals"]["calls"] > 0 and "seconds" in latest["totals"]
 
 
-def test_needs_handler_claim_after_run(client):
-    client.post("/runs/selected", json={"claim_ids": ["CLM-1013"]})
+def test_needs_handler_claim_after_a_dispatch(client):
+    client.post("/dispatches", json={"workers": 3})
     detail = client.get("/claims/CLM-1013").json()
     assert detail["status"] == "needs_handler"
     assert detail["attempts"] == 2 and "scripted failure" in detail["last_error"]
     assert detail["decision"] is None
-    assert client.get("/runs/latest").json()["todo"][0]["status"] == "left_for_handler"
-
-
-def test_claim_failing_once_is_decided_in_the_same_run(client):
-    client.post("/runs/selected", json={"claim_ids": ["CLM-1017"]})
-    detail = client.get("/claims/CLM-1017").json()
-    assert detail["status"] == "decided" and detail["attempts"] == 1
 
 
 def read_with(db_path, data_dir, *reads):
@@ -145,11 +134,6 @@ def test_a_refused_read_is_not_listed(db_path, data_dir):
     assert read_with(db_path, data_dir, ("claims_manual", 99)) == []
 
 
-def test_post_runs_with_an_empty_claim_list_422(client):
-    assert client.post("/runs/selected", json={"claim_ids": []}).status_code == 422
-    assert client.get("/runs/latest").json()["run"] is None
-
-
 def test_claim_usage_sums_every_attempt_and_its_time(client, db_path):
     conn = connect(db_path)
     for run_id, cost in ((1, 0.002), (2, 0.0015)):  # a failed attempt in one run, the decision in the next
@@ -163,7 +147,7 @@ def test_claim_usage_sums_every_attempt_and_its_time(client, db_path):
 
 
 def test_sign_off_is_recorded_and_the_agent_pays(client):
-    client.post("/runs", json={"limit": 25})
+    client.post("/dispatches", json={"workers": 5})
     held = client.get("/approvals").json()
     assert {h["claim_id"] for h in held} == {"CLM-1003", "CLM-1008", "CLM-1011"}
     pid = held[0]["payment_id"]
@@ -176,7 +160,7 @@ def test_sign_off_is_recorded_and_the_agent_pays(client):
 
 
 def test_approve_with_unauthorized_handler_403(client):
-    client.post("/runs", json={"limit": 25})
+    client.post("/dispatches", json={"workers": 5})
     pid = client.get("/approvals").json()[0]["payment_id"]
     assert client.post(f"/payments/{pid}/approve", json={"handler_id": "HND-99"}).status_code == 403
     assert len(client.get("/approvals").json()) == 3
@@ -191,9 +175,9 @@ def test_handlers_lists_approvers(client):
     assert ids == ["HND-01", "HND-02", "HND-03"]
 
 
-def test_instructions_returns_both_as_the_agents_receive_them(client):
+def test_instructions_are_the_claim_agents_as_it_receives_them(client):
     got = client.get("/instructions").json()
-    assert got["run"] == load_instructions("run")
+    assert set(got) == {"claim"}
     assert got["claim"].startswith(load_instructions("claim"))
     assert "Claims manual: 1. Purpose and scope" in got["claim"]  # the section index the claim agent is given
 
@@ -216,20 +200,9 @@ def test_backend_restart_changes_nothing(db_path, data_dir):
     with TestClient(create_app(settings)):
         pass
     conn = connect(db_path)
-    conn.execute("INSERT INTO runs (status, model) VALUES ('running', 'm')")
+    conn.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
     conn.execute("UPDATE claims SET status='in_progress', run_id=1, thread_id='CLM-1001-1' WHERE claim_id='CLM-1001'")
 
-    with TestClient(create_app(settings)) as client:  # a stopped run is the next run's to finish, not the backend's
-        assert client.get("/runs/latest").json()["run"]["status"] == "running"
+    with TestClient(create_app(settings)) as client:  # marking a stopped run is the service's job, not the backend's
+        assert client.get("/dispatches/latest").json()["run"]["status"] == "running"
         assert client.get("/claims/CLM-1001").json()["status"] == "in_progress"
-
-
-def test_a_run_says_whether_its_process_is_alive(client, db_path):
-    assert client.post("/runs", json={"limit": 1}).status_code == 202
-    assert client.get("/runs/latest").json()["run"]["alive"] is False  # finished
-    conn = connect(db_path)
-    conn.execute("INSERT INTO runs (status, model, heartbeat_at) VALUES ('running', 'm', CURRENT_TIMESTAMP)")
-    assert client.get("/runs/latest").json()["run"]["alive"] is True
-    conn.execute("UPDATE runs SET heartbeat_at = NULL WHERE status = 'running'")
-    run = client.get("/runs/latest").json()["run"]
-    assert run["status"] == "running" and run["alive"] is False  # stopped: the next run finishes it

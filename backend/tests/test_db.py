@@ -19,7 +19,7 @@ def test_tables_exist_after_init(db_path):
     conn = connect(db_path)
     init_schema(conn.engine)
     init_schema(conn.engine)  # twice is harmless
-    assert {"claims", "decisions", "trace_events", "payments", "runs", "todo_items", "run_events"} <= set(
+    assert {"claims", "decisions", "trace_events", "payments", "runs", "run_claims", "model_calls", "work_spans"} <= set(
         inspect(conn.engine).get_table_names()
     )
 
@@ -60,11 +60,10 @@ def test_only_one_run_can_be_running(db_path):
     conn = connect(db_path)
     init_schema(conn.engine)
     with conn.engine.begin() as c:
-        c.execute(insert(runs).values(status="finished", model="m"))
-        c.execute(insert(runs).values(status="finished", model="m"))
-        c.execute(insert(runs).values(status="running", model="m"))
-    with pytest.raises(IntegrityError), conn.engine.begin() as c:
-        c.execute(insert(runs).values(status="running", model="m"))
+        for status in ("finished", "stopped", "running"):
+            c.execute(insert(runs).values(kind="dispatch", status=status, workers=3, model="m", reasoning_effort="none"))
+    with pytest.raises(IntegrityError), conn.engine.begin() as c:  # an evaluation counts too
+        c.execute(insert(runs).values(kind="evaluation", status="running", workers=3, model="m", reasoning_effort="none"))
 
 
 def test_reseed_leaves_every_claim_waiting_and_nothing_else(db_path, data_dir):
@@ -72,16 +71,20 @@ def test_reseed_leaves_every_claim_waiting_and_nothing_else(db_path, data_dir):
     init_schema(conn.engine)
     conn.execute("INSERT INTO claims (claim_id, status, payload, attempts, last_error, run_id) "
                  "VALUES ('CLM-1001', 'needs_handler', '{}', 2, 'boom', 1)")
-    conn.execute("INSERT INTO runs (status, model) VALUES ('finished', 'm')")
-    conn.execute("INSERT INTO todo_items (run_id, position, title, status) VALUES (1, 1, 't', 'done')")
-    conn.execute("INSERT INTO run_events (run_id, seq, kind, content) VALUES (1, 1, 'k', '{}')")
+    conn.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'finished', 3, 'm', 'none')")
+    conn.execute("INSERT INTO run_claims (run_id, claim_id, position) VALUES (1, 'CLM-1001', 1)")
+    conn.execute("INSERT INTO model_calls (claim_id, run_id, model, input_tokens, output_tokens, reasoning_tokens) "
+                 "VALUES ('CLM-1001', 1, 'm', 1, 1, 0)")
+    conn.execute("CREATE TABLE todo_items (item_id INTEGER PRIMARY KEY)")  # the queue agent's, from an older database
     conn.execute("INSERT INTO payments (payment_id, claim_id, amount, status) VALUES ('P', 'CLM-1001', 1, 'paid')")
     conn.execute("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model) "
                  "VALUES ('CLM-1001', 'decline', 0, '[]', 'r', '[]', 'm')")
 
     assert reseed(conn.engine, Reference(data_dir)) == 25
 
-    for table in ("runs", "todo_items", "run_events", "payments", "decisions", "trace_events"):
+    tables = set(inspect(conn.engine).get_table_names())
+    assert "todo_items" not in tables and "run_events" not in tables
+    for table in ("runs", "run_claims", "model_calls", "work_spans", "payments", "decisions", "trace_events"):
         assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0, table
     assert {tuple(r) for r in conn.execute("SELECT status, attempts, last_error, run_id FROM claims").fetchall()} == {
         ("waiting", 0, None, None)

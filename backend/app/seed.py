@@ -9,7 +9,8 @@ from app.reference import Reference
 def seed_claims(engine: Engine, ref: Reference) -> int:
     with engine.begin() as conn:
         conn.execute(insert_or_ignore(conn, claims).values(
-            [{"claim_id": c["claim_id"], "status": "waiting", "payload": json.dumps(c)} for c in ref.claims]
+            [{"claim_id": c["claim_id"], "status": "waiting", "payload": json.dumps(c), "submitted_on": c["submitted_on"]}
+             for c in ref.claims]
         ))
         return conn.execute(select(func.count()).select_from(claims)).scalar_one()
 

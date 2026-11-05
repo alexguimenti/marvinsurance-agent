@@ -2,7 +2,6 @@ import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from datetime import datetime, timezone
 from typing import Mapping
 
 import httpx
@@ -10,7 +9,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from agent.prompts import claim_prompt, load_instructions
+from agent.prompts import claim_prompt
 from app import agent_client, runs
 from app.config import Settings
 from app.db import (
@@ -29,7 +28,7 @@ from app.payments import sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.seed import seed_claims
-from app.usage import claim_totals
+from app.usage import claim_totals, run_totals
 
 # How the claim agent traces a section it read: "[claims_manual section 7: Interpretation notes, 5000 characters]".
 # Refused reads (errors, rereads, past the cap) are traced as plain text and do not match.
@@ -47,12 +46,8 @@ class PayoutBody(BaseModel):
     benefit_max: float | None
 
 
-class RunLimit(BaseModel):
-    limit: int = Field(ge=1)
-
-
-class SelectedClaims(BaseModel):
-    claim_ids: list[str] = Field(min_length=1)
+class DispatchBody(BaseModel):
+    workers: int = Field(ge=1, le=25)  # claim agents at once
 
 
 def _decision(row: Mapping | None) -> dict | None:
@@ -72,13 +67,7 @@ def _decision(row: Mapping | None) -> dict | None:
 
 
 def _run(row: Mapping | None) -> dict | None:
-    if row is None:
-        return None
-    out = {k: row[k] for k in ("run_id", "status", "cap", "model", "summary", "error")}
-    out["started_at"], out["finished_at"] = iso(row["started_at"]), iso(row["finished_at"])
-    out["usage"] = json.loads(row["usage"]) if row["usage"] else None
-    out["alive"] = row["status"] == "running" and runs.is_alive(row, datetime.now(timezone.utc))
-    return out
+    return None if row is None else plain(row)
 
 
 def create_app(settings: Settings, http=httpx) -> FastAPI:
@@ -141,7 +130,7 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
 
     def forward_run(path: str, body: dict) -> dict:
         try:
-            return agent_client.start_run(http, settings.agent_url, path, body)
+            return agent_client.start(http, settings.agent_url, path, body)
         except agent_client.AgentDown:
             raise HTTPException(503, "the agent is not running")
         except agent_client.AgentRefused as exc:
@@ -210,38 +199,30 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
         return [{"seq": r["seq"], "kind": r["kind"], "content": json.loads(r["content"]),
                  "created_at": iso(r["created_at"])} for r in trace_rows(claim_id)]
 
-    @app.post("/runs", status_code=202, operation_id="start_run")
-    def start_run(body: RunLimit):
-        """Ask the agent to work the waiting claims, up to a limit."""
-        return forward_run("/runs", {"limit": body.limit})
+    @app.post("/dispatches", status_code=202, operation_id="start_dispatch")
+    def start_dispatch(body: DispatchBody):
+        """Ask the agent to work every claim in progress and every waiting claim, with N claim agents at once."""
+        return forward_run("/dispatches", {"workers": body.workers})
 
-    @app.post("/runs/selected", status_code=202, operation_id="start_selected_run")
-    def start_selected_run(body: SelectedClaims):
-        """Ask the agent to work only the given claims."""
-        for claim_id in body.claim_ids:
-            claim_row(claim_id)
-        return forward_run("/runs/selected", {"claim_ids": body.claim_ids})
+    def run_report(row: Mapping) -> dict:
+        """A run with its claims, its totals and, once it has ended, its summary from the records."""
+        return {
+            "run": _run(row),
+            "claims": runs.run_claims_view(engine, row["run_id"]),
+            "totals": run_totals(engine, row["run_id"]),
+            "summary": None if row["status"] == "running" else runs.run_summary(engine, row["run_id"]),
+        }
 
-    def run_view(row: Mapping | None) -> dict:
-        return {"run": _run(row), "todo": runs.todo_list(engine, row["run_id"]) if row else []}
-
-    @app.get("/runs/latest", operation_id="get_latest_run")
-    def latest_run():
-        """Get the latest run and its to-do list."""
-        return run_view(runs.latest_run(engine))
-
-    @app.get("/runs/{run_id}", operation_id="get_run")
-    def get_run(run_id: int):
-        """Get one run with its to-do list and events."""
-        row = runs.get_run(engine, run_id)
-        if row is None:
-            raise HTTPException(404, f"unknown run {run_id}")
-        return {**run_view(row), "events": runs.run_events(engine, run_id)}
+    @app.get("/dispatches/latest", operation_id="get_latest_dispatch")
+    def latest_dispatch():
+        """Get the latest dispatch with its claims, its cost and time and, once it has ended, its summary."""
+        row = runs.latest_run(engine, "dispatch")
+        return run_report(row) if row else {"run": None, "claims": [], "totals": None, "summary": None}
 
     @app.get("/instructions", operation_id="get_instructions")
     def instructions():
-        """Show the instructions for running the queue and for working a claim."""
-        return {"run": load_instructions("run"), "claim": claim_prompt(ref)}
+        """Show the instructions the claim agent works from."""
+        return {"claim": claim_prompt(ref)}
 
     @app.post("/payouts/calculate", operation_id="calculate_payout")
     def payout(body: PayoutBody):
