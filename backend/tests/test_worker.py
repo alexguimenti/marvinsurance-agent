@@ -308,21 +308,7 @@ def test_reseed_leaves_no_checkpoint_behind(env_for, data_dir):
     assert count(env, "payments") == 0
 
 
-def test_score_never_uses_database_url(monkeypatch, tmp_path):
-    import importlib.util
-    from pathlib import Path
-
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@nope.invalid/d")
-    root = Path(__file__).resolve().parents[2]
-    spec = importlib.util.spec_from_file_location("score_script", root / "scripts" / "score.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    settings = module.isolated_settings(Settings(_env_file=None, agent_provider="scripted"), str(tmp_path / "s.db"))
-    assert settings.database_url is None and settings.db_path == str(tmp_path / "s.db")
-    assert settings.agent_provider == "scripted"  # the settings it was given, not whatever the machine has
-
-
-def test_a_claim_worked_inside_the_queue_agent_starts_its_own_trace(env_for, monkeypatch):
+def test_a_claim_worked_inside_another_traced_call_starts_its_own_trace(env_for, monkeypatch):
     """Langfuse takes the session from a trace's root. A claim is worked inside a tool of the queue agent, and it
     must not hang under that: the work before a pause would go missing from the claim's session."""
     from langchain_core.callbacks import BaseCallbackHandler

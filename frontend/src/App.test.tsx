@@ -27,6 +27,16 @@ describe('App navigation', () => {
     expect(link).toHaveAttribute('href', '/approvals')
   })
 
+  it('links to the scoreboard', async () => {
+    mockApi({ '/api/claims': [], '/api/dispatches/latest': { run: null, claims: [], totals: null, summary: null }, '/api/approvals': [] })
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('link', { name: 'Scoreboard' })).toHaveAttribute('href', '/scoreboard')
+  })
+
   it('still renders with a claim left for a handler', async () => {
     const stuck = { claim_id: 'CLM-9', claim_type: 'baggage', summary: 's', customer_name: 'Maya Patel',
       amount_claimed: 10, status: 'needs_handler', decision: null, payout: null, attempts: 2 }

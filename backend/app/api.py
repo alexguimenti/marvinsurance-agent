@@ -27,6 +27,7 @@ from app.documents import documents_for
 from app.payments import sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
+from app.scoring import evaluation_report, list_evaluations
 from app.seed import seed_claims
 from app.usage import claim_totals, run_totals
 
@@ -232,6 +233,19 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
         """Get the latest dispatch with its claims, its cost and time and, once it has ended, its summary."""
         row = runs.latest_run(engine, "dispatch")
         return run_report(row) if row else {"run": None, "claims": [], "totals": None, "summary": None}
+
+    @app.get("/evaluations", operation_id="list_evaluations")
+    def evaluations():
+        """List the evaluations, newest first, each with its measures."""
+        return list_evaluations(engine)
+
+    @app.get("/evaluations/{run_id}", operation_id="get_evaluation")
+    def evaluation(run_id: int):
+        """Get one evaluation with its measures and its claims, each beside the handler's decision."""
+        report = evaluation_report(engine, run_id)
+        if report is None:
+            raise HTTPException(404, f"no evaluation {run_id}")
+        return report
 
     @app.get("/instructions", operation_id="get_instructions")
     def instructions():

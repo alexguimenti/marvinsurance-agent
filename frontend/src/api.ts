@@ -188,3 +188,45 @@ export const listApprovals = () => request<Approval[]>('/approvals')
 export const listHandlers = () => request<Handler[]>('/handlers')
 export const approvePayment = (id: string, handlerId: string) =>
   request<Payment>(`/payments/${id}/approve`, post({ handler_id: handlerId }))
+
+/** The scoreboard's measures for one evaluation. Shares are 0 to 1; none when there were no claims. */
+export interface Measures {
+  claims: number
+  decision_accuracy: number | null
+  accuracy: number | null
+  mistake_cost: number
+  straight_through: number | null
+  cost_per_claim: number | null
+  seconds_per_claim: number | null
+  total_seconds: number
+}
+
+export interface EvaluationSummary {
+  run: Run
+  measures: Measures
+}
+
+export interface ScoredClaim {
+  claim_id: string
+  copy_of: string
+  status: Status
+  agent: { decision: 'approve' | 'decline' | 'refer'; payout: number; rationale: string } | null
+  handler: { decision: 'approve' | 'decline' | 'refer'; payout: number }
+  decision_ok: boolean
+  accurate: boolean
+  mistake_cost: number
+  referred: boolean
+  cost_usd: number | null
+  seconds: number
+}
+
+export interface EvaluationReport extends EvaluationSummary {
+  claims: ScoredClaim[]
+}
+
+export type EvalSet = 'evaluation' | 'held_out'
+
+export const listEvaluations = () => request<EvaluationSummary[]>('/evaluations')
+export const getEvaluation = (id: string) => request<EvaluationReport>(`/evaluations/${id}`)
+export const startEvaluation = (evalSet: EvalSet, tiny: boolean, workers: number) =>
+  request<{ status: string }>('/evaluations', post({ eval_set: evalSet, tiny, workers }))

@@ -76,3 +76,15 @@ export function runRefused(status: number | undefined, otherwise: string): strin
   if (status === 503) return 'The agent is not running. Start it with npm run dev.'
   return otherwise
 }
+
+/** A share from 0 to 1 as a whole percentage. */
+export const formatShare = (share: number | null) => (share === null ? '—' : `${Math.round(share * 100)}%`)
+
+export const SET_LABEL: Record<string, string> = {
+  evaluation: 'Evaluation set',
+  held_out: 'Held-out set',
+}
+
+/** "Held-out set, tiny" or "Evaluation set". */
+export const describeSet = (evalSet: string | null | undefined, tiny: boolean | null | undefined) =>
+  `${SET_LABEL[evalSet ?? ''] ?? evalSet}${tiny ? ', tiny' : ''}`

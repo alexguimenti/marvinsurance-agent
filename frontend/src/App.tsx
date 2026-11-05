@@ -4,7 +4,9 @@ import { listApprovals } from './api'
 import Approvals from './pages/Approvals'
 import ClaimDetail from './pages/ClaimDetail'
 import Instructions from './pages/Instructions'
+import Evaluation from './pages/Evaluation'
 import Queue from './pages/Queue'
+import Scoreboard from './pages/Scoreboard'
 import { usePolling } from './usePolling'
 
 const POLL_MS = 3000
@@ -44,6 +46,7 @@ export default function App() {
               </span>
             )}
           </NavLink>
+          <NavLink to="/scoreboard">Scoreboard</NavLink>
           <NavLink to="/instructions">Agent instructions</NavLink>
         </nav>
       </header>
@@ -52,6 +55,8 @@ export default function App() {
           <Route path="/" element={<Queue />} />
           <Route path="/claims/:id" element={<ClaimDetail />} />
           <Route path="/approvals" element={<Approvals />} />
+          <Route path="/scoreboard" element={<Scoreboard />} />
+          <Route path="/scoreboard/:id" element={<Evaluation />} />
           <Route path="/instructions" element={<Instructions />} />
         </Routes>
       </main>
