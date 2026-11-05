@@ -1,8 +1,8 @@
-# Farting Agent Pilot Implementation Plan
+# Marvin Agent Pilot Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A working pilot where the Farting Agent decides the 25 queued claims, holds payouts over $1,000 for a handler, and staff can watch and control it in a React UI.
+**Goal:** A working pilot where the Marvin Agent decides the 25 queued claims, holds payouts over $1,000 for a handler, and staff can watch and control it in a React UI.
 
 **Architecture:** FastAPI serves a SQLite database of claims, decisions, trace events and payments. Reference data (policies, customers, plans, wording, company settings, knowledge) is read from a whitelist of files in `data/`. A LangChain tool-calling agent, with its model chosen by configuration through OpenRouter, reads claims through read-only tools and returns a structured decision. The agent makes the judgment calls; code does the payout arithmetic. A payments module, not the agent, enforces the $1,000 limit. A React app shows the queue, claim detail, live trace, agent instructions and approvals.
 
@@ -155,7 +155,7 @@ e2e/                 Playwright
 - [ ] **Step 2: Run** `pytest tests/test_agent.py -q`. Expected: FAIL.
 - [ ] **Step 3: Implement.** Use LangChain's current tool-calling agent API with structured `Decision` output; confirm the installed version's API before coding. No retries in the pilot.
 - [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(backend): Farting Agent on LangChain/OpenRouter with configurable model`
+- [ ] **Step 5: Commit** `feat(backend): Marvin Agent on LangChain/OpenRouter with configurable model`
 
 ### Task 5: Runner (lifecycle, payment, trace, failure handling)
 

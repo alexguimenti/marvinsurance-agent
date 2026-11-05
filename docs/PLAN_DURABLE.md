@@ -26,7 +26,7 @@ The brief was written against a slightly different repo. The project owner settl
 | `npm run dev`, `uv run -m agent` | Neither exists at the root | Task 11 adds a root `npm run dev`; Task 9 adds `backend/agent/__main__.py`, run from `backend/` |
 | API rules in `TECH_STACK.md` | Not written there, and `POST /runs` has optional inputs | Task 9 applies them to every route and writes them down. `POST /runs` splits in two |
 | "Working the queue" section of `SPEC.md` | No such heading | Update sections 5 and 9. Sections 3.3 and 4 are the Rules: not touched |
-| "UnderCover" | Marvin FartInsurance, the Farting Agent | Keep our names. `undercover` (schema) and `UNDERCOVER_AGENT` stay as the brief spells them, because IT chose them |
+| "UnderCover" | MarvInsurance, the Marvin Agent | Keep our names. `undercover` (schema) and `UNDERCOVER_AGENT` stay as the brief spells them, because IT chose them |
 | At most 30 model calls | `max_steps = 40` graph steps | New setting `max_model_calls = 30`, replacing `max_steps`. `run_max_steps` stays for the queue agent |
 
 The owner also confirmed these, each against a stated alternative:
@@ -38,7 +38,7 @@ The owner also confirmed these, each against a stated alternative:
 5. An error after the decision is recorded is not a failed attempt: the claim keeps its thread and is carried on (Task 7).
 6. `POST /runs` splits in two, and the API rules apply to every route, checked by a test (Task 9).
 7. A run counts as dead after 45 s without a heartbeat, written every 15 s (Task 8).
-8. `farting.db` is not migrated: Supabase starts from a reseed (Tasks 3, 4, 12).
+8. `marvin.db` is not migrated: Supabase starts from a reseed (Tasks 3, 4, 12).
 9. A step repeated after a kill may appear twice in the trace. Records never repeat (Task 6).
 
 Checked on LangGraph 1.2.18 with a throwaway graph, no model, on 2026-11-04. A `while` around `interrupt()` pauses again on an early resume. A resume after the sign-off pays once and reruns nothing before the paused node. `invoke(None)` after a `BaseException` or an `Exception` reruns only the node that was cut short. A resume on a finished thread does nothing. Not checked: the same on `PostgresSaver`, which Task 13 exercises.
@@ -143,7 +143,7 @@ No behavior changes. This is the largest mechanical task; every later one builds
 - API timestamps go through one helper that treats SQLite's naive values as UTC, so both databases give the screens the same format. New ids come from `.returning()`, because `lastrowid` does not exist on Postgres.
 - A partial unique index on `runs` where `status = 'running'` (`sqlite_where` and `postgresql_where`) makes "one run at a time" hold across processes.
 - `init_schema` is idempotent and safe when two processes start together: it retries on `DBAPIError`, because each process's `create_all` can lose the race to create a table. The backend, the service and `uv run -m agent` each call it and seed at startup.
-- `migrate()` and `ADDED_COLUMNS` go. `create_all` plus a reseed replaces them. An old `farting.db` is not upgraded: Task 11 documents deleting it.
+- `migrate()` and `ADDED_COLUMNS` go. `create_all` plus a reseed replaces them. An old `marvin.db` is not upgraded: Task 11 documents deleting it.
 
 - [x] **Step 1: Write the failing tests** in `test_db.py`: `test_tables_exist_after_init`, `test_insert_or_ignore_keeps_the_first_row`, `test_make_engine_caps_connections` (`engine.pool.size() == 4`, `_max_overflow == 0`), `test_reset_leaves_every_claim_waiting`, `test_two_processes_can_init_together` (threads on one SQLite file), `test_only_one_run_can_be_running`. Delete the migration tests.
 - [x] **Step 2: Run them.** Expected: FAIL.
@@ -400,7 +400,7 @@ test('a sign-off on the dashboard reaches the agent service', async ({ page, req
 - `STATUS.md`: what works today and what comes later (rejecting a held payout).
 - `SPEC.md`: sections 5 and 9, including the line that a server stopped mid-run marks the run failed. Sections 3.3 and 4 unchanged. `git diff` over those two must be empty.
 - `TECH_STACK.md`: Supabase, SQLAlchemy, LangGraph, Langfuse, the service, the API rules, the new environment variables.
-- `COMMANDS.md`: `npm run dev`, `npm run reseed`, `uv run -m agent`, and that an old `farting.db` should be deleted.
+- `COMMANDS.md`: `npm run dev`, `npm run reseed`, `uv run -m agent`, and that an old `marvin.db` should be deleted.
 
 - [x] **Step 1: Write them**, then check each command in `COMMANDS.md` by running it, except the live ones.
 - [x] **Step 2: Commit** `docs: describe the durable agent; add process, standards and status`.

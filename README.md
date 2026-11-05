@@ -1,6 +1,6 @@
-# Marvin FartInsurance: Farting Agent
+# MarvInsurance: Marvin Agent
 
-A course project (nothing here is real). The Farting Agent works a travel-insurance claims queue like a human analyst. One run plans the queue as a to-do list, hands each claim to a fresh claim agent, and finishes with a summary for the handlers. The claim agent reads the claim, the policy and the customer's history, looks up the sections of the policy wording and the claims manual it needs, then approves, declines or refers. Payouts above $1,000 wait for a handler.
+A course project (nothing here is real). The Marvin Agent works a travel-insurance claims queue like a human analyst. One run plans the queue as a to-do list, hands each claim to a fresh claim agent, and finishes with a summary for the handlers. The claim agent reads the claim, the policy and the customer's history, looks up the sections of the policy wording and the claims manual it needs, then approves, declines or refers. Payouts above $1,000 wait for a handler.
 
 See `docs/SPEC.md` for what we build, `docs/TECH_STACK.md` for the stack, `docs/STATUS.md` for where it stands, `docs/plans/HARNESS.md` for the harness requirements, and `docs/plans/` for the finished implementation plans.
 

@@ -93,7 +93,7 @@ export default function Instructions() {
           <p className="eyebrow">Standing orders</p>
           <h1>Agent instructions</h1>
           <p className="lede">
-            The briefs the Farting Agent works from: one for running the queue, one for each claim it is handed.
+            The briefs the Marvin Agent works from: one for running the queue, one for each claim it is handed.
           </p>
         </div>
       </div>

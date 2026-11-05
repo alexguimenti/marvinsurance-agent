@@ -30,7 +30,7 @@ export default function App() {
       <header className="nav">
         <span className="logo">
           <span className="mark" aria-hidden="true" />
-          Marvin FartInsurance
+          MarvInsurance
         </span>
         <nav>
           <NavLink to="/" end>

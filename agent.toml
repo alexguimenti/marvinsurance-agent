@@ -1,4 +1,4 @@
-# Which model the Farting Agent uses, and how it thinks.
+# Which model the Marvin Agent uses, and how it thinks.
 # Safe to commit: no secrets here (the API key lives in .env).
 # Environment variables win over this file: AGENT_MODEL, AGENT_TEMPERATURE, AGENT_REASONING_EFFORT.
 

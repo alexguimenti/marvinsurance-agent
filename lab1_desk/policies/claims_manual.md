@@ -1,10 +1,10 @@
-# Marvin FartInsurance Claims Handling Manual
+# MarvInsurance Claims Handling Manual
 
 Version 2026.2. Internal. For claims handlers and for any system that decides claims on their behalf.
 
 ## 1. Purpose and scope
 
-This manual explains how Marvin FartInsurance decides travel insurance claims. The policy wording is the contract with the customer and it always comes first. This manual covers what the wording leaves open: how to read a clause when a claim does not fit it neatly, which documents to ask for, how to work out the payment, when to pass a claim to someone else, and how to write to the customer.
+This manual explains how MarvInsurance decides travel insurance claims. The policy wording is the contract with the customer and it always comes first. This manual covers what the wording leaves open: how to read a clause when a claim does not fit it neatly, which documents to ask for, how to work out the payment, when to pass a claim to someone else, and how to write to the customer.
 
 Everything here applies to claims under wording version 2026.1. All amounts are in US dollars.
 
@@ -82,7 +82,7 @@ If the result is zero or less, the claim is declined and the letter explains why
 
 ## 7. Interpretation notes
 
-These notes record how Marvin FartInsurance reads the wording in situations that come up often. They have been agreed with the underwriters and they bind every decision.
+These notes record how MarvInsurance reads the wording in situations that come up often. They have been agreed with the underwriters and they bind every decision.
 
 **Unattended belongings.** Belongings are unattended when the customer could neither see them nor reach them and a member of the public could. A bag on a train luggage rack while the customer is in the same carriage is attended. The same bag while the customer is on the platform is unattended. Belongings on a beach while the customer swims are unattended. Belongings in a locked hotel room or a hotel safe are attended. Theft from the person, such as a snatch or a pickpocket, is never a case of unattended belongings.
 

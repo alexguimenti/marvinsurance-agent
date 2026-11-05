@@ -3,21 +3,21 @@
     "handler_id": "HND-01",
     "name": "Dana Whitfield",
     "role": "Senior Claims Handler",
-    "email": "dana.whitfield@marvinfartinsurance.example",
+    "email": "dana.whitfield@marvinsurance.example",
     "can_approve_over_limit": true
   },
   {
     "handler_id": "HND-02",
     "name": "Marcus Oyelaran",
     "role": "Claims Handler",
-    "email": "marcus.oyelaran@marvinfartinsurance.example",
+    "email": "marcus.oyelaran@marvinsurance.example",
     "can_approve_over_limit": true
   },
   {
     "handler_id": "HND-03",
     "name": "Priya Raman",
     "role": "Claims Handler",
-    "email": "priya.raman@marvinfartinsurance.example",
+    "email": "priya.raman@marvinsurance.example",
     "can_approve_over_limit": true
   }
 ]

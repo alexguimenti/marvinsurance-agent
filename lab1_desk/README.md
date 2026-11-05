@@ -1,6 +1,6 @@
 # lab1_desk: claims handler agent
 
-An agent built on the Anthropic API SDK (tool runner) that decides claims for Marvin FartInsurance.
+An agent built on the Anthropic API SDK (tool runner) that decides claims for MarvInsurance.
 
 ```
 claims/queue/      the claims to work (one file per claim)

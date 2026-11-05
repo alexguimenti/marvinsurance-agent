@@ -22,7 +22,7 @@ def test_whitelist_excludes_evals_and_security():
 
 
 def test_manual_is_allowed(data_dir):
-    assert Reference(data_dir).manual.startswith("# Marvin FartInsurance Claims Handling Manual")
+    assert Reference(data_dir).manual.startswith("# MarvInsurance Claims Handling Manual")
 
 
 def test_reference_lookups(data_dir):

@@ -14,9 +14,9 @@ describe('Instructions', () => {
   })
 
   it('renders the text from the API', async () => {
-    mockApi({ '/api/instructions': { run: 'Plan the queue.', claim: 'You are the Farting Agent.\nApply only the policy wording.' } })
+    mockApi({ '/api/instructions': { run: 'Plan the queue.', claim: 'You are the Marvin Agent.\nApply only the policy wording.' } })
     renderAt(<Instructions />, '/instructions')
-    expect(await screen.findByText(/You are the Farting Agent/)).toBeInTheDocument()
+    expect(await screen.findByText(/You are the Marvin Agent/)).toBeInTheDocument()
     expect(screen.getByText(/Apply only the policy wording/)).toBeInTheDocument()
   })
 

@@ -1,4 +1,4 @@
-# Marvin FartInsurance: Policy Wording, short version
+# MarvInsurance: Policy Wording, short version
 
 All amounts are in US dollars. The policy record shows the plan, the add-ons, the trip dates, the trip cost and the travelers.
 

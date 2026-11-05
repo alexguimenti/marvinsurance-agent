@@ -1,6 +1,6 @@
-# Marvin FartInsurance seed data
+# MarvInsurance seed data
 
-The data behind Marvin FartInsurance, a fictional insurer. Everything here is invented, including the people, the airlines and the hotels. Amounts are in US dollars.
+The data behind MarvInsurance, a fictional insurer. Everything here is invented, including the people, the airlines and the hotels. Amounts are in US dollars.
 
 ## The insurer's systems
 

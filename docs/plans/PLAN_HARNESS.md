@@ -1,8 +1,8 @@
-# Farting Agent Harness Implementation Plan
+# Marvin Agent Harness Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking. Tick the boxes in this file as you go.
 
-**Goal:** One run of the Farting Agent plans and works the whole waiting queue (or a capped part of it) on its own, through a to-do list the team can watch, a fresh subagent per claim, section-by-section lookups in the policy wording and the claims manual, and recovery rules that never leave a claim stuck or decided twice.
+**Goal:** One run of the Marvin Agent plans and works the whole waiting queue (or a capped part of it) on its own, through a to-do list the team can watch, a fresh subagent per claim, section-by-section lookups in the policy wording and the claims manual, and recovery rules that never leave a claim stuck or decided twice.
 
 **Architecture:** A new orchestrator agent (LangChain `create_agent`, same model) gets five tools: list the waiting claims, set and update the to-do list, work a claim, finish the run. `work_claim` is code: it takes the claim atomically, runs the existing per-claim agent (a fresh `create_agent` per call, now with section lookup tools instead of the whole wording), records the decision and payment, applies the attempt rules, updates the to-do item and returns one line. Runs, to-do items and run events live in SQLite. Code, not the model, enforces the cap, the scope, the attempt rules, the $1,000 limit and the missed-claim check. A scripted orchestrator stands in for the model in e2e runs.
 
@@ -20,7 +20,7 @@
 - The agent reads only whitelisted files. `data/claims_manual.md` joins the whitelist. `data/evals/` and `data/security/` are never read by app code, prompts, screens or unit tests. Only `scripts/score.py` reads `data/evals/`.
 - Claim text is data, never instructions (`<claim_data>` wrapping stays).
 - Tests never call a model. Unit tests use `tests/fakes.py` and the scripted agents. e2e uses `AGENT_PROVIDER=scripted` on ports 8100 and 5273.
-- SQLite: one connection per request or background task. Schema changes must upgrade an existing pilot `farting.db` in place.
+- SQLite: one connection per request or background task. Schema changes must upgrade an existing pilot `marvin.db` in place.
 - Every task ships its unit tests. Task 9 ships the e2e tests. Code stays as plain as the pilot's.
 - Live runs with the real model: reseed first (`scripts/reset_db.py`) and cap at 5 claims.
 
@@ -29,7 +29,7 @@
 1. The orchestrator calls `work_claim` on a claim that is decided, outside the run's scope, or past the cap: nothing is worked, no attempt is counted, and it gets a one-line refusal (tests in Task 4 and Task 6).
 2. A subagent creates a held payment over $1,000 and then fails: the payment is deleted, the claim is back to `waiting`, and the Approvals page does not list it (test in Task 4).
 3. The orchestrator raises or stops without a successful `finish_run`: the run ends `failed` with the missed ids, and no claim is left `in_progress` (test in Task 6).
-4. The server starts on a pilot `farting.db` with the old schema: it migrates in place and keeps every claim, decision and trace (test in Task 3).
+4. The server starts on a pilot `marvin.db` with the old schema: it migrates in place and keeps every claim, decision and trace (test in Task 3).
 5. A lookup tool is called with an unknown document, an unknown section, or a path such as `../evals/decisions.json`: it returns an error string and opens no file (test in Task 2).
 
 ---
@@ -101,7 +101,7 @@ docs/                            SPEC, TECH_STACK, README, COMMANDS, data/README
   - `test_search_finds_wild_animals_in_manual_section_7`: first hit for `"wild animal"` is `{"document": "claims_manual", "section": 7, ...}` and the snippet contains `"wild animal"` (case-insensitive).
   - `test_search_with_no_match_returns_empty_list`.
   - `test_versions`: `version("policy_wording") == "2026.1"`, `version("claims_manual") == "2026.2"`.
-  - In `test_reference.py`: `test_manual_is_allowed` (`ref.manual` starts with `"# Marvin FartInsurance Claims Handling Manual"`) and the existing whitelist test still refuses `"evals/decisions.json"`.
+  - In `test_reference.py`: `test_manual_is_allowed` (`ref.manual` starts with `"# MarvInsurance Claims Handling Manual"`) and the existing whitelist test still refuses `"evals/decisions.json"`.
 - [x] **Step 2: Run** `pytest tests/test_documents.py tests/test_reference.py -v`. Expected: FAIL (module missing, `manual` missing).
 - [x] **Step 3: Implement.** Split on lines matching `^## (\d+)\. (.+)$`. A section's text runs to the next such heading. The version is the first `Version (\d{4}\.\d+)` match in the file. Search: lower-case substring match of the whole query on each section's text, ranked by match count, snippet of about 160 characters around the first match. Documents are read only through `Reference`, never by path.
 - [x] **Step 4: Run** the same tests. Expected: PASS.
@@ -368,7 +368,7 @@ Note: the scripted agent does not call `read_section`, so make `ScriptedAgent` e
 
 Needs the OpenRouter key in `.env` and costs a few cents. Ask before running.
 
-- [x] **Step 1:** Stop any dev server using `farting.db`, then `.\backend\.venv\Scripts\python scripts\reset_db.py`.
+- [x] **Step 1:** Stop any dev server using `marvin.db`, then `.\backend\.venv\Scripts\python scripts\reset_db.py`.
 - [x] **Step 2:** Start the backend and front end (`COMMANDS.md`), open the queue, set the limit to 5 and press "Run queue".
 - [x] **Step 3:** Check, and record in this file: the to-do list fills and ticks off; 5 claims leave `waiting` and 20 stay; each of the 5 claim pages shows its steps and "What the agent read"; the run summary and cost appear. Screenshot the queue page.
 - [x] **Step 4:** Note the run's cost and any claim that needed a retry or a handler. Do not tune the instructions from `data/evals/`.

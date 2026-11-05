@@ -56,5 +56,5 @@ test('the agent instructions are visible', async ({ page }) => {
   await page.goto('/instructions')
   await expect(page.getByRole('heading', { name: 'Running the queue' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Working a claim' })).toBeVisible()
-  await expect(page.getByText(/You are the Farting Agent running the claims queue/)).toBeVisible()
+  await expect(page.getByText(/You are the Marvin Agent running the claims queue/)).toBeVisible()
 })

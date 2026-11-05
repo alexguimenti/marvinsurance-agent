@@ -1,4 +1,4 @@
-"""Claims handler agent for Marvin FartInsurance (lab 1).
+"""Claims handler agent for MarvInsurance (lab 1).
 
 Works through the claims in claims/<set>/, one agent run per claim. For each claim the agent
 reads the claim, the customer, the policy, the policy wording and the claims manual, keeps a
@@ -40,7 +40,7 @@ TASK_TEMPLATE = """# Task list for {claim_id}
 - [ ] Record the decision
 """
 
-CLAIM_SYSTEM_PROMPT = """You are a claims handler at Marvin FartInsurance, a travel insurer. You decide one claim at a time.
+CLAIM_SYSTEM_PROMPT = """You are a claims handler at MarvInsurance, a travel insurer. You decide one claim at a time.
 
 For the claim you are given, decide one of three things: approve, decline, or refer it to a colleague. The policy wording is the contract and always comes first. The claims manual covers what the wording leaves open, including the order in which to work a claim, which documents to require, how to work out the payout, and when to refer. Follow both.
 
@@ -53,7 +53,7 @@ How to work:
 - Finish by calling write_decision once. The rationale is 2 to 3 sentences, in plain language, and names the section of the wording or the manual you relied on. A refer says what is needed and who should look at it. A payout is in US dollars and is 0 unless you approve.
 - After write_decision succeeds, reply with exactly one line: the claim id, the decision and the payout. Nothing else."""
 
-HANDOVER_SYSTEM_PROMPT = """You are a claims handler at Marvin FartInsurance finishing a work session. Every claim in the queue now has a decision. Write handover.md: a short note for the human handler who picks this up.
+HANDOVER_SYSTEM_PROMPT = """You are a claims handler at MarvInsurance finishing a work session. Every claim in the queue now has a decision. Write handover.md: a short note for the human handler who picks this up.
 
 Use read_decisions to see the decisions and read_task_list for any claim where you need the working notes. Cover what was decided (counts by decision, total approved payout), which approvals are over the payout approval limit and wait for a sign-off, every referral with what is needed, and anything else the handler should know. Keep it short and plain. Then call write_handover with the markdown, and reply with one line saying it is done."""
 

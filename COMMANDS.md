@@ -12,7 +12,7 @@ npm run dev
 
 It starts the backend (http://127.0.0.1:8000), the agent's service (http://127.0.0.1:8002) and the dashboard, with `.env` in their environment. Open http://localhost:5173. Ctrl-C stops all three.
 
-With `DATABASE_URL` in `.env` the records are on Supabase, which is slower: each step goes over the network. Without it they are in `farting.db`.
+With `DATABASE_URL` in `.env` the records are on Supabase, which is slower: each step goes over the network. Without it they are in `marvin.db`.
 
 ### What restarts on its own
 
@@ -41,7 +41,7 @@ Uses a fake model, and SQLite as long as there is no `DATABASE_URL` in the envir
 
 ## Reseed and test again
 
-Makes our tables again, forgets the checkpoints and every analysis, and puts all 25 claims back in the queue, on the database in `.env`. Do this before any live run with the real model, and set **Limit** to 5 on the queue page so the trial costs little. Have no agent working when you do. It also brings an older `farting.db` up to date.
+Makes our tables again, forgets the checkpoints and every analysis, and puts all 25 claims back in the queue, on the database in `.env`. Do this before any live run with the real model, and set **Limit** to 5 on the queue page so the trial costs little. Have no agent working when you do. It also brings an older `marvin.db` up to date.
 
 ```powershell
 npm run reseed

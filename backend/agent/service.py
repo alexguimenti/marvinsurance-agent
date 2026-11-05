@@ -93,7 +93,7 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
             yield
             stop.set()
 
-    app = FastAPI(title="Farting Agent service", lifespan=lifespan)
+    app = FastAPI(title="Marvin Agent service", lifespan=lifespan)
 
     def start(limit: int | None, claim_ids: list[str] | None) -> dict:
         env = holder["env"]

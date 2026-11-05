@@ -1,7 +1,7 @@
 {
-  "name": "farting-agent",
+  "name": "marvin-agent",
   "private": true,
-  "description": "Marvin FartInsurance claims desk: one command runs every test suite.",
+  "description": "MarvInsurance claims desk: one command runs every test suite.",
   "scripts": {
     "check": "node scripts/check.mjs",
     "dev": "node scripts/dev.mjs",

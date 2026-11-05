@@ -1,20 +1,20 @@
-# SPEC: Farting Agent for Marvin FartInsurance
+# SPEC: Marvin Agent for MarvInsurance
 
 Status: pilot plus the harness (`docs/plans/HARNESS.md`). This is a course project. Nothing here is a real company, customer or payment.
 
 ## 1. Overview
 
-Marvin FartInsurance sells travel insurance in three plans: **Economy**, **Premium** and **First**. Today every claim is reviewed by hand. The analyst reads the customer's story and documents, checks the customer's history and the policy, applies the policy wording, and then does one of three things:
+MarvInsurance sells travel insurance in three plans: **Economy**, **Premium** and **First**. Today every claim is reviewed by hand. The analyst reads the customer's story and documents, checks the customer's history and the policy, applies the policy wording, and then does one of three things:
 
 - **Approve**, with a payout.
 - **Decline**.
 - **Refer** to another person, when the claim needs more judgment or more information.
 
-We are building an AI agent, the **Farting Agent**, that works the claims queue the way a human analyst does. One run of the agent plans the queue as a to-do list and hands each claim to a fresh claim agent, which reads the claim, the policy, the customer's history and the sections of the policy wording and the claims manual it needs, makes a decision, and for an approval works out and prepares the payment. Staff get screens to watch and control the work.
+We are building an AI agent, the **Marvin Agent**, that works the claims queue the way a human analyst does. One run of the agent plans the queue as a to-do list and hands each claim to a fresh claim agent, which reads the claim, the policy, the customer's history and the sections of the policy wording and the claims manual it needs, makes a decision, and for an approval works out and prepares the payment. Staff get screens to watch and control the work.
 
 The goal is to handle the queue accurately and consistently, as a careful person would.
 
-> Naming note: the seed data originally used the name "UnderCover Travel Insurance". It was renamed to Marvin FartInsurance throughout `data/` (company name, plan names, handler email domains, policy wording, manual). The agent is the Farting Agent.
+> Naming note: the seed data originally used the name "UnderCover Travel Insurance". It was renamed to MarvInsurance throughout `data/` (company name, plan names, handler email domains, policy wording, manual). The agent is the Marvin Agent.
 
 ## 2. Users
 

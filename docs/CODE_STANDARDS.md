@@ -35,4 +35,4 @@ Every operation has an `operation_id`, a one-line docstring and no optional inpu
 
 ## Style
 
-Python 3.11+, type hints on public functions, short docstrings that say why. Comments only where the code cannot say it. Names of the product are Marvin FartInsurance and the Farting Agent. `undercover` (the schema) and `UNDERCOVER_AGENT` were chosen by IT and stay as they are.
+Python 3.11+, type hints on public functions, short docstrings that say why. Comments only where the code cannot say it. Names of the product are MarvInsurance and the Marvin Agent. `undercover` (the schema) and `UNDERCOVER_AGENT` were chosen by IT and stay as they are.

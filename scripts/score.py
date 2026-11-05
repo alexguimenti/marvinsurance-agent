@@ -1,4 +1,4 @@
-"""Score the Farting Agent against the handlers' decisions.
+"""Score the Marvin Agent against the handlers' decisions.
 
 This is the ONLY code that reads data/evals/. The app never imports it.
 

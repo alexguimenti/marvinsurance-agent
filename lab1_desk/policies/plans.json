@@ -2,7 +2,7 @@
   "plans": [
     {
       "plan": "economy",
-      "name": "Marvin FartInsurance Economy",
+      "name": "MarvInsurance Economy",
       "trip_cancellation_max": 1500.00,
       "trip_delay_waiting_hours": 12,
       "trip_delay_max": 300.00,
@@ -16,7 +16,7 @@
     },
     {
       "plan": "premium",
-      "name": "Marvin FartInsurance Premium",
+      "name": "MarvInsurance Premium",
       "trip_cancellation_max": 5000.00,
       "trip_delay_waiting_hours": 6,
       "trip_delay_max": 800.00,
@@ -30,7 +30,7 @@
     },
     {
       "plan": "first",
-      "name": "Marvin FartInsurance First",
+      "name": "MarvInsurance First",
       "trip_cancellation_max": 10000.00,
       "trip_delay_waiting_hours": 3,
       "trip_delay_max": 1500.00,

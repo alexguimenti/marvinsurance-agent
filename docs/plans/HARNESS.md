@@ -1,4 +1,4 @@
-# HARNESS: letting the Farting Agent organize its own work
+# HARNESS: letting the Marvin Agent organize its own work
 
 Status: draft, to be agreed before `docs/plans/PLAN_HARNESS.md` is written. Items marked **Proposed** are my choices where the brief is silent. Change them freely.
 
@@ -24,7 +24,7 @@ The brief was written against a different checkout. Settle these before planning
 
 | The brief says | This repo has | Proposed |
 |---|---|---|
-| "UnderCover Agent" | Marvin FartInsurance and the Farting Agent | Keep our names |
+| "UnderCover Agent" | MarvInsurance and the Marvin Agent | Keep our names |
 | `docs/STATUS.md` | Does not exist | Create it, or keep `README.md` as the status page. Pick one (D8) |
 | `docs/PROCESS.md`, `docs/CODE_STANDARDS.md` | Do not exist | Follow the workflow we used in the pilot (spec, plan, TDD, tick off the plan) and keep the code simple. Say if you have the originals |
 | `npm run check` | No root `package.json` | Add one command that runs everything (D8) |

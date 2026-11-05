@@ -1,6 +1,6 @@
 # Tech Stack
 
-Technology choices for the Farting Agent pilot. See `SPEC.md` for what we are building and `DESIGN.md` for the visual style.
+Technology choices for the Marvin Agent pilot. See `SPEC.md` for what we are building and `DESIGN.md` for the visual style.
 
 ## Summary
 
@@ -30,7 +30,7 @@ Technology choices for the Farting Agent pilot. See `SPEC.md` for what we are bu
 
 ## Agents: LangGraph, LangChain and OpenRouter
 
-- The Farting Agent has two roles, in `backend/agent/`, and runs as a small web service of its own on port 8002 (`UNDERCOVER_AGENT` in the environment, or `http://127.0.0.1:8002`). The backend calls it to start runs and after each sign-off, and doesn't wait for the payment. `uv run -m agent` also starts runs. See `CODE_STANDARDS.md` for its parts.
+- The Marvin Agent has two roles, in `backend/agent/`, and runs as a small web service of its own on port 8002 (`UNDERCOVER_AGENT` in the environment, or `http://127.0.0.1:8002`). The backend calls it to start runs and after each sign-off, and doesn't wait for the payment. `uv run -m agent` also starts runs. See `CODE_STANDARDS.md` for its parts.
   - The **queue agent** runs the queue, with LangChain's `create_agent`. Its tools list the waiting claims, write and update the to-do list, hand a claim to a claim agent and finish the run. Its instructions are `backend/agent/instructions_run.md`.
   - The **claim agent** is a hand-written LangGraph graph (`backend/agent/graph.py`). It works one claim from a clean start, so each claim's work stays focused and the run does not get more expensive as it goes. It starts with the claim, policy, plan and customer history already in its conversation (as results of tool calls it did not have to make) and the section index of both documents in its prompt. Its tools read and search sections of the policy wording and the claims manual (at most 8 per claim, no rereads), look up public facts, calculate the payout and save its decision. Paying is a step of the graph, not a tool. It waits for a sign-off with LangGraph's `interrupt()` when the backend says a claim needs one. Every step is recorded on the claim, refusals go back to the model, and it makes at most 30 model calls. Its instructions are `backend/agent/instructions_claim.md`.
 - Our code, not the model, enforces the run's cap and scope, the attempt rules, the $1,000 limit and the missed-claim check (`backend/app/claims.py`, `payments.py`, `runs.py`; `backend/agent/worker.py`, `queue.py`).

@@ -93,7 +93,7 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
         yield
         engine.dispose()
 
-    app = FastAPI(title="Farting Agent", lifespan=lifespan)
+    app = FastAPI(title="Marvin Agent", lifespan=lifespan)
 
     def one(table, key, value) -> Mapping | None:
         with engine.connect() as conn:

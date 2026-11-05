@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     agent_max_model_calls: int = Field(default=30, ge=1)  # model calls for one claim
     agent_run_max_steps: int = Field(default=400, ge=10)  # graph steps for the whole run
     agent_provider: Literal["openrouter", "scripted"] = "openrouter"
-    db_path: str = str(ROOT / "farting.db")
+    db_path: str = str(ROOT / "marvin.db")
     data_dir: str = str(ROOT / "data")
     database_url: str | None = None  # from the process environment only: see model_post_init
     agent_url: str = DEFAULT_AGENT_URL
