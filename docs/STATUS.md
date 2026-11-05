@@ -16,7 +16,7 @@ Last updated 2026-11-05, after the swarm and the scoreboard (`docs/PLAN_SWARM.md
 
 ## Checks
 
-`npm run check` in a clean worktree with no `.env`: 272 backend tests (1 skipped), 66 front-end tests, the type check, the lint and 9 end-to-end tests, all passing.
+`npm run check` in a clean worktree with no `.env`: 277 backend tests (1 skipped), 66 front-end tests, the type check, the lint and 9 end-to-end tests, all passing.
 
 ## Live verification (2026-11-05)
 
@@ -29,7 +29,7 @@ On Supabase and the default model, after one `npm run seed`, through the Playwri
 | A dispatch at N=25 then | The 2 in progress carried on as the same attempts (`CLM-1004-1`, `CLM-1023-1`, attempts 0), with one decision each. The other 15 waiting claims started with them: all 17 at once, started within 14.5 s of each other |
 | Its run against the sum of its claims | 94 s for the run; 1,071 s of agent time summed over its claims |
 | Each claim, against N=3 | **Slower: 32 to 84 s, against 14 to 26 s.** See below |
-| A sign-off during the day | Paid 2.8 s after the click on the approvals page (signed off at 1.3 s), and "Paid ... signed off by Dana Whitfield" on the claim's page |
+| A sign-off | Paid 2.8 s after the click on the approvals page (signed off at 1.3 s), and "Paid ... signed off by Dana Whitfield" on the claim's page |
 | No claim fails for want of a connection | None did. No pool timeout in the logs |
 | At most 12 connections for user postgres | 10 at the most, polled every 8 to 13 s during the dispatch and the evaluations. Read with SQL from our own connection, not through the Supabase MCP server, which this session did not have |
 | An evaluation of the evaluation set at N=25 | Finished in 128 s: decision accuracy 92%, accuracy 88%, mistakes $360, straight-through 84%, $0.0012 and 81 s per claim |
@@ -39,7 +39,7 @@ On Supabase and the default model, after one `npm run seed`, through the Playwri
 
 ### Where the time goes at N=25
 
-Each claim does dozens of short statements: its trace events (302 in that run), one row per model call (58), the claim's own reads and writes, and a checkpoint after every step, with its writes. Every statement is a trip of about 213 ms to Supabase, and the process has 2 connections for records and 2 for checkpoints. With 17 claim agents at once, they spend much of their time waiting for one of those 4, not for the model. This is an estimate from the counts and the trip time, not a profile. Ways to win it back, keeping to 4 connections: fewer trace events per step, writing a step's events in one statement, or `durability="exit"` for steps that need no checkpoint.
+Each claim does dozens of short statements: its trace events (302 in that run), one row per model call (58), the claim's own reads and writes, and a checkpoint after every step, with its writes. Every statement is a trip of about 213 ms to Supabase, and the process has 2 connections for records and 2 for checkpoints. With 17 claim agents at once, they spend much of their time waiting for one of those 4, not for the model. This is an estimate from the counts and the trip time, not a profile. Ways to win it back, keeping to 4 connections: fewer trace events per step, or writing a step's events in one statement. Saving fewer checkpoints would also help, but would weaken carrying on after a restart.
 
 ## Known limits
 
