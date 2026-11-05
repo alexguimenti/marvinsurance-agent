@@ -2,14 +2,14 @@
 import contextvars
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable, Iterator
 
 from sqlalchemy import Engine, select, update
 
-from agent.checkpoints import make_checkpointer
+from agent.checkpoints import Checkpoints, make_checkpoints
 from agent.graph import build_claim_graph
 from agent.tracing import flush_traces, trace_config, warm_up_tracing
 from app.claims import get_claim, needs_sign_off
@@ -28,11 +28,33 @@ class AgentEnv:
     engine: Engine
     ref: Reference
     settings: Settings
-    graph: object
+    checkpoints: Checkpoints
+    model: object
     model_id: str
     clock: Callable[[], float] = time.monotonic  # a test can move it on without sleeping
     _working: set = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    _reader: object = None
+    _stack: ExitStack = field(default_factory=ExitStack)
+
+    def _build(self, saver):
+        return build_claim_graph(self.engine, self.ref, self.model, self.model_id, self.settings.agent_max_model_calls, saver)
+
+    @contextmanager
+    def claim_graph(self) -> Iterator:
+        """The claim graph on a saver of its own, for one claim run: a saver takes turns between its callers."""
+        with self.checkpoints.saver() as saver:
+            yield self._build(saver)
+
+    @property
+    def graph(self):
+        """A graph on a saver of its own for looking at threads from outside a claim run, as tests do."""
+        if self._reader is None:
+            self._reader = self._build(self._stack.enter_context(self.checkpoints.saver()))
+        return self._reader
+
+    def close(self) -> None:
+        self._stack.close()
 
     @contextmanager
     def working(self, claim_id: str) -> Iterator[bool]:
@@ -64,10 +86,12 @@ def open_env(settings: Settings, model=None, model_id: str | None = None) -> Ite
     warm_up(engine, RECORD_CONNECTIONS)
     warm_up_tracing()
     try:
-        with make_checkpointer(settings) as saver:
-            graph = build_claim_graph(engine, Reference(settings.data_dir), model, model_id,
-                                      settings.agent_max_model_calls, saver)
-            yield AgentEnv(engine, Reference(settings.data_dir), settings, graph, model_id)
+        with make_checkpoints(settings) as checkpoints:
+            env = AgentEnv(engine, Reference(settings.data_dir), settings, checkpoints, model, model_id)
+            try:
+                yield env
+            finally:
+                env.close()
     finally:
         engine.dispose()
 
@@ -88,7 +112,8 @@ def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input, run_id: in
         # In a context of its own: Langfuse takes the session from a trace's root, so a claim worked inside another
         # traced call would lose its work from the claim's session.
         config = _config(env, claim_id, thread_id, run_id)
-        return contextvars.Context().run(env.graph.invoke, graph_input, config, durability="sync")
+        with env.claim_graph() as graph:
+            return contextvars.Context().run(graph.invoke, graph_input, config, durability="sync")
     finally:
         record_work_time(env.engine, claim_id, run_id, started_at, env.clock() - start)
         flush_traces()
@@ -187,7 +212,8 @@ def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
         if claim["payment"] == "signed_off":
             graph_input = None  # straight on: the paused step runs again and finds the sign-off
         else:
-            state = env.graph.get_state({"configurable": {"thread_id": thread_id}})
+            with env.claim_graph() as graph:
+                state = graph.get_state({"configurable": {"thread_id": thread_id}})
             if not state.values:  # stopped before the first step was saved
                 graph_input = {"claim_id": claim_id}
             elif state.next:

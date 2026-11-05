@@ -25,6 +25,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.config import Settings
 
+CONNECTION_WAIT_S = 600  # claim agents share a process's few connections and wait for one rather than fail
 SCHEMA = "undercover"  # set on each Postgres connection, so the queries stay the same on SQLite
 
 metadata = MetaData()
@@ -155,6 +156,7 @@ def make_engine(settings: Settings, max_connections: int) -> Engine:
         f"sqlite:///{settings.db_path}",
         pool_size=max_connections,
         max_overflow=0,
+        pool_timeout=CONNECTION_WAIT_S,
         connect_args={"timeout": 10, "check_same_thread": False},
     )
 
@@ -182,7 +184,7 @@ def warm_up(engine: Engine, connections: int) -> None:
 
 def _postgres_engine(database_url: str, max_connections: int) -> Engine:
     url = make_url(database_url).set(drivername="postgresql+psycopg")
-    engine = create_engine(url, pool_size=max_connections, max_overflow=0, pool_recycle=1800)
+    engine = create_engine(url, pool_size=max_connections, max_overflow=0, pool_recycle=1800, pool_timeout=CONNECTION_WAIT_S)
 
     @event.listens_for(engine, "connect")
     def _search_path(dbapi_connection, _record):
