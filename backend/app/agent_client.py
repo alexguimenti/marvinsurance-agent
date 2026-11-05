@@ -34,5 +34,9 @@ def start(http, url: str, path: str, body: dict) -> dict:
     except httpx.HTTPError as exc:
         raise AgentDown(str(exc)) from exc
     if answer.status_code >= 400:
-        raise AgentRefused(answer.status_code, answer.json().get("detail", "the agent refused the run"))
+        try:
+            detail = answer.json().get("detail", "the agent refused the run")
+        except ValueError:  # a crash answers in plain text
+            detail = answer.text or "the agent refused the run"
+        raise AgentRefused(answer.status_code, str(detail))
     return answer.json()

@@ -36,7 +36,7 @@ def test_health(service):
 
 def test_service_starts_a_dispatch_with_n(service, db_path):
     answer = service.post("/dispatches", json={"workers": 4})
-    assert answer.status_code == 202 and answer.json() == {"status": "started"}
+    assert answer.status_code == 202 and answer.json() == {"status": "started", "run_id": 1}
     engine = engine_for(db_path)
     row = runs.latest_run(engine, "dispatch")
     assert (row["status"], row["workers"], row["model"], row["reasoning_effort"]) == ("finished", 4, "scripted", "none")
@@ -294,3 +294,86 @@ def test_the_sweep_survives_a_database_error(db_path, data_dir, monkeypatch):
     monkeypatch.setattr(service_module, "signed_off_claims", down)
     with open_env(make_settings(db_path, data_dir)) as env:
         service_module.sweep_signed_off(env)  # logged, and the next sweep tries again
+
+
+# --- the final review's findings ---------------------------------------------------------------------
+
+def test_a_database_error_before_a_start_does_not_lock_the_service(db_path, data_dir, monkeypatch):
+    import agent.service as service_module
+
+    real = service_module.runs.running_run
+    calls = []
+
+    def flaky(engine):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("the pooler closed the connection")
+        return real(engine)
+
+    monkeypatch.setattr(service_module.runs, "running_run", flaky)
+    with TestClient(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as service:
+        assert service.post("/dispatches", json={"workers": 3}).status_code == 500
+        assert service.post("/dispatches", json={"workers": 3}).status_code == 202
+
+
+def test_a_start_that_fails_to_create_its_run_says_so(db_path, data_dir, monkeypatch):
+    import agent.service as service_module
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("could not write the run")
+
+    monkeypatch.setattr(service_module.runs, "start_dispatch", broken)
+    with TestClient(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as service:
+        assert service.post("/dispatches", json={"workers": 3}).status_code == 500
+        monkeypatch.undo()
+        assert service.post("/dispatches", json={"workers": 3}).status_code == 202
+
+
+def test_an_evaluation_half_made_ends_stopped_and_frees_the_next_start(db_path, data_dir, monkeypatch):
+    import app.evaluations as evaluations_module
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("could not list the copies")
+
+    monkeypatch.setattr(evaluations_module.runs, "add_run_claims", broken)
+    with TestClient(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as service:
+        body = {"eval_set": "evaluation", "tiny": True, "workers": 3}
+        assert service.post("/evaluations", json=body).status_code == 500
+        assert runs.get_run(engine_for(db_path), 1)["status"] == "stopped"
+        monkeypatch.undo()
+        assert service.post("/dispatches", json={"workers": 3}).status_code == 202
+
+
+def test_a_service_error_with_a_plain_text_body_reaches_the_dashboard(db_path, data_dir):
+    class Broken:
+        def post(self, url, json=None, timeout=None):
+            return httpx.Response(500, text="Internal Server Error")
+
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Broken())) as backend:
+        answer = backend.post("/dispatches", json={"workers": 3})
+        assert answer.status_code == 500 and "Internal Server Error" in answer.json()["detail"]
+
+
+def test_a_resume_waits_for_a_claim_still_being_worked(db_path, data_dir):
+    """A sign-off that lands while the worker is still finishing the pause: the resume waits for it, not the sweep."""
+    import threading
+    import time
+
+    from agent.service import resume
+
+    engine = hold(db_path, data_dir)
+    sign_off(engine, Reference(data_dir), "PAY-CLM-1003", "HND-01")
+    with open_env(make_settings(db_path, data_dir)) as env:
+        held = threading.Event()
+
+        def busy():
+            with env.working("CLM-1003"):
+                held.set()
+                time.sleep(1.5)
+
+        worker = threading.Thread(target=busy)
+        worker.start()
+        held.wait()
+        resume(env, "CLM-1003")
+        worker.join()
+    assert get_payment(engine, "CLM-1003").status == "paid"

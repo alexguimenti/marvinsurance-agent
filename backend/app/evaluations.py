@@ -33,6 +33,15 @@ def start_evaluation(engine: Engine, ref: Reference, eval_set: str, tiny: bool, 
     run_id = runs.start(engine, "evaluation", workers, model, effort, eval_set=eval_set, tiny=tiny)
     payloads.sort(key=lambda c: (c["submitted_on"], c["claim_id"]))
     copies = [{**c, "claim_id": copy_id(run_id, c["claim_id"])} for c in payloads]
+    try:
+        _add_copies(engine, run_id, copies, payloads)
+    except Exception as exc:  # a half-made evaluation must not hold the one running place
+        runs.finish_run(engine, run_id, error=f"could not create its copies: {type(exc).__name__}: {exc}")
+        raise
+    return run_id
+
+
+def _add_copies(engine: Engine, run_id: int, copies: list[dict], payloads: list[dict]) -> None:
     with engine.begin() as conn:
         conn.execute(insert(claims), [
             {"claim_id": c["claim_id"], "status": "waiting", "payload": json.dumps(c), "submitted_on": c["submitted_on"],
@@ -40,7 +49,6 @@ def start_evaluation(engine: Engine, ref: Reference, eval_set: str, tiny: bool, 
             for c, original in zip(copies, payloads)
         ])
     runs.add_run_claims(engine, run_id, [c["claim_id"] for c in copies])
-    return run_id
 
 
 def is_copy(engine: Engine, claim_id: str) -> bool:

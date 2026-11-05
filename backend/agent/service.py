@@ -2,6 +2,7 @@
 The backend calls it to start a dispatch, and after each sign-off. It answers at once and works in the background."""
 import logging
 import threading
+import time
 from contextlib import asynccontextmanager
 from typing import Callable, Literal
 
@@ -19,6 +20,7 @@ from app.seed import seed_claims
 
 log = logging.getLogger(__name__)
 SWEEP_S = 30
+RESUME_TRIES, RESUME_WAIT_S = 10, 0.5
 
 
 MAX_WORKERS = 25
@@ -50,8 +52,13 @@ def resume(env: AgentEnv, claim_id: str) -> None:
         carry_on(env, claim_id)
     except Exception:
         log.warning("the first try at %s failed", claim_id, exc_info=True)
-    if claim_id in signed_off_claims(env.engine):
-        carry_on(env, claim_id)
+    # A worker still finishing the claim's pause holds it for a moment: wait for it rather than for the sweep.
+    for _ in range(RESUME_TRIES):
+        if claim_id not in signed_off_claims(env.engine):
+            return
+        if "already being worked" not in carry_on(env, claim_id):
+            return
+        time.sleep(RESUME_WAIT_S)
 
 
 def sweep_signed_off(env: AgentEnv) -> None:
@@ -107,18 +114,25 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
         env = holder["env"]
         if not busy.acquire(blocking=False):
             raise HTTPException(409, "a dispatch or evaluation is already running")
-        if runs.running_run(env.engine) is not None:
+        try:  # whatever goes wrong before the work starts, the lock goes back, and the caller hears of it
+            if runs.running_run(env.engine) is not None:
+                raise HTTPException(409, "a dispatch or evaluation is already running")
+            run_id = create(env)
+        except runs.RunActive as exc:
             busy.release()
-            raise HTTPException(409, "a dispatch or evaluation is already running")
+            raise HTTPException(409, str(exc))
+        except BaseException:
+            busy.release()
+            raise
 
         def go() -> None:
             try:
-                dispatch(env, create(env), workers)
+                dispatch(env, run_id, workers)
             finally:
                 busy.release()
 
         in_background(name, go)
-        return {"status": "started"}
+        return {"status": "started", "run_id": run_id}
 
     @app.get("/health", operation_id="get_agent_health")
     def health():
