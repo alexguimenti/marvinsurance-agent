@@ -18,13 +18,32 @@ Last updated 2026-11-05, after the swarm and the scoreboard (`docs/PLAN_SWARM.md
 
 `npm run check` in a clean worktree with no `.env`: 272 backend tests (1 skipped), 66 front-end tests, the type check, the lint and 9 end-to-end tests, all passing.
 
-## Live verification
+## Live verification (2026-11-05)
 
-Not done yet: it needs the owner (see Task 11 of `docs/PLAN_SWARM.md`). It spends on OpenRouter and writes to Supabase and Langfuse.
+On Supabase and the default model, after one `npm run seed`, through the Playwright MCP server. $0.075 on OpenRouter in all.
+
+| Check | Result |
+|---|---|
+| A dispatch at N=3 | Oldest submitted first, never more than 3 at once. Each claim took 14 to 26 s |
+| Stopped partway with a forced kill of the process on 8002 | `npm run dev` stopped the backend and the dashboard too. After a restart the run showed as stopped. 8 claims were finished, 3 held, 2 in progress |
+| A dispatch at N=25 then | The 2 in progress carried on as the same attempts (`CLM-1004-1`, `CLM-1023-1`, attempts 0), with one decision each. The other 15 waiting claims started with them: all 17 at once, started within 14.5 s of each other |
+| Its run against the sum of its claims | 94 s for the run; 1,071 s of agent time summed over its claims |
+| Each claim, against N=3 | **Slower: 32 to 84 s, against 14 to 26 s.** See below |
+| A sign-off during the day | Paid 2.8 s after the click on the approvals page (signed off at 1.3 s), and "Paid ... signed off by Dana Whitfield" on the claim's page |
+| No claim fails for want of a connection | None did. No pool timeout in the logs |
+| At most 12 connections for user postgres | 10 at the most, polled every 8 to 13 s during the dispatch and the evaluations. Read with SQL from our own connection, not through the Supabase MCP server, which this session did not have |
+| An evaluation of the evaluation set at N=25 | Finished in 128 s: decision accuracy 92%, accuracy 88%, mistakes $360, straight-through 84%, $0.0012 and 81 s per claim |
+| The held-out set's five tiny claims at N=5 | Finished in 38 s: decision accuracy 100%, accuracy 80%, mistakes $70, straight-through 80%, $0.0016 and 25 s per claim |
+| The queue's counts before and after the evaluations | The same: 23 decided, 2 awaiting approval |
+| The N=25 dispatch in Langfuse by its tag | 17 traces tagged `run-2`, one for each of its claims |
+
+### Where the time goes at N=25
+
+Each claim does dozens of short statements: its trace events (302 in that run), one row per model call (58), the claim's own reads and writes, and a checkpoint after every step, with its writes. Every statement is a trip of about 213 ms to Supabase, and the process has 2 connections for records and 2 for checkpoints. With 17 claim agents at once, they spend much of their time waiting for one of those 4, not for the model. This is an estimate from the counts and the trip time, not a profile. Ways to win it back, keeping to 4 connections: fewer trace events per step, writing a step's events in one statement, or `durability="exit"` for steps that need no checkpoint.
 
 ## Known limits
 
-- Supabase is far from where this runs: about 220 ms a trip and 6.5 s for a new connection, so connections open at startup. With 25 claim agents sharing a process's 4 connections, they queue for them; how much time that costs is to be measured live.
+- Supabase is far from where this runs: about 220 ms a trip and 6.5 s for a new connection, so connections open at startup. With many claim agents sharing a process's 4 connections, they queue for them: each claim took about three times as long at N=25 as at N=3 (see above).
 - A second attempt at a claim has a new thread, so a new Langfuse session. The claim id tag finds them all.
 - After a reseed, thread names repeat, so an old Langfuse session gains new traces.
 - `AGENT_MODEL` is still read, from the field's name, but `MODEL_NAME` wins over it.

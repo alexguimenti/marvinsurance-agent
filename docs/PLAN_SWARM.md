@@ -93,7 +93,7 @@ e2e/               stand_in_agent.py records each start; tests/00-dispatch.spec.
 **Interfaces:**
 - Produces: `config.DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"`, `config.DEFAULT_EFFORT = "low"`. `Settings.agent_model` comes from `MODEL_NAME` in the environment, else `model` in `agent.toml`, else `DEFAULT_MODEL`. `Settings.reasoning_effort -> str | None` (a property): `"low"` for the default model, `None` for any other. `chat_model` sends `reasoning` only when it is set.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_default_model_is_deepseek_with_low_effort(monkeypatch):
@@ -111,10 +111,10 @@ def test_another_model_sends_no_reasoning(monkeypatch):
     assert "reasoning" not in chat_model(Settings()).extra_body
 ```
 
-- [ ] **Step 2: Run them.** `cd backend; .venv/Scripts/python -m pytest tests/test_config.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.** `MODEL_NAME` is read in `model_post_init` like `DATABASE_URL`, so the precedence stays: environment, then `agent.toml`. Remove `AGENT_MODEL` and `AGENT_REASONING_EFFORT` from the docs and the comment in `agent.toml`. Add `"seed": "node scripts/reseed.mjs"` to the root `package.json`.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(agent): MODEL_NAME chooses the model; only the default runs with low reasoning effort`.
+- [x] **Step 2: Run them.** `cd backend; .venv/Scripts/python -m pytest tests/test_config.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement.** `MODEL_NAME` is read in `model_post_init` like `DATABASE_URL`, so the precedence stays: environment, then `agent.toml`. Remove `AGENT_MODEL` and `AGENT_REASONING_EFFORT` from the docs and the comment in `agent.toml`. Add `"seed": "node scripts/reseed.mjs"` to the root `package.json`.
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(agent): MODEL_NAME chooses the model; only the default runs with low reasoning effort`.
 
 ### Task 2: Cost and time for every claim, with its run
 
@@ -128,7 +128,7 @@ def test_another_model_sends_no_reasoning(monkeypatch):
 - `AgentEnv.clock: Callable[[], float] = time.monotonic`, so a test can time a claim without sleeping. `_drive` times each `invoke` and records it with `record_work_time`.
 - `/claims/{id}` takes `usage` from `claim_totals`, now with `seconds`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_each_model_call_is_recorded_with_its_run(env):
@@ -149,10 +149,10 @@ def test_time_leaves_out_the_wait_for_a_sign_off(env):
     assert run_totals(env.engine, 7)["seconds"] == 2.0
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** `FakeClock` goes in `tests/fakes.py`. The stub model's replies carry `token_usage.cost`, so the cost is not zero.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(usage): record each model call's cost and each claim's time with its run`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** `FakeClock` goes in `tests/fakes.py`. The stub model's replies carry `token_usage.cost`, so the cost is not zero.
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(usage): record each model call's cost and each claim's time with its run`.
 
 ### Task 3: A saver for each claim run, and connections that wait
 
@@ -164,7 +164,7 @@ def test_time_leaves_out_the_wait_for_a_sign_off(env):
 - `AgentEnv` loses `graph` and gains `checkpoints` and `model`. `AgentEnv.claim_graph() -> context manager yielding a compiled claim graph` on a saver of its own. `invoke`, `carry_on`'s `get_state` and `_fail`'s state read all use the graph of the one claim run.
 - Tests get `tests/fakes.claim_state(env, thread_id)` in place of `env.graph.get_state(...)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_each_claim_run_gets_a_saver_of_its_own(env):
@@ -186,10 +186,10 @@ def test_make_engine_waits_for_a_connection(db_path):
     assert make_engine(Settings(db_path=db_path), max_connections=4).pool._timeout == 600
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Port every test that reads `env.graph` to `claim_state`. `test_round_trips.py` keeps its count of checkpoints per sign-off.
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(checkpoints): a saver for each claim run on one pool; connections wait`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** Port every test that reads `env.graph` to `claim_state`. `test_round_trips.py` keeps its count of checkpoints per sign-off.
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(checkpoints): a saver for each claim run on one pool; connections wait`.
 
 ### Task 4: The harness function
 
@@ -200,7 +200,7 @@ def test_make_engine_waits_for_a_connection(db_path):
 - `worker.RETRYABLE = (ModelRateLimitError, ModelTimeoutError)`, from `langchain_core.exceptions`. `_drive` lets them through without settling the claim: no attempt is counted, the claim stays in progress on its thread, and a trace event says it will carry on.
 - `work_claim` and `carry_on` stay as they are otherwise, minus their calls to the to-do list.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_work_starts_a_waiting_claim(env): ...
@@ -216,10 +216,10 @@ def test_a_timeout_is_let_through_the_same_way(env): ...         # ModelTimeoutE
 def test_any_other_error_still_fails_the_attempt(env): ...       # RuntimeError: back to waiting, attempts 1
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(worker): one function to work a claim; rate limits and timeouts leave it in progress`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(worker): one function to work a claim; rate limits and timeouts leave it in progress`.
 
 ### Task 5: The dispatcher in place of the queue agent
 
@@ -250,7 +250,7 @@ def dispatch(env: AgentEnv, run_id: int, workers: int, retry: RetryPolicy = CLAI
 - `uv run -m agent CLM-1001`: one positional claim id, worked in this process with `worker.work(env, claim_id, None)`. `--limit` and `--claims` go.
 - Seeding on Supabase drops `todo_items` and `run_events` if they are there (`DROP TABLE IF EXISTS`), because they are no longer in `metadata`.
 
-- [ ] **Step 1: Write the failing tests on a stub model**
+- [x] **Step 1: Write the failing tests on a stub model**
 
 ```python
 def test_never_more_than_n_claims_at_once(env):
@@ -302,10 +302,10 @@ def test_cli_without_a_claim_id_is_refused(cli_env): ...
 
   `FAST_RETRY` is `CLAIM_RETRY` with `initial_interval=0.01` and `jitter=False`.
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Remove `begin_run`, `work_run`, the heartbeat, `missed_claims`, `taken_claims`, the to-do functions and `run_event(s)`. `test_evals_isolation.py` must still scan `backend/agent/`, now without `instructions_run.md`.
-- [ ] **Step 4: Run all backend tests.** `grep -rn "todo\|queue_agent\|instructions_run" backend` returns nothing. Expected: PASS, and empty.
-- [ ] **Step 5: Commit** `feat(dispatcher): a graph with no model works the queue N claims at once`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** Remove `begin_run`, `work_run`, the heartbeat, `missed_claims`, `taken_claims`, the to-do functions and `run_event(s)`. `test_evals_isolation.py` must still scan `backend/agent/`, now without `instructions_run.md`.
+- [x] **Step 4: Run all backend tests.** `grep -rn "todo\|queue_agent\|instructions_run" backend` returns nothing. Expected: PASS, and empty.
+- [x] **Step 5: Commit** `feat(dispatcher): a graph with no model works the queue N claims at once`.
 
 ### Task 6: Starting a dispatch through the service
 
@@ -317,7 +317,7 @@ def test_cli_without_a_claim_id_is_refused(cli_env): ...
 - Backend: `POST /dispatches` with `{workers: int}` (`start_dispatch`) forwards through `agent_client.start(http, url, "/dispatches", body)`: 503 `"the agent is not running"` when it is down, the service's 409 as a 409. `GET /dispatches/latest` (`get_latest_dispatch`) returns `{"run": ..., "claims": run_claims_view, "summary": run_summary or None while running, "totals": run_totals}`. `GET /instructions` returns `{"claim": ...}`. `/runs`, `/runs/selected`, `/runs/latest` and `/runs/{id}` go.
 - `test_every_operation_follows_the_api_rules` covers the new routes of both apps.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_service_starts_a_dispatch_with_n(service_env): ...
@@ -333,10 +333,10 @@ def test_a_dispatch_with_no_agent_is_503(client): ...
 def test_latest_dispatch_shows_its_claims_summary_and_totals(client, dispatched): ...
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(service): start a dispatch with N claim agents; one run at a time`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(service): start a dispatch with N claim agents; one run at a time`.
 
 ### Task 7: The dashboard: N, the run panel, and the end-to-end test
 
@@ -349,7 +349,7 @@ def test_latest_dispatch_shows_its_claims_summary_and_totals(client, dispatched)
 - Instructions page: the claim agent's instructions only.
 - `stand_in_agent.py` writes down the body of every `POST /dispatches` and `POST /evaluations` before passing it to the real scripted service. `GET /received` returns `{"resumes": [claim ids], "starts": [{"path", "body"}]}`; `02-approval.spec.ts` reads `resumes`.
 
-- [ ] **Step 1: Write the failing tests**: `Queue` "starts a dispatch with the N chosen, 3 to start with"; "says the agent is not running on a 503"; "says a run is going on a 409"; `RunPanel` "shows each claim of the dispatch and where it stands"; "shows the summary and the model cost and time when it finishes". E2e:
+- [x] **Step 1: Write the failing tests**: `Queue` "starts a dispatch with the N chosen, 3 to start with"; "says the agent is not running on a 503"; "says a run is going on a 409"; `RunPanel` "shows each claim of the dispatch and where it stands"; "shows the summary and the model cost and time when it finishes". E2e:
 
 ```ts
 test('a dispatch started on the dashboard reaches the agent service with N, and works every claim', async ({ page, request }) => {
@@ -365,10 +365,10 @@ test('a dispatch started on the dashboard reaches the agent service with N, and 
 })
 ```
 
-- [ ] **Step 2: Run them.** `cd frontend; npx vitest run`, then `cd e2e; npm test`. Expected: FAIL.
-- [ ] **Step 3: Implement**, reusing the existing styles. `01-queue.spec.ts` and `02-approval.spec.ts` now run after a dispatch of the whole queue: update what they expect.
-- [ ] **Step 4: Run `npm run check`** with `.env` moved aside; put it back. Expected: green.
-- [ ] **Step 5: Commit** `feat(frontend): start a dispatch with N; the run panel shows its claims and summary`.
+- [x] **Step 2: Run them.** `cd frontend; npx vitest run`, then `cd e2e; npm test`. Expected: FAIL.
+- [x] **Step 3: Implement**, reusing the existing styles. `01-queue.spec.ts` and `02-approval.spec.ts` now run after a dispatch of the whole queue: update what they expect.
+- [x] **Step 4: Run `npm run check`** with `.env` moved aside; put it back. Expected: green.
+- [x] **Step 5: Commit** `feat(frontend): start a dispatch with N; the run panel shows its claims and summary`.
 
 ### Task 8: Evaluations on copies
 
@@ -384,7 +384,7 @@ test('a dispatch started on the dashboard reaches the agent service with N, and 
 - `ScriptedChatModel` reads the original id from `E<run>-<id>`, so copies get the scripted decisions.
 - `test_evals_isolation.py`: `backend/agent/` and the prompts never name `data/evals` or `answer_key`; in `backend/app/` only `seed.py` names `data/evals` and only `scoring.py` reads `answer_key`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_an_evaluation_leaves_the_queue_as_it_was(env):
@@ -414,10 +414,10 @@ def test_an_evaluation_records_its_set_n_model_and_effort(env): ...
 def test_service_starts_an_evaluation_and_refuses_one_during_a_dispatch(service_env): ...
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all backend tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(evaluations): work copies of a labelled set through the dispatcher`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all backend tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(evaluations): work copies of a labelled set through the dispatcher`.
 
 ### Task 9: The scoreboard
 
@@ -429,7 +429,7 @@ def test_service_starts_an_evaluation_and_refuses_one_during_a_dispatch(service_
 - API: `GET /evaluations` (`list_evaluations`), newest first, each with its run and `measures`; `GET /evaluations/{run_id}` (`get_evaluation`), 404 for a dispatch or an unknown run.
 - Frontend: a **Scoreboard** link in the nav; `/scoreboard` lists the evaluations with every measure and a form to start one (set, whole or tiny, N from 1 to 25 with 3 to start with); `/scoreboard/:id` lists its claims, the handler's decision and payout beside the agent's, misses marked `.miss`, each claim linked to its page. A stopped evaluation shows as stopped.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 HANDLERS = [
@@ -487,10 +487,10 @@ test('an evaluation played out through the API appears on the scoreboard', async
 })
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Copy the lab's names for the measures where the brief keeps them (`decision_accuracy`, `accuracy`).
-- [ ] **Step 4: Run `npm run check`** with `.env` moved aside; put it back. Expected: green.
-- [ ] **Step 5: Commit** `feat(scoreboard): measures for every evaluation, and each claim beside the handler's`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** Copy the lab's names for the measures where the brief keeps them (`decision_accuracy`, `accuracy`).
+- [x] **Step 4: Run `npm run check`** with `.env` moved aside; put it back. Expected: green.
+- [x] **Step 5: Commit** `feat(scoreboard): measures for every evaluation, and each claim beside the handler's`.
 
 ### Task 10: The documents
 
@@ -503,8 +503,8 @@ test('an evaluation played out through the API appears on the scoreboard', async
 - `STATUS.md`: what works now; the live results come in Task 11.
 - `COMMANDS.md`, `README.md`: `npm run seed`, `uv run -m agent CLM-1001`, the Scoreboard.
 
-- [ ] **Step 1: Write them**, then run each command in `COMMANDS.md` that spends nothing.
-- [ ] **Step 2: Commit** `docs: describe the dispatcher, evaluations and the scoreboard`.
+- [x] **Step 1: Write them**, then run each command in `COMMANDS.md` that spends nothing.
+- [x] **Step 2: Commit** `docs: describe the dispatcher, evaluations and the scoreboard`.
 
 ### Task 11: Live verification
 
@@ -512,15 +512,19 @@ Needs the owner. This spends money on OpenRouter and writes to Supabase and Lang
 
 **Files:** Extend `scripts/check_live.py` (`--run N`: the run's claims with start and finish times, the most at once, the sum of their times against the run's; `--tag run-N`: the Langfuse traces with that tag). Record results in `docs/STATUS.md`.
 
-- [ ] **Step 1: Prepare with the owner.** Close the lab notebooks; stop any old servers; open the session at the repo root and sign in to the Supabase MCP server with `/mcp`. Take a baseline of `pg_stat_activity` for user postgres.
-- [ ] **Step 2: Reseed once.** `npm run seed`. Expected: 25 claims waiting.
-- [ ] **Step 3: N=3, killed partway.** `npm run dev`; through the Playwright MCP server start a dispatch at N=3. Once a few claims are decided and others are in progress, kill every process listening on 8002. Expected: `npm run dev` stops the others. Start `npm run dev` again. Expected: the run shows as stopped.
-- [ ] **Step 4: N=25.** Start a dispatch at N=25. Expected: the claims left in progress keep their threads and attempts; the rest start within a few seconds of each other; the run takes well under the sum of its claims' times; claims worked from the start take about as long as at N=3, or the report says where the time went. During it, through the MCP server, no more than 12 connections for user postgres, and no claim fails for want of a connection.
-- [ ] **Step 5: Sign-off.** Sign off a held claim on the dashboard. Expected: paid on screen within five seconds.
-- [ ] **Step 6: Evaluations.** Note the queue's counts. Start an evaluation of the evaluation set at N=25, then one of the held-out set's `tiny` claims at N=5. Expected: both on the scoreboard with every measure; the queue's counts unchanged.
-- [ ] **Step 7: Langfuse.** `python scripts/check_live.py --tag run-<N=25 dispatch>`. Expected: every claim of that dispatch.
-- [ ] **Step 8: Commit** `docs: record the live verification of the swarm`.
+- [x] **Step 1: Prepare with the owner.** Close the lab notebooks; stop any old servers; open the session at the repo root and sign in to the Supabase MCP server with `/mcp`. Take a baseline of `pg_stat_activity` for user postgres.
+- [x] **Step 2: Reseed once.** `npm run seed`. Expected: 25 claims waiting.
+- [x] **Step 3: N=3, killed partway.** `npm run dev`; through the Playwright MCP server start a dispatch at N=3. Once a few claims are decided and others are in progress, kill every process listening on 8002. Expected: `npm run dev` stops the others. Start `npm run dev` again. Expected: the run shows as stopped.
+- [x] **Step 4: N=25.** Start a dispatch at N=25. Expected: the claims left in progress keep their threads and attempts; the rest start within a few seconds of each other; the run takes well under the sum of its claims' times; claims worked from the start take about as long as at N=3, or the report says where the time went. During it, through the MCP server, no more than 12 connections for user postgres, and no claim fails for want of a connection.
+- [x] **Step 5: Sign-off.** Sign off a held claim on the dashboard. Expected: paid on screen within five seconds.
+- [x] **Step 6: Evaluations.** Note the queue's counts. Start an evaluation of the evaluation set at N=25, then one of the held-out set's `tiny` claims at N=5. Expected: both on the scoreboard with every measure; the queue's counts unchanged.
+- [x] **Step 7: Langfuse.** `python scripts/check_live.py --tag run-<N=25 dispatch>`. Expected: every claim of that dispatch.
+- [x] **Step 8: Commit** `docs: record the live verification of the swarm`.
 
 ## Done means
 
 Each line under "What done looks like" in `docs/SWARM.md` has its evidence: tests in Tasks 1 to 9, documents in Task 10, measurements in Task 11.
+
+## Results
+
+See `docs/STATUS.md`. Every line of "What done looks like" has its evidence, with two notes. Claims at N=25 each took about three times as long as at N=3; `STATUS.md` says where the time goes. The connection count was read with SQL from our own connection, since the Supabase MCP server was not loaded in this session.
