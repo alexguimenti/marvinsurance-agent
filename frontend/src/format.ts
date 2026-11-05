@@ -10,18 +10,19 @@ export const STATUS_LABEL: Record<string, string> = {
   needs_handler: 'Needs a handler',
 }
 
-export const TODO_LABEL: Record<string, string> = {
-  todo: 'To do',
-  in_progress: 'In progress',
-  done: 'Done',
-  left_for_handler: 'Left for a handler',
-}
-
 export const RUN_LABEL: Record<string, string> = {
   running: 'Running',
   finished: 'Finished',
-  failed: 'Failed',
+  stopped: 'Stopped',
 }
+
+/** Claim agents working at once: 1 to 25, 3 to start with. */
+export const MIN_WORKERS = 1
+export const MAX_WORKERS = 25
+export const DEFAULT_WORKERS = 3
+
+/** Seconds of agent time, for people. */
+export const formatSeconds = (s: number) => (s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`)
 
 export const DOCUMENT_LABEL: Record<string, string> = {
   policy_wording: 'Policy wording',
@@ -71,7 +72,7 @@ export const formatTime = (iso: string) =>
 
 /** Why a run did not start. */
 export function runRefused(status: number | undefined, otherwise: string): string {
-  if (status === 409) return 'A run is already in progress.'
+  if (status === 409) return 'A dispatch or evaluation is already running.'
   if (status === 503) return 'The agent is not running. Start it with npm run dev.'
   return otherwise
 }

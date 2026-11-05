@@ -2,14 +2,14 @@ import { expect, test, type APIRequestContext } from '@playwright/test'
 
 test.beforeAll(async ({ request }) => {
   // make sure the queue has run, in case this file is run on its own
-  await request.post('/api/runs', { data: { limit: 25 } })
+  await request.post('/api/dispatches', { data: { workers: 5 } })
   await expect
     .poll(async () => (await (await request.get('/api/approvals')).json()).length, { timeout: 30_000 })
     .toBe(3)
 })
 
 const received = async (request: APIRequestContext) =>
-  (await request.get('http://127.0.0.1:8003/received')).json()
+  (await (await request.get('http://127.0.0.1:8003/received')).json()).resumes
 
 test('a sign-off on the dashboard reaches the agent service, and the claim shows in progress', async ({ page, request }) => {
   await page.goto('/claims/CLM-1003')

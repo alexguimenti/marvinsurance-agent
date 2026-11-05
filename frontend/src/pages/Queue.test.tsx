@@ -17,16 +17,18 @@ const claim = (id: string, status: string, extra = {}) => ({
   ...extra,
 })
 
-const NO_RUN = { run: null, todo: [] }
-const latest = (status: string) => ({
-  run: { run_id: 1, status, alive: status === 'running', cap: null, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null },
-  todo: [{ item_id: 1, position: 1, title: 'Work CLM-1', status: 'in_progress', claim_id: 'CLM-1', note: null }],
+const NO_RUN = { run: null, claims: [], totals: null, summary: null }
+const dispatch = (status: string) => ({
+  run: { run_id: 1, kind: 'dispatch', status, workers: 3, model: 'm', reasoning_effort: 'low', error: null, started_at: '2026-11-05T10:00:00+00:00', finished_at: null },
+  claims: [{ claim_id: 'CLM-1', position: 1, status: 'in_progress', attempts: 0, decision: null, payout: null, payment: null, started_at: '2026-11-05T10:00:01+00:00', finished_at: null, cost_usd: null, seconds: 0 }],
+  totals: { calls: 0, input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, cost_usd: null, seconds: 0 },
+  summary: null,
 })
 
 describe('Queue', () => {
   it('shows each claim with a status badge for all four statuses', async () => {
     mockApi({
-      '/api/runs/latest': NO_RUN,
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [
         claim('CLM-1', 'waiting'),
         claim('CLM-2', 'in_progress'),
@@ -43,88 +45,107 @@ describe('Queue', () => {
     expect(screen.getByRole('link', { name: 'CLM-1' })).toHaveAttribute('href', '/claims/CLM-1')
   })
 
-  it('"Run queue" starts a run, with the limit when one is set', async () => {
+  it('starts a dispatch with 3 claim agents at once to start with', async () => {
     const { calls } = mockApi({
-      '/api/runs/latest': NO_RUN,
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [claim('CLM-1', 'waiting')],
-      'POST /api/runs': { run_id: 1 },
+      'POST /api/dispatches': { status: 'started' },
     })
     renderAt(<Queue />, '/')
-    await userEvent.type(await screen.findByLabelText('Limit'), '5')
-    await userEvent.click(screen.getByRole('button', { name: /run queue/i }))
-    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ limit: 5 }))
+    expect(await screen.findByLabelText('Claim agents at once')).toHaveValue(3)
+    await userEvent.click(screen.getByRole('button', { name: 'Start dispatch' }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ workers: 3 }))
   })
 
-  it('"Run queue" with no limit asks for every waiting claim', async () => {
+  it('starts a dispatch with the N chosen', async () => {
     const { calls } = mockApi({
-      '/api/runs/latest': NO_RUN,
-      '/api/claims': [claim('CLM-1', 'waiting'), claim('CLM-2', 'waiting'), claim('CLM-3', 'decided')],
-      'POST /api/runs': { run_id: 1 },
+      '/api/dispatches/latest': NO_RUN,
+      '/api/claims': [claim('CLM-1', 'waiting')],
+      'POST /api/dispatches': { status: 'started' },
     })
     renderAt(<Queue />, '/')
-    await userEvent.click(await screen.findByRole('button', { name: /run queue/i }))
-    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ limit: 2 }))
+    const field = await screen.findByLabelText('Claim agents at once')
+    await userEvent.clear(field)
+    await userEvent.type(field, '25')
+    await userEvent.click(screen.getByRole('button', { name: 'Start dispatch' }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ workers: 25 }))
   })
 
-  it('can finish a run whose process has gone, even with nothing waiting', async () => {
-    const stopped = { run_id: 7, status: 'running', alive: false, cap: 5, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null }
+  it('offers only 1 to 25 claim agents at once', async () => {
+    mockApi({ '/api/dispatches/latest': NO_RUN, '/api/claims': [claim('CLM-1', 'waiting')] })
+    renderAt(<Queue />, '/')
+    const field = await screen.findByLabelText('Claim agents at once')
+    expect(field).toHaveAttribute('min', '1')
+    expect(field).toHaveAttribute('max', '25')
+    await userEvent.clear(field)
+    await userEvent.type(field, '26')
+    expect(screen.getByRole('button', { name: 'Start dispatch' })).toBeDisabled()
+  })
+
+  it('can carry on claims in progress, even with nothing waiting', async () => {
     const { calls } = mockApi({
-      '/api/runs/latest': { run: stopped, todo: [] },
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [claim('CLM-3', 'in_progress')],
-      'POST /api/runs': { run_id: 1 },
+      'POST /api/dispatches': { status: 'started' },
     })
     renderAt(<Queue />, '/')
-    await userEvent.click(await screen.findByRole('button', { name: /run queue/i }))
-    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ limit: 1 }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Start dispatch' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
   })
 
-  it('does not offer a second run while one is alive', async () => {
-    const live = { run_id: 7, status: 'running', alive: true, cap: 5, model: 'm', summary: null, error: null, usage: null, started_at: '', finished_at: null }
-    mockApi({ '/api/runs/latest': { run: live, todo: [] }, '/api/claims': [claim('CLM-1', 'waiting')] })
+  it('does not offer a second dispatch while one runs', async () => {
+    mockApi({ '/api/dispatches/latest': dispatch('running'), '/api/claims': [claim('CLM-1', 'in_progress'), claim('CLM-2', 'waiting')] })
     renderAt(<Queue />, '/')
-    await screen.findByText('CLM-1')
-    await waitFor(() => expect(screen.getByRole('button', { name: /run queue/i })).toBeDisabled())
+    await screen.findByText('CLM-2')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start dispatch' })).toBeDisabled())
   })
 
   it('has nothing to offer when every claim is finished', async () => {
-    mockApi({ '/api/runs/latest': NO_RUN, '/api/claims': [claim('CLM-3', 'decided')] })
+    mockApi({ '/api/dispatches/latest': NO_RUN, '/api/claims': [claim('CLM-3', 'decided')] })
     renderAt(<Queue />, '/')
     await screen.findByText('CLM-3')
-    expect(screen.getByRole('button', { name: /run queue/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Start dispatch' })).toBeDisabled()
   })
 
   it('says so when the agent is not running', async () => {
     mockApi({
-      '/api/runs/latest': NO_RUN,
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [claim('CLM-1', 'waiting')],
-      'POST /api/runs': { status: 503, body: { detail: 'the agent is not running' } },
+      'POST /api/dispatches': { status: 503, body: { detail: 'the agent is not running' } },
     })
     renderAt(<Queue />, '/')
-    await userEvent.click(await screen.findByRole('button', { name: /run queue/i }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Start dispatch' }))
     expect(await screen.findByText(/the agent is not running/i)).toBeInTheDocument()
   })
 
-  it('says so when a run is already in progress', async () => {
+  it('says so when a dispatch or evaluation is already running', async () => {
     mockApi({
-      '/api/runs/latest': NO_RUN,
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [claim('CLM-1', 'waiting')],
-      'POST /api/runs': { status: 409, body: { detail: 'a run is already in progress' } },
+      'POST /api/dispatches': { status: 409, body: { detail: 'a dispatch or evaluation is already running' } },
     })
     renderAt(<Queue />, '/')
-    await userEvent.click(await screen.findByRole('button', { name: /run queue/i }))
-    expect(await screen.findByText('A run is already in progress.')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: 'Start dispatch' }))
+    expect(await screen.findByText('A dispatch or evaluation is already running.')).toBeInTheDocument()
   })
 
-  it('shows the to-do list of the latest run and disables the button while it runs', async () => {
-    mockApi({ '/api/runs/latest': latest('running'), '/api/claims': [claim('CLM-1', 'in_progress'), claim('CLM-2', 'waiting')] })
+  it('shows the latest dispatch in the run panel', async () => {
+    mockApi({ '/api/dispatches/latest': dispatch('running'), '/api/claims': [claim('CLM-1', 'in_progress')] })
     renderAt(<Queue />, '/')
-    expect(await screen.findByText('Work CLM-1')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /run queue/i })).toBeDisabled()
+    expect(await screen.findByText(/Dispatch 1/)).toBeInTheDocument()
+  })
+
+  it('has no tick boxes and no limit: a dispatch works every claim', async () => {
+    mockApi({ '/api/dispatches/latest': NO_RUN, '/api/claims': [claim('CLM-1', 'waiting'), claim('CLM-2', 'waiting')] })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-1')
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    expect(screen.queryByLabelText('Limit')).not.toBeInTheDocument()
   })
 
   it('counts claims left for a handler and notes a failed attempt', async () => {
     mockApi({
-      '/api/runs/latest': NO_RUN,
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [claim('CLM-1', 'needs_handler', { attempts: 2 }), claim('CLM-2', 'waiting', { attempts: 1 })],
     })
     renderAt(<Queue />, '/')
@@ -136,40 +157,14 @@ describe('Queue', () => {
   })
 
   it('shows an error when the API fails', async () => {
-    mockApi({ '/api/runs/latest': NO_RUN, '/api/claims': { status: 500, body: { detail: 'boom' } } })
+    mockApi({ '/api/dispatches/latest': NO_RUN, '/api/claims': { status: 500, body: { detail: 'boom' } } })
     renderAt(<Queue />, '/')
     expect(await screen.findByText(/could not load/i)).toBeInTheDocument()
   })
 
-  it('lets you tick waiting claims and run only those', async () => {
-    const { calls } = mockApi({
-      '/api/runs/latest': NO_RUN,
-      '/api/claims': [claim('CLM-1', 'waiting'), claim('CLM-2', 'waiting'), claim('CLM-3', 'decided')],
-      'POST /api/runs': { run_id: 1 },
-    })
-    renderAt(<Queue />, '/')
-    await screen.findByText('CLM-1')
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3) // select all + 2 waiting rows
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Select CLM-2' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Run selected (1)' }))
-    await waitFor(() =>
-      expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ claim_ids: ['CLM-2'] }),
-    )
-  })
-
-  it('select all ticks every waiting claim', async () => {
-    mockApi({ '/api/runs/latest': NO_RUN, '/api/claims': [claim('CLM-1', 'waiting'), claim('CLM-2', 'waiting'), claim('CLM-3', 'decided')] })
-    renderAt(<Queue />, '/')
-    await screen.findByText('CLM-1')
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all waiting claims' }))
-    expect(screen.getByRole('button', { name: 'Run selected (2)' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all waiting claims' }))
-    expect(screen.getByRole('button', { name: 'Run queue' })).toBeInTheDocument()
-  })
-
   it('summarizes the queue in one tile per status', async () => {
     mockApi({
-      '/api/runs/latest': NO_RUN,
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [
         claim('CLM-1', 'waiting'),
         claim('CLM-2', 'waiting'),
@@ -189,7 +184,7 @@ describe('Queue', () => {
 
   it('does not stamp APPROVE on a claim that still waits for a handler', async () => {
     mockApi({
-      '/api/runs/latest': NO_RUN,
+      '/api/dispatches/latest': NO_RUN,
       '/api/claims': [
         claim('CLM-1', 'awaiting_approval', { decision: 'approve', payout: 2000 }),
         claim('CLM-2', 'decided', { decision: 'approve', payout: 300 }),

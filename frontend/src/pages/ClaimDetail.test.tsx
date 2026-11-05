@@ -1,5 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { mockApi, renderAt } from '../testUtils'
 import ClaimDetail from './ClaimDetail'
@@ -65,32 +64,6 @@ describe('ClaimDetail', () => {
     expect(await screen.findByText(/held for approval/i)).toBeInTheDocument()
   })
 
-  it('runs a waiting claim as a run scoped to it', async () => {
-    const waiting = { ...detail('waiting'), decision: null }
-    const { calls } = mockApi({
-      '/api/claims/CLM-1011': waiting,
-      '/api/claims/CLM-1011/trace': [],
-      '/api/runs/latest': NO_RUN,
-      'POST /api/runs/selected': { run_id: 1 },
-    })
-    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
-    await userEvent.click(await screen.findByRole('button', { name: /run this claim/i }))
-    await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.url).toBe('/api/runs/selected'))
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ claim_ids: ['CLM-1011'] })
-  })
-
-  it('says so when a run is already going', async () => {
-    const waiting = { ...detail('waiting'), decision: null }
-    mockApi({
-      '/api/claims/CLM-1011': waiting,
-      '/api/claims/CLM-1011/trace': [],
-      'POST /api/runs/selected': { status: 409, body: { detail: 'a run is already in progress' } },
-    })
-    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
-    await userEvent.click(await screen.findByRole('button', { name: /run this claim/i }))
-    expect(await screen.findByText('A run is already in progress.')).toBeInTheDocument()
-  })
-
   it('shows who signed off and when on a paid claim', async () => {
     mockApi(routes('decided', {
       payment_id: 'PAY-1', status: 'paid', amount: 1150, approved_by: 'HND-01', approved_by_name: 'Dana Whitfield',
@@ -120,23 +93,18 @@ describe('ClaimDetail', () => {
     expect(await screen.findByText('Pending sign-off')).toBeInTheDocument()
   })
 
-  it('says so when the agent is not running', async () => {
-    const waiting = { ...detail('waiting'), decision: null }
-    mockApi({
-      '/api/claims/CLM-1011': waiting,
-      '/api/claims/CLM-1011/trace': [],
-      'POST /api/runs/selected': { status: 503, body: { detail: 'the agent is not running' } },
-    })
+  it('offers no way to run one claim: a dispatch works every claim', async () => {
+    mockApi({ '/api/claims/CLM-1011': { ...detail('waiting'), decision: null }, '/api/claims/CLM-1011/trace': [] })
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
-    await userEvent.click(await screen.findByRole('button', { name: /run this claim/i }))
-    expect(await screen.findByText(/the agent is not running/i)).toBeInTheDocument()
+    await screen.findByText('CLM-1011')
+    expect(screen.queryByRole('button', { name: /run/i })).not.toBeInTheDocument()
   })
 
   it('does not ask for the latest run', async () => {
     const { calls } = mockApi(routes('decided', { payment_id: 'PAY-1', status: 'paid', amount: 1150 }))
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
     await screen.findByText('Covered under section 5.')
-    expect(calls.some((c) => c.url === '/api/runs/latest')).toBe(false)
+    expect(calls.some((c) => c.url === '/api/dispatches/latest')).toBe(false)
   })
 
   it('lists what the agent read, and the versions it decided under', async () => {

@@ -16,7 +16,7 @@ const held = (id: string) => ({
 
 describe('App navigation', () => {
   it('shows how many payments wait for approval next to the Approvals link', async () => {
-    mockApi({ '/api/claims': [], '/api/runs/latest': { run: null, todo: [] }, '/api/approvals': [held('CLM-1'), held('CLM-2'), held('CLM-3')] })
+    mockApi({ '/api/claims': [], '/api/dispatches/latest': { run: null, claims: [], totals: null, summary: null }, '/api/approvals': [held('CLM-1'), held('CLM-2'), held('CLM-3')] })
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />
@@ -30,7 +30,7 @@ describe('App navigation', () => {
   it('still renders with a claim left for a handler', async () => {
     const stuck = { claim_id: 'CLM-9', claim_type: 'baggage', summary: 's', customer_name: 'Maya Patel',
       amount_claimed: 10, status: 'needs_handler', decision: null, payout: null, attempts: 2 }
-    mockApi({ '/api/claims': [stuck], '/api/runs/latest': { run: null, todo: [] }, '/api/approvals': [] })
+    mockApi({ '/api/claims': [stuck], '/api/dispatches/latest': { run: null, claims: [], totals: null, summary: null }, '/api/approvals': [] })
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />
@@ -41,7 +41,7 @@ describe('App navigation', () => {
   })
 
   it('shows no count when nothing waits', async () => {
-    mockApi({ '/api/claims': [], '/api/runs/latest': { run: null, todo: [] }, '/api/approvals': [] })
+    mockApi({ '/api/claims': [], '/api/dispatches/latest': { run: null, claims: [], totals: null, summary: null }, '/api/approvals': [] })
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />

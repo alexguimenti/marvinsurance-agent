@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiError, getClaim, startRun, type ClaimDetailData } from '../api'
+import { getClaim, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
-import { DOCUMENT_LABEL, describeUsage, formatTime, formatUsd, humanize, runRefused, stampFor } from '../format'
+import { DOCUMENT_LABEL, describeUsage, formatTime, formatUsd, humanize, stampFor } from '../format'
 import { usePolling } from '../usePolling'
 import Trace from './Trace'
 
@@ -26,15 +26,6 @@ export default function ClaimDetail() {
   // quicker while the agent is at it: a signed-off claim should show as paid within seconds
   usePolling(load, data?.status === 'in_progress' ? POLL_WORKING_MS : POLL_MS)
 
-  async function onRun() {
-    try {
-      await startRun({ claimIds: [id] })
-      await load()
-    } catch (e) {
-      setError(runRefused(e instanceof ApiError ? e.status : undefined, 'Could not start this claim.'))
-    }
-  }
-
   if (error && !data) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Loading</p>
 
@@ -55,11 +46,6 @@ export default function ClaimDetail() {
         </div>
         <div className="row">
           <StatusBadge status={data.status} />
-          {data.status === 'waiting' && (
-            <button className="btn btn-primary" onClick={onRun}>
-              Run this claim
-            </button>
-          )}
         </div>
       </div>
       {error && <p className="error">{error}</p>}

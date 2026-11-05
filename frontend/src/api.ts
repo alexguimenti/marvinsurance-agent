@@ -71,29 +71,48 @@ export interface ReadSection {
 
 export interface Run {
   run_id: number
-  status: 'running' | 'finished' | 'failed'
-  alive: boolean // false for a running run whose process has gone: the next run finishes it
-  cap: number | null
+  kind: 'dispatch' | 'evaluation'
+  status: 'running' | 'finished' | 'stopped'
+  workers: number
   model: string
-  summary: string | null
+  reasoning_effort: string
+  eval_set?: 'evaluation' | 'held_out' | null
+  tiny?: boolean | null
   error: string | null
-  usage: Usage | null
   started_at: string
   finished_at: string | null
 }
 
-export interface TodoItem {
-  item_id: number
+/** One claim of a run, and where it stands. */
+export interface RunClaim {
+  claim_id: string
   position: number
-  title: string
-  status: 'todo' | 'in_progress' | 'done' | 'left_for_handler'
-  claim_id: string | null
-  note: string | null
+  status: Status
+  attempts: number
+  decision: 'approve' | 'decline' | 'refer' | null
+  payout: number | null
+  payment: Payment['status'] | null
+  started_at: string | null
+  finished_at: string | null
+  cost_usd: number | null
+  seconds: number
 }
 
-export interface LatestRun {
+/** What a run came to, from the records. */
+export interface RunSummary {
+  approved: number
+  declined: number
+  referred: number
+  awaiting_sign_off: { claim_id: string; payout: number }[]
+  left_for_handler: string[]
+  in_progress: string[]
+}
+
+export interface LatestDispatch {
   run: Run | null
-  todo: TodoItem[]
+  claims: RunClaim[]
+  totals: (Usage & { seconds: number }) | null
+  summary: RunSummary | null
 }
 
 export interface Usage {
@@ -160,12 +179,9 @@ const post = (body?: unknown): RequestInit => ({
 export const listClaims = () => request<ClaimSummary[]>('/claims')
 export const getClaim = (id: string) => request<ClaimDetailData>(`/claims/${id}`)
 export const getTrace = (id: string) => request<TraceEvent[]>(`/claims/${id}/trace`)
-export const startRun = (what: { limit: number } | { claimIds: string[] }) =>
-  'claimIds' in what
-    ? request<{ run_id: number }>('/runs/selected', post({ claim_ids: what.claimIds }))
-    : request<{ run_id: number }>('/runs', post({ limit: what.limit }))
-export const getLatestRun = () => request<LatestRun>('/runs/latest')
-export const getInstructions = () => request<{ run: string; claim: string }>('/instructions')
+export const startDispatch = (workers: number) => request<{ status: string }>('/dispatches', post({ workers }))
+export const getLatestDispatch = () => request<LatestDispatch>('/dispatches/latest')
+export const getInstructions = () => request<{ claim: string }>('/instructions')
 export const listApprovals = () => request<Approval[]>('/approvals')
 export const listHandlers = () => request<Handler[]>('/handlers')
 export const approvePayment = (id: string, handlerId: string) =>

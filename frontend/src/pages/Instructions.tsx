@@ -77,7 +77,7 @@ function renderMarkdown(text: string): ReactNode[] {
 }
 
 export default function Instructions() {
-  const [texts, setTexts] = useState<{ run: string; claim: string } | null>(null)
+  const [texts, setTexts] = useState<{ claim: string } | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
@@ -93,15 +93,13 @@ export default function Instructions() {
           <p className="eyebrow">Standing orders</p>
           <h1>Agent instructions</h1>
           <p className="lede">
-            The briefs the Marvin Agent works from: one for running the queue, one for each claim it is handed.
+            The brief each claim agent works from. The dispatcher that hands out the claims is code, with no model and no brief.
           </p>
         </div>
       </div>
       {error && <p className="error">Could not load the instructions.</p>}
       {texts !== null && (
         <>
-          <h2 className="section-title">Running the queue</h2>
-          <article className="card pad instructions">{renderMarkdown(texts.run)}</article>
           <h2 className="section-title">Working a claim</h2>
           <article className="card pad instructions">{renderMarkdown(texts.claim)}</article>
         </>
