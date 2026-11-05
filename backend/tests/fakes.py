@@ -1,6 +1,7 @@
 import re
 from contextlib import contextmanager
 
+from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
@@ -118,7 +119,7 @@ class Stopped(BaseException):
 class StubModel(BaseChatModel):
     """A claim model with no network. Each claim plays its outcomes in order, one per attempt; an outcome is one
     step or a list of steps, one per model call. A step is a decision (dict), an AIMessage, or an exception to raise.
-    A Stopped goes off once. Claims with no outcomes left get `default`, or an approval of $100."""
+    A Stopped, a rate limit or a timeout goes off once. Claims with no outcomes left get `default`, or an approval of $100."""
 
     outcomes: dict = {}
     default: object = None
@@ -148,7 +149,7 @@ class StubModel(BaseChatModel):
             self.current[claim_id] = list(outcome) if isinstance(outcome, list) else [outcome]
         steps = self.current[claim_id]
         step = steps[min(turn, len(steps) - 1)]
-        if isinstance(step, Stopped):
+        if isinstance(step, (Stopped, ModelRateLimitError, ModelTimeoutError)):  # goes off once; the claim carries on
             steps.remove(step)
             raise step
         if isinstance(step, Exception):

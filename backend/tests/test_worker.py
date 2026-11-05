@@ -3,7 +3,9 @@ import json
 import pytest
 
 from agent.checkpoints import clear_checkpoints
-from agent.worker import carry_on, signed_off_claims, stopped_claims, work_claim
+from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
+
+from agent.worker import carry_on, signed_off_claims, stopped_claims, work, work_claim
 from app.claims import get_claim
 from app.config import Settings
 from app.payments import get_payment, sign_off
@@ -354,3 +356,53 @@ def test_a_sign_off_stopped_between_its_two_steps_is_still_paid(env_for):
     assert carry_on(env, CLAIM) == "CLM-1003: approve $2,000.00, paid"
     assert claim(env)["status"] == "decided"
     assert signed_off_claims(env.engine) == []
+
+
+# --- the one function the dispatcher calls ----------------------------------------------------------
+
+def test_work_starts_a_waiting_claim(env_for):
+    env, _ = env_for({CLAIM: [approve(420.0)]})
+    assert work(env, CLAIM, 7) == "CLM-1003: approve $420.00, paid"
+    assert claim(env)["run_id"] == 7
+
+
+def test_work_carries_on_a_claim_in_progress_as_the_same_attempt(env_for):
+    env, model = env_for({CLAIM: [[SEARCH, Stopped(), decline()]]})
+    with pytest.raises(Stopped):
+        work(env, CLAIM, 7)
+    assert work(env, CLAIM, 8) == "CLM-1003: decline"
+    row = claim(env)
+    assert (row["attempts"], row["thread_id"]) == (0, "CLM-1003-1")
+    assert count(env, "decisions") == 1
+
+
+def test_work_leaves_any_other_claim_alone(env_for):
+    env, model = env_for({CLAIM: [decline()]})
+    work(env, CLAIM, 7)
+    assert work(env, CLAIM, 8) == "CLM-1003: not worked, the claim is decided."
+    assert model.calls == 1
+
+
+def test_a_rate_limit_leaves_the_claim_in_progress_on_its_thread(env_for):
+    env, _ = env_for({CLAIM: [[SEARCH, ModelRateLimitError("429"), decline()]]})
+    with pytest.raises(ModelRateLimitError):
+        work(env, CLAIM, 7)
+    row = claim(env)
+    assert (row["status"], row["attempts"], row["thread_id"]) == ("in_progress", 0, "CLM-1003-1")
+    assert "will carry on" in json.loads(raw(env).execute(
+        "SELECT content FROM trace_events WHERE kind='error' ORDER BY seq DESC").fetchone()[0])["message"]
+    assert work(env, CLAIM, 7) == "CLM-1003: decline"  # the retry carries on from the last saved step
+    assert (claim(env)["attempts"], count(env, "decisions")) == (0, 1)
+
+
+def test_a_timeout_is_let_through_the_same_way(env_for):
+    env, _ = env_for({CLAIM: [[ModelTimeoutError("slow"), decline()]]})
+    with pytest.raises(ModelTimeoutError):
+        work(env, CLAIM, 7)
+    assert (claim(env)["status"], claim(env)["attempts"]) == ("in_progress", 0)
+
+
+def test_any_other_error_still_fails_the_attempt(env_for):
+    env, _ = env_for({CLAIM: [RuntimeError("broken")]})
+    assert "back in the queue" in work(env, CLAIM, 7)
+    assert (claim(env)["status"], claim(env)["attempts"]) == ("waiting", 1)

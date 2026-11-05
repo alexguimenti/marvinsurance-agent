@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable, Iterator
 
+from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
 from sqlalchemy import Engine, select, update
 
 from agent.checkpoints import Checkpoints, make_checkpoints
@@ -21,6 +22,8 @@ from app.runs import add_trace_event, todo_for_claim
 from app.usage import record_work_time
 
 RECORD_CONNECTIONS = 2  # with the checkpointer's 2, the 4 a process may use
+# Worth waiting out: the caller retries, and the claim carries on from its last saved step as the same attempt.
+RETRYABLE = (ModelRateLimitError, ModelTimeoutError)
 
 
 @dataclass
@@ -153,6 +156,9 @@ def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, att
         result = invoke(env, claim_id, thread_id, graph_input, run_id)
         if result.get("__interrupt__") and not needs_sign_off(env.engine, env.ref, claim_id):
             invoke(env, claim_id, thread_id, None, run_id)  # signed off while the graph was pausing
+    except RETRYABLE as exc:  # not settled here: the claim stays in progress on its thread, for the retry
+        add_trace_event(env.engine, claim_id, "error", {"message": f"{type(exc).__name__}: {exc}. The agent waits and will carry on from here."})
+        raise
     except Exception as exc:  # any model, tool or database failure; a kill or Ctrl-C is not one of these
         if get_claim(env.engine, claim_id)["decision"] is None:
             return _fail(env, claim_id, thread_id, run_id, attempt, max_attempts, exc)
@@ -223,6 +229,18 @@ def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
             add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "note": "carried on"})
         attempt = claim["attempts"] + 1
         return _drive(env, claim_id, thread_id, run_id, attempt, env.settings.agent_max_attempts, graph_input)
+
+
+def work(env: AgentEnv, claim_id: str, run_id: int | None) -> str:
+    """The one way in for the dispatcher: carry on a claim in progress, or start a waiting one, and report it in one
+    line. A rate limit or a timeout is let through unsettled, so that a retry carries the claim on."""
+    with env.engine.connect() as conn:
+        status = conn.execute(select(claims.c.status).where(claims.c.claim_id == claim_id)).scalar_one_or_none()
+    if status is None:
+        return f"{claim_id}: not worked, there is no such claim."
+    if status == "waiting":
+        return work_claim(env, claim_id, run_id, env.settings.agent_max_attempts)
+    return carry_on(env, claim_id, run_id)  # it leaves alone anything it cannot carry on, and says so
 
 
 def stopped_claims(engine: Engine) -> list[str]:
