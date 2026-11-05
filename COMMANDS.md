@@ -20,20 +20,19 @@ With `DATABASE_URL` in `.env` the records are on Supabase, which is slower: each
 |---|---|
 | a `.py` file in `backend/app/` | the backend restarts by itself |
 | a `.py` file in `backend/agent/`, `agent.toml` or `.env` | stop and start `npm run dev` |
-| `backend/agent/instructions_run.md` or `instructions_claim.md` (the agent's prompts) | nothing to restart: they are read again for every run and every model call |
+| `backend/agent/instructions_claim.md` (the claim agent's prompt) | nothing to restart: it is read again for every model call |
 | files in `frontend/src/` | the page updates by itself |
 
-If the agent stops during a run, nothing is lost. Press **Run queue** or use `uv run -m agent`: the claim carries on from its last step and the run is finished, with its own limit. After a hard kill, wait 45 seconds first.
+If the agent stops during a dispatch, nothing is lost. When `npm run dev` starts again the dispatch shows as stopped; press **Start dispatch** and the claims left in progress carry on from their last step, as the same attempts.
 
-## Start a run from the terminal
+## Work one claim from the terminal
 
 ```powershell
 cd backend
-uv run -m agent --limit 5
-uv run -m agent --claims CLM-1003,CLM-1011
+uv run -m agent CLM-1003
 ```
 
-It reads `.env`. With the service up, the service does the work; otherwise this process does.
+It reads `.env` and works the claim in this process, with no run: it carries it on if it is in progress, or starts it if it is waiting.
 
 ## Run without calling a model (free)
 
@@ -41,10 +40,10 @@ Uses a fake model, and SQLite as long as there is no `DATABASE_URL` in the envir
 
 ## Reseed and test again
 
-Makes our tables again, forgets the checkpoints and every analysis, and puts all 25 claims back in the queue, on the database in `.env`. Do this before any live run with the real model, and set **Limit** to 5 on the queue page so the trial costs little. Have no agent working when you do. It also brings an older `marvin.db` up to date.
+Makes our tables again, forgets the checkpoints, every analysis and every evaluation, and puts all 25 claims back in the queue, on the database in `.env`. Do this once before the live runs with the real model. Have no agent working when you do. It also brings an older `marvin.db` up to date. `npm run reseed` is the same command.
 
 ```powershell
-npm run reseed
+npm run seed
 ```
 
 ## Tests
@@ -60,14 +59,7 @@ The end-to-end run does not touch the servers or the database you use every day.
 
 ## Score the agent
 
-Runs the agent on the queue and compares it with the handlers' decisions. Calls the model, so it costs a few cents.
-
-```powershell
-cd backend
-.\.venv\Scripts\python ..\scripts\score.py --split queue --run --tiny   # 5 claims, cheap
-.\.venv\Scripts\python ..\scripts\score.py --split queue --run          # all 25
-.\.venv\Scripts\python ..\scripts\score.py --split held_out             # the held-out set
-```
+On the **Scoreboard** page, choose the set (the evaluation set is the queue's 25 claims; the held-out set is 25 others), tick **Only the five tiny claims** for a cheap check, choose N and press **Start evaluation**. It works copies, so the queue stays as it was and nothing needs a reseed. It calls the model, so it costs a few cents.
 
 ## Install from scratch
 
@@ -77,4 +69,4 @@ cd frontend; npm install
 cd e2e;      npm install; npx playwright install chromium
 ```
 
-The model is chosen in `agent.toml`. `.env` holds `OPENROUTER_API_KEY`, `DATABASE_URL` and the `LANGFUSE_*` keys.
+The model is chosen in `agent.toml`, or with `MODEL_NAME` in the environment. `.env` holds `OPENROUTER_API_KEY`, `DATABASE_URL` and the `LANGFUSE_*` keys.

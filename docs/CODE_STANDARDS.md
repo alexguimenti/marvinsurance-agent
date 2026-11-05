@@ -4,20 +4,21 @@
 
 - `backend/app/` holds the records and the API. `backend/agent/` holds the agent. `app` never imports LangGraph or LangChain; its one import from `agent` is `agent.prompts`, for the instructions page.
 - The agent calls `app`'s operations in Python and has its own connections to the same database.
-- Our code, not the model, enforces the rules: the $1,000 limit, the cap and scope of a run, attempts, and one decision and one payment per claim.
+- Our code, not the model, enforces the rules: the $1,000 limit, which claims a run works, attempts, and one decision and one payment per claim.
 - The graph never applies the limit. It asks the backend (`needs_sign_off`) and the backend refuses a payout over the limit with no sign-off (`pay`).
 
-## The four parts of the agent
+## The five parts of the agent
 
 1. **Prompts** (`prompts.py`, `instructions_*.md`): what it is told. Never a claim id, and nothing from the handlers' decisions in `data/evals/`.
 2. **Tools** (`tools.py`, and those in `queue.py`): what it can do. Customer text reaches the model only inside tool results. Tools take the claim from the graph's state, not from the model. A refusal is text returned to the model.
-3. **The run loop**: for the claim agent, the nodes of the hand-written graph in `graph.py`, which record every step, return refusals to the model and allow at most 30 model calls. For the queue agent, `create_agent` in `queue.py`.
-4. **The service** (`service.py`, `__main__.py`): its entry points. `worker.py` says what working a claim means, whichever entry point asks.
+3. **The run loop**: the nodes of the claim agent's hand-written graph in `graph.py`, which record every step and its cost, return refusals to the model and allow at most 30 model calls.
+4. **The service** (`service.py`, `__main__.py`): its entry points. `worker.py` says what working a claim means, whichever entry point asks; `worker.work` is the one way in.
+5. **The dispatcher** (`dispatcher.py`): a graph with no model that works a run's claims, up to N at once, through `worker.work` only, so it could later point at the agent in the cloud. Each claim keeps its own thread, never a shared one or a subgraph, and the dispatcher saves no progress of its own.
 
 ## The records
 
 - SQLAlchemy Core, so each query is written once for SQLite and Postgres. Tables are defined in `app/db.py`.
-- An operation takes the `Engine`. Never hold a connection across a model call, or inside another operation: each process has very few.
+- An operation takes the `Engine`. Never hold a connection across a model call, or inside another operation: each process has 4 at most, and up to 25 claim agents share them. They wait for a connection rather than fail.
 - Every statement commits by itself. A trip to Supabase takes about 220 ms, and `BEGIN`, `COMMIT` and a ping per checkout would make each query four trips. `engine.begin()` therefore does not open a transaction here. A single statement, with its constraints, is atomic.
 - So an operation must be safe if it stops between two statements, and when run again. A step can run again after a restart anyway: an operation that records something treats a repeat as done, and returns the claim. Something different is refused.
 - `tests/test_round_trips.py` keeps the path from a sign-off to its payment short.
@@ -29,9 +30,9 @@ Every operation has an `operation_id`, a one-line docstring and no optional inpu
 
 ## Tests
 
-- Backend behavior is tested on a stub model through the real graph and real SQLite files. Tests name what should happen.
+- Backend behavior is tested on a stub model through the real graph, the real dispatcher and real SQLite files. Tests name what should happen.
 - `tests/fakes.py` holds the stub model and helpers. `RawDb` lets a test arrange or inspect tables in plain SQL; production code does not use it.
-- The front end has component tests with a mocked API. End-to-end tests run the whole app on the scripted model, with a stand-in for the agent's service on port 8003.
+- The front end has component tests with a mocked API. End-to-end tests run the whole app on the scripted model, with a stand-in for the agent's service on port 8003 that writes down each start and sign-off.
 
 ## Style
 

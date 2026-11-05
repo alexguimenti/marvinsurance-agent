@@ -33,7 +33,6 @@ class Settings(BaseSettings):
     agent_step_retries: int = Field(default=2, ge=0, le=5)  # retries of one model call (timeout, 429, 5xx)
     agent_claim_timeout_s: float = Field(default=300, gt=0)  # wall-clock limit for one claim attempt
     agent_max_model_calls: int = Field(default=30, ge=1)  # model calls for one claim
-    agent_run_max_steps: int = Field(default=400, ge=10)  # graph steps for the whole run
     agent_provider: Literal["openrouter", "scripted"] = "openrouter"
     db_path: str = str(ROOT / "marvin.db")
     data_dir: str = str(ROOT / "data")

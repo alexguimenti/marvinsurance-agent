@@ -32,13 +32,13 @@ This starts the three parts, with `.env` in their environment:
 
 Ctrl-C stops all three. If one dies, the others stop too and the output says which. Everything `npm run dev` starts must work on Windows.
 
-`cd backend; uv run -m agent --limit 5` also starts a run. It hands the run to the service when the service is up, and works it in its own process when it is not.
+`cd backend; uv run -m agent CLM-1001` works one claim in its own process, with no run. Dispatches and evaluations start from the dashboard, through the service.
 
 ## Live runs
 
 A run with the real model spends money and writes to Supabase and Langfuse. Before any of them:
 
-1. Reseed: `npm run reseed`.
-2. Cap the run at five claims.
+1. Reseed once: `npm run seed`.
+2. Keep to the runs the brief names, for this change those in `docs/SWARM.md`: a dispatch at N=3 stopped partway, a dispatch at N=25, an evaluation of the evaluation set at N=25 and one of the held-out set's five tiny claims at N=5. Evaluations work copies and need no reseed.
 
 The free plan allows 15 connections at once through the session pooler, across every process. Each of our processes uses at most 4. A notebook left open with a pool from the labs counts too, so close the labs before measuring.
