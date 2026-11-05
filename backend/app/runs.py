@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import Engine, delete, func, insert, select, union_all, update
 from sqlalchemy.exc import IntegrityError
 
+from app.usage import run_totals
 from app.db import claims, decisions, plain, run_events as run_events_table, runs, todo_items, trace_events
 
 TODO_STATUSES = ("todo", "in_progress", "done", "left_for_handler")
@@ -218,26 +219,6 @@ def missed_claims(engine: Engine, run_id: int) -> list[str]:
 
 # --- ending a run ------------------------------------------------------------
 
-def sum_usage(usages: list[dict]) -> dict | None:
-    if not usages:
-        return None
-    costs = [u["cost_usd"] for u in usages if u.get("cost_usd") is not None]
-    total = {key: sum(u.get(key, 0) for u in usages)
-             for key in ("calls", "input_tokens", "output_tokens", "reasoning_tokens")}
-    total["cost_usd"] = round(sum(costs), 8) if costs else None
-    return total
-
-
-def run_usage(engine: Engine, run_id: int) -> dict | None:
-    """The orchestrator's usage plus every claim attempt made in the run."""
-    query = union_all(
-        select(run_events_table.c.content).where(run_events_table.c.run_id == run_id, run_events_table.c.kind == "usage"),
-        select(trace_events.c.content).where(trace_events.c.run_id == run_id, trace_events.c.kind == "usage"),
-    )
-    with engine.connect() as conn:
-        return sum_usage([json.loads(r[0]) for r in conn.execute(query)])
-
-
 def set_summary(engine: Engine, run_id: int, summary: str) -> None:
     with engine.begin() as conn:
         conn.execute(update(runs).where(runs.c.run_id == run_id).values(summary=summary))
@@ -250,7 +231,7 @@ def note_on_summary(engine: Engine, run_id: int, note: str) -> None:
 
 
 def finish(engine: Engine, run_id: int, status: str, summary: str | None = None, error: str | None = None) -> None:
-    usage = run_usage(engine, run_id)
+    usage = run_totals(engine, run_id)
     with engine.begin() as conn:
         values = {"status": status, "error": error, "usage": json.dumps(usage) if usage else None, "finished_at": func.now()}
         if summary is not None:

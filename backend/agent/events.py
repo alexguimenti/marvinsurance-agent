@@ -17,6 +17,17 @@ def rationale_warnings(rationale: str) -> list[str]:
     return warnings
 
 
+def call_usage(message: AIMessage) -> dict:
+    """One reply's tokens, and its cost as OpenRouter reports it in usage.cost."""
+    meta = message.usage_metadata or {}
+    return {
+        "input_tokens": meta.get("input_tokens", 0),
+        "output_tokens": meta.get("output_tokens", 0),
+        "reasoning_tokens": (meta.get("output_token_details") or {}).get("reasoning", 0),
+        "cost_usd": ((message.response_metadata or {}).get("token_usage") or {}).get("cost"),
+    }
+
+
 class Usage:
     """Running total of what a claim cost: tokens, and dollars when the provider reports them."""
 

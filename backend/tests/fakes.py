@@ -96,6 +96,21 @@ def refer() -> dict:
             "rationale": "A document is missing. Section 11 of the wording says the claim waits."}
 
 
+class FakeClock:
+    """A monotonic clock that moves on `step` seconds at every reading, and `jump`s when a test says so."""
+
+    def __init__(self, step: float = 1.0):
+        self.now, self.step = 0.0, step
+
+    def __call__(self) -> float:
+        reading = self.now
+        self.now += self.step
+        return reading
+
+    def jump(self, seconds: float) -> None:
+        self.now += seconds
+
+
 class Stopped(BaseException):
     """Stands in for a kill or Ctrl-C: like them, it is no ordinary error."""
 

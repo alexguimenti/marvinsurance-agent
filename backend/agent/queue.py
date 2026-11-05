@@ -168,9 +168,9 @@ def begin_run(env: AgentEnv, limit: int | None, claim_ids: list[str] | None) -> 
     return runs.start_run(env.engine, env.model_id, limit, claim_ids), False
 
 
-def carry_on_everything(env: AgentEnv) -> list[str]:
-    """Pick up every claim that was stopped or signed off while the agent was away."""
-    return [carry_on(env, claim_id) for claim_id in stopped_claims(env.engine)]
+def carry_on_everything(env: AgentEnv, run_id: int) -> list[str]:
+    """Pick up every claim that was stopped or signed off while the agent was away, as part of this run."""
+    return [carry_on(env, claim_id, run_id) for claim_id in stopped_claims(env.engine)]
 
 
 def work_run(env: AgentEnv, run_id: int, adopted: bool = False, queue_agent: QueueAgent | None = None) -> None:
@@ -187,7 +187,7 @@ def work_run(env: AgentEnv, run_id: int, adopted: bool = False, queue_agent: Que
     threading.Thread(target=beat, daemon=True).start()
     closed = False
     try:
-        carry_on_everything(env)
+        carry_on_everything(env, run_id)
         run_harness(env, run_id, queue_agent, resuming=adopted)
         if adopted:
             runs.note_on_summary(env.engine, run_id, ADOPTED_NOTE)

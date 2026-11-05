@@ -29,6 +29,7 @@ from app.payments import sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.seed import seed_claims
+from app.usage import claim_totals
 
 # How the claim agent traces a section it read: "[claims_manual section 7: Interpretation notes, 5000 characters]".
 # Refused reads (errors, rereads, past the cap) are traced as plain text and do not match.
@@ -184,10 +185,10 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
             payment = conn.execute(select(payments).where(payments.c.claim_id == claim_id)).mappings().first()
             steps = conn.execute(
                 select(trace_events.c.kind, trace_events.c.content)
-                .where(trace_events.c.claim_id == claim_id, trace_events.c.kind.in_(("usage", "tool_result")))
+                .where(trace_events.c.claim_id == claim_id, trace_events.c.kind == "tool_result")
                 .order_by(trace_events.c.seq)
             ).mappings().all()
-        usage = runs.sum_usage([json.loads(u["content"]) for u in steps if u["kind"] == "usage"])
+        usage = claim_totals(engine, claim_id)
         claim = json.loads(row["payload"])
         return {
             "claim": claim,

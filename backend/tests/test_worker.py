@@ -276,8 +276,8 @@ def test_each_attempt_records_its_usage(env_for):
     env, _ = env_for({CLAIM: [[SEARCH, ValueError("one")], approve(420.0)]})
     work_claim(env, CLAIM)
     work_claim(env, CLAIM)
-    usages = [json.loads(r[0]) for r in raw(env).execute("SELECT content FROM trace_events WHERE kind='usage' ORDER BY seq")]
-    assert [u["calls"] for u in usages] == [1, 1]
+    calls = raw(env).execute("SELECT COUNT(*) FROM model_calls WHERE claim_id = ?", (CLAIM,)).fetchone()[0]
+    assert calls == 2  # one from the failed attempt, one from the decision
 
 
 def test_the_error_event_says_which_attempt_failed(env_for):

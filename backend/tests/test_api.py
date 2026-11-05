@@ -150,17 +150,16 @@ def test_post_runs_with_an_empty_claim_list_422(client):
     assert client.get("/runs/latest").json()["run"] is None
 
 
-def test_claim_usage_sums_every_attempt(client, db_path):
-    client.post("/runs/selected", json={"claim_ids": ["CLM-1001"]})
+def test_claim_usage_sums_every_attempt_and_its_time(client, db_path):
     conn = connect(db_path)
-    conn.execute("DELETE FROM trace_events WHERE kind='usage'")
-    usage = {"calls": 2, "input_tokens": 300, "output_tokens": 130, "reasoning_tokens": 0, "cost_usd": 0.0035}
-    for seq in (98, 99):
-        conn.execute("INSERT INTO trace_events (claim_id, seq, kind, content) VALUES ('CLM-1001', ?, 'usage', ?)",
-                     (seq, json.dumps(usage)))
-    conn.commit()
+    for run_id, cost in ((1, 0.002), (2, 0.0015)):  # a failed attempt in one run, the decision in the next
+        conn.execute("INSERT INTO model_calls (claim_id, run_id, model, input_tokens, output_tokens, reasoning_tokens, "
+                     "cost_usd) VALUES ('CLM-1001', ?, 'm', 150, 65, 0, ?)", (run_id, cost))
+        conn.execute("INSERT INTO work_spans (claim_id, run_id, started_at, seconds) VALUES ('CLM-1001', ?, "
+                     "CURRENT_TIMESTAMP, 12.5)", (run_id,))
     total = client.get("/claims/CLM-1001").json()["usage"]
-    assert total["calls"] == 4 and total["cost_usd"] == pytest.approx(0.007)
+    assert total["calls"] == 2 and total["input_tokens"] == 300 and total["cost_usd"] == pytest.approx(0.0035)
+    assert total["seconds"] == 25.0
 
 
 def test_sign_off_is_recorded_and_the_agent_pays(client):

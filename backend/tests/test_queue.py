@@ -180,15 +180,6 @@ class Thrifty(ScriptedQueueAgent):
     usage = {"calls": 1, "input_tokens": 100, "output_tokens": 10, "reasoning_tokens": 5, "cost_usd": 0.0005}
 
 
-def test_run_usage_sums_the_queue_agent_and_the_claims(env_for):
-    env, _ = env_for()
-    run_id = runs.start_run(env.engine, "scripted", scope=["CLM-1001", "CLM-1002"])
-    run_harness(env, run_id, Thrifty())
-    usage = json.loads(runs.get_run(env.engine, run_id)["usage"])
-    assert usage["calls"] == 1 + 2
-    assert usage["cost_usd"] == pytest.approx(0.0005 + 2 * 0.0005)
-
-
 def test_run_events_record_the_queue_agents_steps(env_for):
     env, _ = env_for()
     run_id = scripted_run(env, scope=["CLM-1001"])

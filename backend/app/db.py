@@ -101,6 +101,28 @@ runs = Table(
 Index("one_running_run", runs.c.status, unique=True,
       sqlite_where=runs.c.status == "running", postgresql_where=runs.c.status == "running")
 
+model_calls = Table(
+    "model_calls", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("claim_id", Text, nullable=False),
+    Column("run_id", Integer),  # none outside a run, as when a sign-off is paid
+    Column("model", Text, nullable=False),
+    Column("input_tokens", Integer, nullable=False),
+    Column("output_tokens", Integer, nullable=False),
+    Column("reasoning_tokens", Integer, nullable=False),
+    Column("cost_usd", Float),  # as OpenRouter reports it; none when it doesn't
+    _timestamp("created_at"),
+)
+
+work_spans = Table(
+    "work_spans", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("claim_id", Text, nullable=False),
+    Column("run_id", Integer),
+    Column("started_at", DateTime(timezone=True), nullable=False),
+    Column("seconds", Float, nullable=False),
+)
+
 todo_items = Table(
     "todo_items", metadata,
     Column("item_id", Integer, primary_key=True, autoincrement=True),

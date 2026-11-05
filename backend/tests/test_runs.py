@@ -160,7 +160,6 @@ def test_finish_leaves_claims_alone_and_sums_usage(conn, env_for):
     run_id = runs.start_run(conn.engine, "m", scope=["CLM-1001", "CLM-1002"])
     work_claim(env, "CLM-1001", run_id)
     conn.execute("UPDATE claims SET status='in_progress', run_id=? WHERE claim_id='CLM-1002'", (run_id,))
-    runs.run_event(conn.engine, run_id, "usage", USAGE)
 
     runs.finish(conn.engine, run_id, "failed", error="stopped")
 
@@ -169,7 +168,7 @@ def test_finish_leaves_claims_alone_and_sums_usage(conn, env_for):
     assert (row["status"], row["error"]) == ("failed", "stopped")
     assert row["finished_at"] is not None
     usage = json.loads(row["usage"])
-    assert usage["calls"] == 4 and usage["cost_usd"] == pytest.approx(0.0025)
+    assert usage["calls"] == 1 and usage["cost_usd"] == pytest.approx(0.0005)  # the claim's one model call
 
 
 def test_run_events_are_numbered(conn):

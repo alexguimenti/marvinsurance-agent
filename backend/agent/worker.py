@@ -4,7 +4,8 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Iterator
+from datetime import datetime, timezone
+from typing import Callable, Iterator
 
 from sqlalchemy import Engine, select, update
 
@@ -17,6 +18,7 @@ from app.db import claims, make_engine, payments, warm_up
 from app.payments import get_payment
 from app.reference import Reference
 from app.runs import add_trace_event, todo_for_claim
+from app.usage import record_work_time
 
 RECORD_CONNECTIONS = 2  # with the checkpointer's 2, the 4 a process may use
 
@@ -28,6 +30,7 @@ class AgentEnv:
     settings: Settings
     graph: object
     model_id: str
+    clock: Callable[[], float] = time.monotonic  # a test can move it on without sleeping
     _working: set = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -69,21 +72,25 @@ def open_env(settings: Settings, model=None, model_id: str | None = None) -> Ite
         engine.dispose()
 
 
-def _config(env: AgentEnv, claim_id: str, thread_id: str) -> dict:
+def _config(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None) -> dict:
     return {
-        "configurable": {"thread_id": thread_id, "deadline": time.monotonic() + env.settings.agent_claim_timeout_s},
+        "configurable": {"thread_id": thread_id, "run_id": run_id,
+                         "deadline": time.monotonic() + env.settings.agent_claim_timeout_s},
         "recursion_limit": 3 * env.settings.agent_max_model_calls + 10,  # model, tools, tools_done per call
         **trace_config(claim_id, thread_id, env.model_id),
     }
 
 
-def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input) -> dict:
+def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input, run_id: int | None) -> dict:
+    """One graph run, timed: it ends at the claim's end or at a pause, so a wait for a sign-off is never counted."""
+    started_at, start = datetime.now(timezone.utc), env.clock()
     try:
-        # In a context of its own: a claim is often worked inside a tool of the queue agent, and Langfuse takes the
-        # session from a trace's root, so hanging under that tool would lose the work from the claim's session.
-        config = _config(env, claim_id, thread_id)
+        # In a context of its own: Langfuse takes the session from a trace's root, so a claim worked inside another
+        # traced call would lose its work from the claim's session.
+        config = _config(env, claim_id, thread_id, run_id)
         return contextvars.Context().run(env.graph.invoke, graph_input, config, durability="sync")
     finally:
+        record_work_time(env.engine, claim_id, run_id, started_at, env.clock() - start)
         flush_traces()
 
 
@@ -101,9 +108,6 @@ def _report(env: AgentEnv, claim_id: str) -> str:
 def _fail(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, attempt: int, max_attempts: int, exc: Exception) -> str:
     """An error with no decision yet fails the attempt: the next one starts afresh, on a new thread."""
     message = f"{type(exc).__name__}: {exc}"
-    usage = env.graph.get_state({"configurable": {"thread_id": thread_id}}).values.get("usage")
-    if usage:
-        add_trace_event(env.engine, claim_id, "usage", usage)
     status = "waiting" if attempt < max_attempts else "needs_handler"
     with env.engine.begin() as conn:
         conn.execute(update(claims).where(claims.c.claim_id == claim_id).values(
@@ -121,9 +125,9 @@ def _fail(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, atte
 def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, attempt: int, max_attempts: int, graph_input) -> str:
     """Run the graph until it ends or pauses, and settle what that means for the claim."""
     try:
-        result = invoke(env, claim_id, thread_id, graph_input)
+        result = invoke(env, claim_id, thread_id, graph_input, run_id)
         if result.get("__interrupt__") and not needs_sign_off(env.engine, env.ref, claim_id):
-            invoke(env, claim_id, thread_id, None)  # signed off while the graph was pausing
+            invoke(env, claim_id, thread_id, None, run_id)  # signed off while the graph was pausing
     except Exception as exc:  # any model, tool or database failure; a kill or Ctrl-C is not one of these
         if get_claim(env.engine, claim_id)["decision"] is None:
             return _fail(env, claim_id, thread_id, run_id, attempt, max_attempts, exc)
@@ -163,9 +167,9 @@ def work_claim(env: AgentEnv, claim_id: str, run_id: int | None = None, max_atte
         return _drive(env, claim_id, thread_id, run_id, attempt, max_attempts, {"claim_id": claim_id})
 
 
-def carry_on(env: AgentEnv, claim_id: str) -> str:
+def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
     """Pick a claim up from where it got to, on the same thread and with the same attempts. For a claim stopped
-    partway, or signed off. Anything else is left alone."""
+    partway, or signed off. Anything else is left alone. Its cost and time go with run_id: none after a sign-off."""
     with env.engine.connect() as conn:
         claim = conn.execute(
             select(claims.c.status, claims.c.thread_id, claims.c.attempts, claims.c.run_id, payments.c.status.label("payment"))
@@ -192,7 +196,7 @@ def carry_on(env: AgentEnv, claim_id: str) -> str:
                 return _report(env, claim_id)  # it had finished; only the last report was lost
             add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "note": "carried on"})
         attempt = claim["attempts"] + 1
-        return _drive(env, claim_id, thread_id, claim["run_id"], attempt, env.settings.agent_max_attempts, graph_input)
+        return _drive(env, claim_id, thread_id, run_id, attempt, env.settings.agent_max_attempts, graph_input)
 
 
 def stopped_claims(engine: Engine) -> list[str]:

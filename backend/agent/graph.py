@@ -17,13 +17,14 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
-from agent.events import Usage, emit_message, rationale_warnings
+from agent.events import Usage, call_usage, emit_message, rationale_warnings
 from agent.prompts import claim_prompt
 from agent.tools import NOT_OFFERED, PREFETCHED, build_tools
 from app.claims import hold_for_sign_off, needs_sign_off, record_decision
 from app.payments import get_payment, pay
 from app.reference import Reference
 from app.runs import add_trace_event
+from app.usage import record_model_call
 
 
 class TooManyModelCalls(Exception):
@@ -76,6 +77,8 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
         if deadline is not None and time.monotonic() > deadline:
             raise TimeoutError("the agent took too long on this claim")
         reply = bound.invoke([SystemMessage(claim_prompt(ref)), *state.messages])
+        run_id = config.get("configurable", {}).get("run_id")
+        record_model_call(engine, state.claim_id, run_id, model_id, call_usage(reply))
         usage = Usage(state.usage)
         usage.add(reply)
         emit_message(reply, recorder(state.claim_id), {})
@@ -102,8 +105,6 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
         for warning in rationale_warnings(state.proposal["rationale"]):
             trace("warning", {"message": warning})
         trace("decision", state.proposal)
-        if state.usage:
-            trace("usage", state.usage)
         return {"decision": state.proposal}
 
     def pay_node(state: ClaimState) -> dict:

@@ -139,7 +139,7 @@ def test_every_step_is_recorded_on_the_claim(run):
     env, _, _ = run([tool_call("read_section", {"document": "policy_wording", "section": 5}, "c1"), approve(420.0)])
     got = kinds(env)
     assert got[0] == "tool_call" and "tool_result" in got
-    assert got.count("decision") == 1 and got.count("usage") == 1
+    assert got.count("decision") == 1 and "usage" not in got  # cost is in model_calls now
     assert trace(env, "status")[-1]["status"] == "paid"
     names = [e["name"] for e in trace(env, "tool_call")]
     assert names[:4] == ["get_claim", "get_policy", "get_plan", "get_customer_history"] and "read_section" in names
@@ -147,9 +147,12 @@ def test_every_step_is_recorded_on_the_claim(run):
 
 def test_usage_totals_every_model_call(run):
     env, _, _ = run([tool_call("search_documents", {"query": "delay"}, "c1"), decline()])
-    assert trace(env, "usage") == [
-        {"calls": 2, "input_tokens": 100, "output_tokens": 10, "reasoning_tokens": 4, "cost_usd": 0.001}
-    ]
+    from app.usage import claim_totals
+
+    totals = claim_totals(env.engine, CLAIM)
+    assert {k: totals[k] for k in ("calls", "input_tokens", "output_tokens", "reasoning_tokens")} == {
+        "calls": 2, "input_tokens": 100, "output_tokens": 10, "reasoning_tokens": 4}
+    assert totals["cost_usd"] == 0.001
 
 
 def test_rationale_warning_goes_to_the_trace(run):
