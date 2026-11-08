@@ -9,11 +9,11 @@ from app.db import model_calls, work_spans
 TOKENS = ("input_tokens", "output_tokens", "reasoning_tokens")
 
 
-def record_model_call(engine: Engine, claim_id: str, run_id: int | None, model: str, usage: dict) -> None:
-    """One model reply's tokens and cost."""
+def record_model_call(engine: Engine, claim_id: str, run_id: int | None, model: str, usage: dict, round_id: int | None = None) -> None:
+    """One model reply's tokens and cost. The improver's own calls carry its round instead of a claim and a run."""
     with engine.begin() as conn:
         conn.execute(insert(model_calls).values(
-            claim_id=claim_id, run_id=run_id, model=model, cost_usd=usage.get("cost_usd"),
+            claim_id=claim_id, run_id=run_id, round_id=round_id, model=model, cost_usd=usage.get("cost_usd"),
             **{key: usage.get(key, 0) for key in TOKENS},
         ))
 

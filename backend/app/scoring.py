@@ -104,3 +104,27 @@ def list_evaluations(engine: Engine) -> list[dict]:
     reports = [evaluation_report(engine, run_id) for run_id in ids]
     return [{"run": r["run"], "measures": r["measures"]} for r in reports]
 
+
+
+def evaluation_set_review(engine: Engine, run_id: int) -> list[dict]:
+    """The claims of an evaluation-set run, each with the handlers' decision, payout, reason and reference beside the
+    agent's and the judge's, for the improver. The held-out set's reasons never leave: a run on it is refused."""
+    report = evaluation_report(engine, run_id)
+    if report is None or report["run"]["eval_set"] != "evaluation":
+        raise ValueError("only the evaluation set's claims may be reviewed")
+    with engine.connect() as conn:
+        reasons = {r["claim_id"]: r for r in conn.execute(
+            select(answer_key.c.claim_id, answer_key.c.reason, answer_key.c.reference).where(answer_key.c.eval_set == "evaluation")).mappings()}
+    out = []
+    for c in report["claims"]:
+        original = c["copy_of"]
+        out.append({
+            "claim_id": original,
+            "accurate": c["accurate"],
+            "agent": c["agent"] or {"decision": None, "payout": None, "rationale": None},
+            "handler": {**c["handler"], "reason": reasons[original]["reason"], "reference": reasons[original]["reference"]},
+            "judge": {"score": c["score"], "letter": c["letter"],
+                      "same_grounds": None if c["same_grounds"] is None else round(c["same_grounds"], 2),
+                      "same_section": None if c["same_section"] is None else round(c["same_section"], 2)},
+        })
+    return out

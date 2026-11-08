@@ -28,6 +28,7 @@ from app.payments import sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.scoring import evaluation_report, list_evaluations
+from app.improvement import version_scores
 from app.seed import seed_claims
 from app.settings_store import approval_limit, change_setting, models_allowed, setting_history
 from app.usage import claim_totals, run_totals
@@ -138,8 +139,8 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         return {**plain(payment), "approved_by_name": handler["name"] if handler else None}
 
     def version_scores_view(version: int) -> dict:
-        """A version's held-out scores. Rounds produce them (the improvement tasks); until a round has, there are none."""
-        return {}
+        """A version's scores per set, the averages of its rounds' whole-set evaluations. None until a round has run one."""
+        return version_scores(engine, version)
 
     def forward_run(path: str, body: dict) -> dict:
         try:

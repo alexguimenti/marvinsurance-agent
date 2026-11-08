@@ -160,6 +160,43 @@ current_version = Table(
     Column("version", Integer, nullable=False),
 )
 
+rounds = Table(
+    "rounds", metadata,
+    Column("round_id", Integer, primary_key=True, autoincrement=True),
+    Column("stage", Text, nullable=False),  # first_evaluations, improving, awaiting_change, evaluating, verdict, awaiting_recipe, finished, stopped
+    Column("progress", Text),  # "2 of 3" while the evaluations run
+    Column("open", Boolean, nullable=False),  # one round at a time
+    Column("recipe_version", Integer, nullable=False),  # the recipe it followed
+    Column("settings", Text, nullable=False),  # JSON: the improvement settings as they stood when it started
+    Column("thread_id", Text, nullable=False),  # the improver's own thread, new for each round
+    Column("version_tried", Integer),
+    Column("reason", Text),  # the improver's reason for the version it tried
+    Column("verdict", Text),  # kept or rolled_back
+    Column("why", Text),
+    Column("before", Text),  # JSON: the held-out scores before
+    Column("after", Text),  # JSON: the held-out scores after
+    Column("started_by", Text, nullable=False),
+    Column("stopped_by", Text),
+    Column("error", Text),
+    _timestamp("started_at"),
+    _timestamp("finished_at", default=False),
+)
+Index("one_open_round", rounds.c.open, unique=True, sqlite_where=rounds.c.open, postgresql_where=rounds.c.open)
+
+proposals = Table(
+    "proposals", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("round_id", Integer, nullable=False),
+    Column("kind", Text, nullable=False),  # change or recipe
+    Column("payload", Text, nullable=False),  # JSON: what is proposed
+    Column("reason", Text, nullable=False),  # the improver's
+    Column("status", Text, nullable=False),  # waiting, approved or rejected
+    Column("decided_by", Text),
+    Column("decided_at", DateTime(timezone=True)),
+    Column("decision_reason", Text),  # a rejection's reason goes back to the improver
+    _timestamp("created_at"),
+)
+
 run_claims = Table(
     "run_claims", metadata,
     Column("run_id", Integer, primary_key=True),
@@ -174,6 +211,7 @@ model_calls = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("claim_id", Text, nullable=False),
     Column("run_id", Integer),  # none outside a run, as when a sign-off is paid
+    Column("round_id", Integer),  # set on the improver's own calls
     Column("model", Text, nullable=False),
     Column("input_tokens", Integer, nullable=False),
     Column("output_tokens", Integer, nullable=False),
