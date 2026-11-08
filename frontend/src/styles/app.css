@@ -349,3 +349,19 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 .signin-card { width: min(420px, 100%); display: grid; gap: 8px; }
 .signin-card input { width: 100%; }
 .auth-loading { padding: 24px; }
+
+/* the confirmation dialog */
+.dialog-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(10, 6, 5, 0.55); }
+.dialog { width: min(480px, 100%); padding: 24px; display: grid; gap: 16px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.dialog h2 { margin: 0; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
+
+/* the settings page */
+.setting { display: grid; gap: 16px; margin-bottom: 16px; }
+.setting-head h2 { margin: 0 0 4px; }
+.setting-fields { display: flex; flex-wrap: wrap; gap: 16px; }
+.field { display: grid; gap: 4px; min-width: 200px; }
+.field input { width: 100%; text-align: right; }
+.setting-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.appearance { margin-top: 16px; }
+.radio { display: inline-flex; align-items: center; gap: 8px; margin-right: 24px; }

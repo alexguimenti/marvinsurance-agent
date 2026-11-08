@@ -4,6 +4,7 @@ from sqlalchemy import Engine, func, select
 
 from app.db import answer_key, claims, drop_tables, eval_sets, held_out_claims, init_schema, insert_or_ignore
 from app.reference import Reference
+from app.settings_store import seed_settings
 
 # The handlers' decisions on our two labelled sets. Seeding is the only code that reads data/evals/.
 EVAL_FILES = {"evaluation": (None, "decisions.json"), "held_out": ("held_out_claims.json", "held_out_decisions.json")}
@@ -17,6 +18,7 @@ def seed_claims(engine: Engine, ref: Reference) -> int:
              for c in ref.claims]
         ))
     seed_answer_key(engine, ref)
+    seed_settings(engine, ref)
     with engine.connect() as conn:
         return conn.execute(select(func.count()).select_from(claims).where(claims.c.copy_of.is_(None))).scalar_one()
 

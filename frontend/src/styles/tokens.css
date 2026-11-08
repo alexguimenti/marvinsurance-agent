@@ -59,3 +59,49 @@
   --container-max: 1400px;
   --container-text: 620px;
 }
+
+/*
+ * Dark mode. DESIGN.md gives the light palette only, so these are the same roles on warm dark surfaces. The page sets
+ * data-theme from the browser's choice (see theme.ts); "the same as the computer" resolves to one of the two there.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-page: #14100F;
+  --bg-surface: #1B1513;
+  --bg-elevated: #241C19;
+  --bg-subtle: #2A211E;
+  --bg-muted: #342A26;
+  --bg-chip: rgba(36, 28, 25, 0.92);
+  --bg-overlay: rgba(255, 245, 238, 0.07);
+  --bg-inverse: #F3F1EB;
+
+  --border-subtle: rgba(255, 240, 230, 0.10);
+  --border-strong: #4A3F3A;
+  --border-avatar: #5D514B;
+
+  --text-heading: #F6D6CE;
+  --text-ink: #F3F1EB;
+  --text-body: #E6E1DC;
+  --text-title-sm: #DDD3CA;
+  --text-secondary: #B7ACA4;
+  --text-tertiary: #A89F98;
+  --text-muted: #8F8680;
+  --text-inverse: #1C1513;
+  --text-inverse-secondary: rgba(28, 21, 19, 0.72);
+  --text-inverse-muted: rgba(28, 21, 19, 0.5);
+
+  --accent: #FB4F1F;
+  --accent-strong: #FF8060;
+  --accent-deep: #FFB9A4;
+  --accent-tint: #3A1E16;
+  --success: #8FBF66;
+  --info-bg: #2B2766;
+  --info-fg: #D3CFFF;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 20px 25px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --shadow-top: 0 -6px 24px rgba(0, 0, 0, 0.45);
+  --shadow-hover: 0 20px 25px rgba(0, 0, 0, 0.55);
+}

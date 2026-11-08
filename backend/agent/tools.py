@@ -13,6 +13,7 @@ from app.db import claims
 from app.documents import DOCUMENTS, documents_for
 from app.payout import LineItem, calculate_payout as compute_payout
 from app.reference import Reference
+from app.settings_store import approval_limit
 
 # Each section read goes back to the model on every later step, so reading costs grow fast.
 MAX_SECTIONS = 8
@@ -122,7 +123,7 @@ def build_tools(engine: Engine, ref: Reference) -> list[BaseTool]:
         """Work out the payout (wording section 10). Give every input: each item with the per-item limit
         that applies to it (null when none), 0 where nothing was paid or no deductible applies, and the
         benefit maximum (null when none)."""
-        limit = ref.company["payout_approval_limit"]
+        limit = approval_limit(engine, ref)
         return json.dumps(compute_payout(items, third_party_paid, deductible, benefit_max, limit))
 
     @tool

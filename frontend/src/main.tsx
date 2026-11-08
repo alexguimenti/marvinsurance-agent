@@ -8,6 +8,10 @@ import App from './App'
 import AuthProvider from './auth/AuthProvider'
 import './styles/tokens.css'
 import './styles/app.css'
+import { applyTheme, followComputerTheme } from './theme'
+
+applyTheme()
+followComputerTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

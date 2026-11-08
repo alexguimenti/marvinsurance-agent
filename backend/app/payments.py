@@ -67,16 +67,16 @@ def sign_off(engine: Engine, ref: Reference, payment_id: str, handler_id: str) -
 def pay(engine: Engine, ref: Reference, claim_id: str) -> dict:
     """Pay the recorded approval once and return the claim, saying whether this call paid it. The amount is the
     decision's, never the caller's. If it stops halfway, running it again finishes the job."""
-    limit = ref.company["payout_approval_limit"]
     with engine.begin() as conn:
         found = conn.execute(
-            select(decisions.c.decision, decisions.c.payout, payments.c.status, payments.c.approved_by)
+            select(decisions.c.decision, decisions.c.payout, payments.c.status, payments.c.approved_by, decisions.c.approval_limit)
             .select_from(decisions.outerjoin(payments, decisions.c.claim_id == payments.c.claim_id))
             .where(decisions.c.claim_id == claim_id)
         ).first()
         if found is None or found[0] != "approve":
             raise ValueError(f"{claim_id} has no approval to pay")
-        decision, amount, status, approved_by = found
+        decision, amount, status, approved_by, recorded_limit = found
+        limit = recorded_limit if recorded_limit is not None else ref.company["payout_approval_limit"]
         if amount > limit and approved_by is None:
             raise SignOffRequired(f"{claim_id}: a payout of ${amount:,.2f} needs a handler's sign-off")
         paid_now = False

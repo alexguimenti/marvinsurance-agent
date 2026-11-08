@@ -2,7 +2,7 @@ import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Literal, Mapping
+from typing import Any, Literal, Mapping
 
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
@@ -30,6 +30,7 @@ from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.scoring import evaluation_report, list_evaluations
 from app.seed import seed_claims
+from app.settings_store import approval_limit, change_setting, models_allowed, setting_history
 from app.usage import claim_totals, run_totals
 
 # How the claim agent traces a section it read: "[claims_manual section 7: Interpretation notes, 5000 characters]".
@@ -42,6 +43,10 @@ class PayoutBody(BaseModel):
     third_party_paid: float
     deductible: float
     benefit_max: float | None
+
+
+class SettingValue(BaseModel):
+    value: Any
 
 
 class DispatchBody(BaseModel):
@@ -76,7 +81,7 @@ def _run(row: Mapping | None) -> dict | None:
 
 def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     ref = Reference(settings.data_dir)
-    signed_in, senior = make_guards(ref, jwks if jwks is not None else make_jwks(settings))  # noqa: F841
+    signed_in, senior = make_guards(ref, jwks if jwks is not None else make_jwks(settings))
     docs = documents_for(ref)
     engine = make_engine(settings, max_connections=4)
 
@@ -254,7 +259,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     def payout(body: PayoutBody):
         """Work out a payout under wording section 10, and say whether it needs a sign-off."""
         return calculate_payout(body.items, body.third_party_paid, body.deductible, body.benefit_max,
-                                ref.company["payout_approval_limit"])
+                                approval_limit(engine, ref))
 
     @app.get("/approvals", operation_id="list_approvals")
     def approvals():
@@ -283,6 +288,23 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
                 "rationale": r["rationale"],
             })
         return out
+
+    @app.get("/settings", operation_id="get_platform_settings")
+    def platform_settings():
+        """Show every setting with who last changed it and when, and the models the claim agent may use."""
+        names = {h["handler_id"]: h["name"] for h in ref.handlers}
+        rows = [{**r, "changed_by_name": names.get(r["changed_by"])} for r in setting_history(engine, current_only=True)]
+        return {"settings": rows, "models_allowed": models_allowed(ref, settings)}
+
+    @app.put("/settings/{name}", operation_id="change_platform_setting")
+    def change_platform_setting(name: str, body: SettingValue, handler: Handler = Depends(senior)):
+        """Change one setting, recording who changed it. Only a handler who can sign off over the limit may."""
+        try:
+            return change_setting(engine, name, body.value, handler)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
 
     @app.get("/me", operation_id="get_signed_in_handler")
     def me(handler: Handler = Depends(signed_in)):

@@ -248,3 +248,27 @@ export const listEvaluations = () => request<EvaluationSummary[]>('/evaluations'
 export const getEvaluation = (id: string) => request<EvaluationReport>(`/evaluations/${id}`)
 export const startEvaluation = (evalSet: EvalSet, tiny: boolean, workers: number) =>
   request<{ status: string }>('/evaluations', post({ eval_set: evalSet, tiny, workers }))
+
+/** One setting as it stands, with who last changed it. changed_by_name is null for the starting values. */
+export interface SettingRow {
+  name: string
+  value: unknown
+  changed_by: string
+  changed_by_name: string | null
+  changed_at: string
+}
+
+export interface ModelAllowed {
+  reasoning_efforts: string[]
+  price_in: number
+  price_out: number
+}
+
+export interface PlatformSettings {
+  settings: SettingRow[]
+  models_allowed: Record<string, ModelAllowed>
+}
+
+export const getSettings = () => request<PlatformSettings>('/settings')
+export const changeSetting = (name: string, value: unknown) =>
+  request<{ name: string; value: unknown }>(`/settings/${name}`, { ...post({ value }), method: 'PUT' })

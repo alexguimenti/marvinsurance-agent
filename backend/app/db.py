@@ -61,6 +61,7 @@ decisions = Table(
     Column("model", Text, nullable=False),
     Column("manual_version", Text),
     Column("wording_version", Text),
+    Column("approval_limit", Float),  # the limit in force when it was recorded: a new limit applies to later decisions
     _timestamp("created_at"),
 )
 
@@ -105,6 +106,23 @@ runs = Table(
 # One run at a time holds across processes, whoever asks.
 Index("one_running_run", runs.c.status, unique=True,
       sqlite_where=runs.c.status == "running", postgresql_where=runs.c.status == "running")
+
+settings_table = Table(
+    "settings", metadata,
+    Column("name", Text, primary_key=True),
+    Column("value", Text, nullable=False),  # JSON
+    Column("changed_by", Text, nullable=False),  # a handler id, or "seed"
+    Column("changed_at", DateTime(timezone=True), nullable=False),
+)
+
+settings_history = Table(
+    "settings_history", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", Text, nullable=False),
+    Column("value", Text, nullable=False),
+    Column("changed_by", Text, nullable=False),
+    Column("changed_at", DateTime(timezone=True), nullable=False),
+)
 
 run_claims = Table(
     "run_claims", metadata,

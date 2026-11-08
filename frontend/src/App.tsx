@@ -8,6 +8,7 @@ import Instructions from './pages/Instructions'
 import Evaluation from './pages/Evaluation'
 import Queue from './pages/Queue'
 import Scoreboard from './pages/Scoreboard'
+import Settings from './pages/Settings'
 import { usePolling } from './usePolling'
 
 const POLL_MS = 3000
@@ -50,6 +51,7 @@ export default function App() {
           </NavLink>
           <NavLink to="/scoreboard">Scoreboard</NavLink>
           <NavLink to="/instructions">Agent instructions</NavLink>
+          <NavLink to="/settings">Settings</NavLink>
         </nav>
         <div className="who">
           <span className="who-name">{handler.name}</span>
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/scoreboard" element={<Scoreboard />} />
           <Route path="/scoreboard/:id" element={<Evaluation />} />
           <Route path="/instructions" element={<Instructions />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
     </>

@@ -1,0 +1,5 @@
+{
+  "openai/gpt-6-luna": {"reasoning_efforts": ["none", "low", "medium"], "price_in": 0.10, "price_out": 0.50},
+  "google/gemini-3.5-flash-lite": {"reasoning_efforts": ["minimal", "low"], "price_in": 0.30, "price_out": 2.50},
+  "deepseek/deepseek-v4.1-flash": {"reasoning_efforts": ["low"], "price_in": 0.30, "price_out": 1.20}
+}

@@ -7,6 +7,7 @@ from sqlalchemy import Engine, select, update
 from app.db import claims, decisions, insert_or_ignore, iso, payments
 from app.documents import documents_for
 from app.reference import Reference
+from app.settings_store import approval_limit
 
 
 class DecisionConflict(Exception):
@@ -37,6 +38,7 @@ def _decision(row) -> dict | None:
 def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dict, model: str) -> dict:
     """Record the claim's one decision and return the claim. An approval stays in progress until it is paid."""
     docs = documents_for(ref)
+    limit = approval_limit(engine, ref)
     with engine.begin() as conn:
         conn.execute(
             insert_or_ignore(conn, decisions),
@@ -50,6 +52,7 @@ def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dic
                 "model": model,
                 "manual_version": docs.version("claims_manual"),
                 "wording_version": docs.version("policy_wording"),
+                "approval_limit": limit,
             },
         )
         recorded = conn.execute(
@@ -67,16 +70,20 @@ def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dic
     return get_claim(engine, claim_id)
 
 
+def _limit_of(recorded: float | None, ref: Reference) -> float:
+    return recorded if recorded is not None else ref.company["payout_approval_limit"]
+
+
 def needs_sign_off(engine: Engine, ref: Reference, claim_id: str) -> bool:
     """The backend's answer, for the agent: is this an approval over the limit that no handler has signed off?"""
-    limit = ref.company["payout_approval_limit"]
     with engine.connect() as conn:
         row = conn.execute(
-            select(decisions.c.decision, decisions.c.payout, payments.c.approved_by)
+            select(decisions.c.decision, decisions.c.payout, payments.c.approved_by, decisions.c.approval_limit)
             .select_from(decisions.outerjoin(payments, decisions.c.claim_id == payments.c.claim_id))
             .where(decisions.c.claim_id == claim_id)
         ).first()
-    return row is not None and row[0] == "approve" and row[1] > limit and row[2] is None
+    # the limit the decision was recorded under, so a new limit never reaches back to a decision already held
+    return row is not None and row[0] == "approve" and row[1] > _limit_of(row[3], ref) and row[2] is None
 
 
 def hold_for_sign_off(engine: Engine, ref: Reference, claim_id: str) -> dict:

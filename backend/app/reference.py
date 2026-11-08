@@ -10,6 +10,8 @@ ALLOWED_FILES = frozenset(
         "handlers.json",
         "company.json",
         "knowledge.json",
+        "improvement.json",
+        "models.json",
         "policy_wording.md",
         "claims_manual.md",
     }
