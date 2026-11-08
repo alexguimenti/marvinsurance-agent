@@ -1,13 +1,18 @@
 """Dispatches and evaluations: the run record, which claims it works, where each stands, and its summary.
 Code keeps track of a run, with no model. One run of either kind at a time holds across processes."""
 import json
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import Engine, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.db import claims, decisions, payments, plain, run_claims, runs, trace_events
+from app.config import Settings
+from app.judge import grade_evaluation
 from app.usage import per_claim
+
+log = logging.getLogger(__name__)
 
 RUN_KINDS = ("dispatch", "evaluation")
 
@@ -50,8 +55,14 @@ def running_run(engine: Engine):
         return conn.execute(select(runs).where(runs.c.status == "running")).mappings().first()
 
 
-def finish_run(engine: Engine, run_id: int, error: str | None = None) -> None:
-    """A run ends finished; one whose dispatcher broke ends stopped, with the reason."""
+def finish_run(engine: Engine, run_id: int, error: str | None = None, settings: Settings | None = None) -> None:
+    """A run ends finished; one whose dispatcher broke ends stopped, with the reason. An evaluation is graded first, by
+    the judge, so its grades are there the moment it shows as finished."""
+    if settings is not None and error is None:
+        try:
+            grade_evaluation(engine, run_id, settings)
+        except Exception:  # a judge that fails must never stop a run from finishing
+            log.exception("could not grade evaluation %s", run_id)
     with engine.begin() as conn:
         conn.execute(update(runs).where(runs.c.run_id == run_id, runs.c.status == "running").values(
             status="stopped" if error else "finished", error=error, finished_at=func.now(),

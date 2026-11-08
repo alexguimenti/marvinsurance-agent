@@ -77,6 +77,9 @@ export function runRefused(status: number | undefined, otherwise: string): strin
   return otherwise
 }
 
+/** The judge's grade, 0 (F) to 3 (A), to two decimals. */
+export const formatGrade = (grade: number | null) => (grade === null ? 'Not graded' : grade.toFixed(2))
+
 /** A share from 0 to 1 as a whole percentage. */
 export const formatShare = (share: number | null) => (share === null ? '—' : `${Math.round(share * 100)}%`)
 

@@ -9,6 +9,7 @@ import {
   SET_LABEL,
   describeSet,
   formatCost,
+  formatGrade,
   formatSeconds,
   formatShare,
   formatTime,
@@ -107,6 +108,7 @@ export default function Scoreboard() {
                 <th>Status</th>
                 <th className="num">Decision accuracy</th>
                 <th className="num">Accuracy</th>
+                <th className="num">Grade</th>
                 <th className="num">Cost of mistakes</th>
                 <th className="num">Straight-through</th>
                 <th className="num">Cost per claim</th>
@@ -131,6 +133,7 @@ export default function Scoreboard() {
                   </td>
                   <td className="num mono">{formatShare(m.decision_accuracy)}</td>
                   <td className="num mono">{formatShare(m.accuracy)}</td>
+                  <td className="num mono">{formatGrade(m.grade)}</td>
                   <td className="num mono">{formatUsd(m.mistake_cost)}</td>
                   <td className="num mono">{formatShare(m.straight_through)}</td>
                   <td className="num mono">{m.cost_per_claim === null ? '—' : formatCost(m.cost_per_claim)}</td>

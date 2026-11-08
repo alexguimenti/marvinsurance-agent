@@ -8,6 +8,7 @@ const WEB_PORT = 5273
 const AGENT_PORT = 8003 // a stand-in for the agent's service: never the one `npm run dev` starts
 const AUTH_PORT = 8004 // a stand-in for Supabase Auth: the tests never reach the real project
 const AUTH_URL = `http://127.0.0.1:${AUTH_PORT}`
+const JUDGE_PORT = 8005 // a stand-in for the judge's endpoint: the tests never call the real one
 const DB_PATH = `${process.cwd()}/.tmp/${DB}`
 const PYTHON = resolve(
   '../backend/.venv',
@@ -30,10 +31,21 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
+      command: `"${PYTHON}" -m uvicorn stand_in_judge:app --app-dir ../e2e --port ${JUDGE_PORT}`,
+      cwd: '../backend',
+      url: `http://127.0.0.1:${JUDGE_PORT}/health`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
       // scripted model: no model calls; fresh throwaway database (see scripts/clean.mjs)
       command: `"${PYTHON}" -m uvicorn stand_in_agent:app --app-dir ../e2e --port ${AGENT_PORT}`,
       cwd: '../backend',
-      env: { AGENT_PROVIDER: 'scripted', DB_PATH, PYTHONPATH: '.' },
+      env: {
+        AGENT_PROVIDER: 'scripted', DB_PATH, PYTHONPATH: '.',
+        // the service grades an evaluation as it finishes it: with a key and the stand-in's address
+        OPENROUTER_API_KEY: 'e2e-key', OPENROUTER_DECISIONS_URL: `http://127.0.0.1:${JUDGE_PORT}`,
+      },
       url: `http://127.0.0.1:${AGENT_PORT}/health`,
       reuseExistingServer: false,
       timeout: 60_000,

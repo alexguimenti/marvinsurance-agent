@@ -42,7 +42,7 @@ def seed_answer_key(engine: Engine, ref: Reference) -> None:
             ))
             conn.execute(insert_or_ignore(conn, answer_key).values(
                 [{"eval_set": eval_set, "claim_id": d["claim_id"], "decision": d["decision"],
-                  "payout": float(d["payout"]), "reason": d["reason"]} for d in decided]
+                  "payout": float(d["payout"]), "reason": d["reason"], "reference": d["reference"]} for d in decided]
             ))
 
 

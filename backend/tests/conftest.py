@@ -10,9 +10,11 @@ OUTSIDE_WORLD = ("DATABASE_URL", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "
 
 
 @pytest.fixture(autouse=True)
-def no_outside_world(monkeypatch):
+def no_outside_world(request, monkeypatch):
     for name in OUTSIDE_WORLD:
         monkeypatch.delenv(name, raising=False)
+    if "test_openrouter_smoke" not in request.node.nodeid:  # the live smoke test needs the key; nothing else does
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +27,11 @@ def no_model_calls(request, monkeypatch):
         raise AssertionError("a test tried to call a real model")
 
     monkeypatch.setattr("langchain_openai.ChatOpenAI._generate", refuse)
+
+    def refuse_judge(settings):
+        raise AssertionError("a test tried to call the judge")
+
+    monkeypatch.setattr("app.judge.make_client", refuse_judge)
     monkeypatch.setattr("langchain_openai.ChatOpenAI._stream", refuse)
 
 

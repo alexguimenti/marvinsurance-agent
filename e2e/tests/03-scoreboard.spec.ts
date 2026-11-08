@@ -36,13 +36,14 @@ test('an evaluation started on the dashboard reaches the service with N, and sho
   const row = page.locator('tbody tr').first()
   await expect(row).toContainText('Finished', { timeout: 60_000 })
   await expect(row).toContainText('Held-out set, tiny')
-  for (const name of ['Decision accuracy', 'Accuracy', 'Cost of mistakes', 'Straight-through', 'Cost per claim', 'Time per claim', 'Total time']) {
+  for (const name of ['Decision accuracy', 'Accuracy', 'Grade', 'Cost of mistakes', 'Straight-through', 'Cost per claim', 'Time per claim', 'Total time']) {
     await expect(page.getByRole('columnheader', { name, exact: true })).toBeVisible()
   }
 
   await row.getByRole('link').first().click()
   await expect(page.getByRole('heading', { name: /Evaluation \d+/ })).toBeVisible()
   await expect(page.locator('tbody tr')).toHaveCount(5)
+  await expect(page.locator('.pill-grade-B').first()).toBeVisible() // the judge's stand-in grades every explanation B
   await page.locator('tbody tr').first().getByRole('link').click()
   await expect(page.getByText(/Evaluation copy of/)).toBeVisible()
 

@@ -22,7 +22,7 @@ def test_only_seeding_reads_data_evals_and_only_scoring_reads_the_answer_key():
             name = path.name
             if ('"evals"' in text or "evals/" in text or "security/" in text) and name != "seed.py":
                 evals.append(name)
-            if "answer_key" in text and name not in ("db.py", "seed.py", "scoring.py"):
+            if "answer_key" in text and name not in ("db.py", "seed.py", "scoring.py", "judge.py"):
                 key.append(name)
     assert (evals, key) == ([], [])
 

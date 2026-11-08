@@ -62,7 +62,7 @@ def test_an_empty_evaluation_has_no_measures_to_divide():
 
 
 MEASURES = {"claims", "decision_accuracy", "accuracy", "mistake_cost", "straight_through", "cost_per_claim",
-            "seconds_per_claim", "total_seconds"}
+            "seconds_per_claim", "total_seconds", "grade", "judge_cost_usd"}
 
 
 @pytest.fixture

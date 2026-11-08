@@ -211,6 +211,8 @@ export interface Measures {
   claims: number
   decision_accuracy: number | null
   accuracy: number | null
+  grade: number | null // the judge's average, 0 (F) to 3 (A); none when no claim was graded
+  judge_cost_usd: number
   mistake_cost: number
   straight_through: number | null
   cost_per_claim: number | null
@@ -233,6 +235,11 @@ export interface ScoredClaim {
   accurate: boolean
   mistake_cost: number
   referred: boolean
+  score: number | null // the judge's grade, 0 (F) to 3 (A); null when it could not grade the claim
+  letter: 'A' | 'B' | 'C' | 'F' | null
+  same_grounds: number | null // a probability
+  same_section: number | null
+  judge_cost_usd: number | null
   cost_usd: number | null
   seconds: number
 }

@@ -86,4 +86,4 @@ def dispatch(env: AgentEnv, run_id: int, workers: int, retry: RetryPolicy = CLAI
     except Exception as exc:  # the dispatcher itself broke, not a claim: the run ends stopped, and says why
         runs.finish_run(env.engine, run_id, error=f"{type(exc).__name__}: {exc}")
         raise
-    runs.finish_run(env.engine, run_id)
+    runs.finish_run(env.engine, run_id, settings=env.settings)

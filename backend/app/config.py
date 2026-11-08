@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     database_url: str | None = None  # from the process environment only: see model_post_init
     agent_url: str = DEFAULT_AGENT_URL
     supabase_url: str | None = None  # from the process environment only: see model_post_init
+    judge_url: str = "https://openrouter.ai"  # the origin of the judge's endpoint; the tests point it at a stand-in
 
     def model_post_init(self, _context) -> None:
         # A .env file must not be enough to point a process at Supabase or at a running agent:
@@ -46,6 +47,7 @@ class Settings(BaseSettings):
         self.database_url = os.environ.get("DATABASE_URL") or None
         self.agent_url = os.environ.get("UNDERCOVER_AGENT") or DEFAULT_AGENT_URL
         self.agent_model = os.environ.get("MODEL_NAME") or self.agent_model
+        self.judge_url = os.environ.get("OPENROUTER_DECISIONS_URL") or self.judge_url
         self.supabase_url = os.environ.get("VITE_SUPABASE_URL") or None  # the same address the dashboard signs in at
 
     @property

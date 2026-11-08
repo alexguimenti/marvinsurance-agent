@@ -213,6 +213,20 @@ answer_key = Table(
     Column("decision", Text, nullable=False),
     Column("payout", Float, nullable=False),
     Column("reason", Text, nullable=False),
+    Column("reference", Text, nullable=False),  # the part of the policy wording the handlers relied on
+)
+
+# The judge's grade for each claim of an evaluation. A null score is a claim that could not be graded.
+judge_grades = Table(
+    "judge_grades", metadata,
+    Column("run_id", Integer, primary_key=True),
+    Column("claim_id", Text, primary_key=True),
+    Column("score", Float),  # 0 (F) to 3 (A), Jev's own score
+    Column("letter", Text),  # the most likely level
+    Column("same_grounds", Float),  # a probability
+    Column("same_section", Float),  # a probability
+    Column("cost_usd", Float, nullable=False, server_default="0"),
+    Column("error", Text),
 )
 
 # Tables of the queue agent, gone with it. A reseed drops them from an older database.

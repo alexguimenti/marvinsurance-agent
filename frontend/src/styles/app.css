@@ -378,3 +378,11 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 .diff-fold { background: var(--bg-subtle); color: var(--text-secondary); font-style: italic; padding-left: 28px; display: block; }
 .diff-setting { margin: 0 0 8px; }
 .diff-setting-changed { font-weight: 600; }
+
+/* the judge's grades */
+.pill-grade-A { background: color-mix(in srgb, var(--success) 45%, transparent); }
+.pill-grade-B { background: color-mix(in srgb, var(--success) 25%, transparent); }
+.pill-grade-C { background: color-mix(in srgb, #E0A100 30%, transparent); }
+.pill-grade-F { background: color-mix(in srgb, #D64545 28%, transparent); }
+.check-yes { margin-right: 8px; }
+.check-no { margin-right: 8px; color: var(--accent-strong); }

@@ -6,7 +6,7 @@ import Scoreboard from './Scoreboard'
 
 const evaluation = (run_id: number, over = {}) => ({
   run: { run_id, kind: 'evaluation', status: 'finished', workers: 5, model: 'deepseek/deepseek-v4.1-flash', reasoning_effort: 'low', eval_set: 'evaluation', tiny: false, error: null, started_at: '2026-11-05T10:00:00+00:00', finished_at: '2026-11-05T10:01:00+00:00', ...over },
-  measures: { claims: 25, decision_accuracy: 0.96, accuracy: 0.88, mistake_cost: 1550, straight_through: 0.76, cost_per_claim: 0.0021, seconds_per_claim: 14.2, total_seconds: 58.3 },
+  measures: { claims: 25, decision_accuracy: 0.96, accuracy: 0.88, grade: 1.85, judge_cost_usd: 0.0031, mistake_cost: 1550, straight_through: 0.76, cost_per_claim: 0.0021, seconds_per_claim: 14.2, total_seconds: 58.3 },
 })
 
 describe('Scoreboard', () => {
@@ -14,7 +14,7 @@ describe('Scoreboard', () => {
     mockApi({ '/api/evaluations': [evaluation(9, { eval_set: 'held_out', tiny: true }), evaluation(4)] })
     renderAt(<Scoreboard />, '/scoreboard')
     const rows = await screen.findAllByRole('row')
-    for (const name of ['Decision accuracy', 'Accuracy', 'Cost of mistakes', 'Straight-through', 'Cost per claim', 'Time per claim', 'Total time']) {
+    for (const name of ['Decision accuracy', 'Accuracy', 'Grade', 'Cost of mistakes', 'Straight-through', 'Cost per claim', 'Time per claim', 'Total time']) {
       expect(screen.getByRole('columnheader', { name })).toBeInTheDocument()
     }
     const first = within(rows[1])
@@ -22,12 +22,21 @@ describe('Scoreboard', () => {
     expect(first.getByText('Held-out set, tiny')).toBeInTheDocument()
     expect(first.getByText('96%')).toBeInTheDocument()
     expect(first.getByText('88%')).toBeInTheDocument()
+    expect(first.getByText('1.85')).toBeInTheDocument()
     expect(first.getByText('$1,550.00')).toBeInTheDocument()
     expect(first.getByText('76%')).toBeInTheDocument()
     expect(first.getByText('$0.0021')).toBeInTheDocument()
     expect(first.getByText('14.2 s')).toBeInTheDocument()
     expect(first.getByText('58.3 s')).toBeInTheDocument()
     expect(within(rows[2]).getByRole('link', { name: 'Evaluation 4' })).toBeInTheDocument()
+  })
+
+  it('shows no grade for an evaluation the judge could not grade', async () => {
+    const e = evaluation(4)
+    mockApi({ '/api/evaluations': [{ ...e, measures: { ...e.measures, grade: null } }] })
+    renderAt(<Scoreboard />, '/scoreboard')
+    const rows = await screen.findAllByRole('row')
+    expect(within(rows[1]).getByText('Not graded')).toBeInTheDocument()
   })
 
   it('records the model, the reasoning effort and N of each evaluation', async () => {

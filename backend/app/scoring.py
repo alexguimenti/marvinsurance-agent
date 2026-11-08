@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Engine, select
 
 from app import runs
-from app.db import answer_key, claims, decisions, plain, run_claims
+from app.db import answer_key, claims, decisions, judge_grades, plain, run_claims
 from app.db import runs as runs_table
 from app.usage import per_claim
 
@@ -49,6 +49,9 @@ def measures(rows: list[dict], total_seconds: float) -> dict:
         "cost_per_claim": round(sum(costs) / n, 6) if costs and n else None,
         "seconds_per_claim": round(sum(r["seconds"] for r in rows) / n, 1) if n else None,
         "total_seconds": round(total_seconds, 1),
+        # the average grade, 0 (F) to 3 (A), over the claims that were graded: an ungraded claim is not a zero
+        "grade": round(sum(graded) / len(graded), 3) if (graded := [r["score"] for r in rows if r.get("score") is not None]) else None,
+        "judge_cost_usd": round(sum(r.get("judge_cost_usd") or 0.0 for r in rows), 6),
     }
 
 
@@ -66,9 +69,12 @@ def evaluation_report(engine: Engine, run_id: int) -> dict | None:
     query = (
         select(run_claims.c.claim_id, claims.c.copy_of, claims.c.status,
                decisions.c.decision, decisions.c.payout, decisions.c.rationale,
-               answer_key.c.decision.label("handler_decision"), answer_key.c.payout.label("handler_payout"))
+               answer_key.c.decision.label("handler_decision"), answer_key.c.payout.label("handler_payout"),
+               judge_grades.c.score, judge_grades.c.letter, judge_grades.c.same_grounds, judge_grades.c.same_section,
+               judge_grades.c.cost_usd.label("judge_cost_usd"))
         .select_from(run_claims.join(claims, run_claims.c.claim_id == claims.c.claim_id)
                      .outerjoin(decisions, run_claims.c.claim_id == decisions.c.claim_id)
+                     .outerjoin(judge_grades, (judge_grades.c.run_id == run_claims.c.run_id) & (judge_grades.c.claim_id == run_claims.c.claim_id))
                      .join(answer_key, (answer_key.c.claim_id == claims.c.copy_of) & (answer_key.c.eval_set == run["eval_set"])))
         .where(run_claims.c.run_id == run_id)
         .order_by(run_claims.c.position)
@@ -83,7 +89,10 @@ def evaluation_report(engine: Engine, run_id: int) -> dict | None:
         spent = totals.get(r["claim_id"], {"cost_usd": None, "seconds": 0.0})
         rows.append({"claim_id": r["claim_id"], "copy_of": r["copy_of"], "status": r["status"], "agent": agent,
                      "handler": handler, **score_claim(agent, handler),
-                     "cost_usd": spent["cost_usd"], "seconds": spent["seconds"]})
+                     "cost_usd": spent["cost_usd"], "seconds": spent["seconds"],
+                     # the judge's grade; a claim it could not grade has none, and is left out of the average
+                     "score": r["score"], "letter": r["letter"], "same_grounds": r["same_grounds"],
+                     "same_section": r["same_section"], "judge_cost_usd": r["judge_cost_usd"]})
     return {"run": plain(run), "measures": measures(rows, _run_seconds(run)), "claims": rows}
 
 

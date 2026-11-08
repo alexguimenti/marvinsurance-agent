@@ -1,10 +1,20 @@
 import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getEvaluation, type EvaluationReport } from '../api'
-import { DECISION_LABEL, RUN_LABEL, describeSet, formatCost, formatSeconds, formatShare, formatUsd } from '../format'
+import { DECISION_LABEL, RUN_LABEL, describeSet, formatCost, formatGrade, formatSeconds, formatShare, formatUsd } from '../format'
 import { usePolling } from '../usePolling'
 
 const POLL_MS = 3000
+
+/** A check the judge answered with a probability, shown as yes or no. */
+function Check({ label, probability }: { label: string; probability: number | null }) {
+  const yes = (probability ?? 0) >= 0.5
+  return (
+    <span aria-label={`${label}: ${yes ? 'yes' : 'no'}`} className={yes ? 'check-yes' : 'check-no'}>
+      {label.replace('Same ', '')} {yes ? '✓' : '✗'}
+    </span>
+  )
+}
 
 /** One evaluation: its measures, and each claim with the handler's answer beside the agent's. */
 export default function Evaluation() {
@@ -44,6 +54,7 @@ export default function Evaluation() {
         {[
           ['Decision accuracy', formatShare(m.decision_accuracy)],
           ['Accuracy', formatShare(m.accuracy)],
+          ['Grade', formatGrade(m.grade)],
           ['Cost of mistakes', formatUsd(m.mistake_cost)],
           ['Straight-through', formatShare(m.straight_through)],
           ['Cost per claim', m.cost_per_claim === null ? '—' : formatCost(m.cost_per_claim)],
@@ -65,6 +76,7 @@ export default function Evaluation() {
               <th className="num">Agent's payout</th>
               <th>Handler</th>
               <th className="num">Handler's payout</th>
+              <th>Explanation</th>
               <th className="num">Cost of the mistake</th>
               <th className="num">Model cost</th>
               <th className="num">Time</th>
@@ -83,6 +95,18 @@ export default function Evaluation() {
                 <td className="num mono">{c.agent ? formatUsd(c.agent.payout) : '—'}</td>
                 <td>{DECISION_LABEL[c.handler.decision]}</td>
                 <td className="num mono">{formatUsd(c.handler.payout)}</td>
+                <td>
+                  {c.score === null || c.letter === null ? (
+                    <span className="muted">Not graded</span>
+                  ) : (
+                    <div className="grade">
+                      <span className={`pill pill-grade-${c.letter}`}>{c.letter}</span> <span className="num mono">{c.score.toFixed(2)}</span>
+                      <div className="small muted">
+                        <Check label="Same grounds" probability={c.same_grounds} /> <Check label="Same section" probability={c.same_section} />
+                      </div>
+                    </div>
+                  )}
+                </td>
                 <td className="num mono">{c.mistake_cost ? formatUsd(c.mistake_cost) : '—'}</td>
                 <td className="num mono">{c.cost_usd === null ? '—' : formatCost(c.cost_usd)}</td>
                 <td className="num mono">{formatSeconds(c.seconds)}</td>
