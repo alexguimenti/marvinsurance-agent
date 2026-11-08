@@ -5,6 +5,8 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { formatTime, formatUsd } from '../format'
 import { getThemeChoice, setThemeChoice, type ThemeChoice } from '../theme'
 import { usePolling } from '../usePolling'
+import PageHeader from '../components/PageHeader'
+import { ErrorState, Loading } from '../components/States'
 
 const MEASURES: [string, string][] = [
   ['accuracy', 'accuracy'],
@@ -136,20 +138,18 @@ export default function Settings() {
 
   return (
     <section>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">Platform</p>
-          <h1>Settings</h1>
-          <p className="lede">The limits and measures the whole platform works to. Every change records who made it and when.</p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Platform"
+        title="Settings"
+        lede="The limits and measures the whole platform works to. Every change records who made it and when."
+      />
       {!canChange && (
         <p className="notice" role="note">
           Only a handler who can sign off payouts over the limit can change settings. You can look at them, and change how this browser looks.
         </p>
       )}
-      {error && <p className="error" role="alert">{error}</p>}
-      {!data && !error && <p className="muted">Loading the settings</p>}
+      {error && <ErrorState>{error}</ErrorState>}
+      {!data && !error && <Loading what="the settings" />}
       {data &&
         GROUPS.map((group) => {
           const row = byName(group.setting)

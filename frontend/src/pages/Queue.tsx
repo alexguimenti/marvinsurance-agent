@@ -5,6 +5,8 @@ import StatusBadge from '../components/StatusBadge'
 import RunPanel from '../components/RunPanel'
 import { DEFAULT_WORKERS, MAX_WORKERS, MIN_WORKERS, STATUS_LABEL, formatUsd, humanize, runRefused, stampFor } from '../format'
 import { usePolling } from '../usePolling'
+import PageHeader from '../components/PageHeader'
+import { ErrorState } from '../components/States'
 
 const POLL_MS = 2000
 const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'decided', 'needs_handler'] as const
@@ -55,16 +57,12 @@ export default function Queue() {
 
   return (
     <section>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">Claims desk</p>
-          <h1>Claims queue</h1>
-          <p className="lede">
-            {claims ? `${claims.length} claims on the desk` : 'Loading the desk'}. A dispatch carries on every claim in progress
-            and works every waiting one, oldest first, with as many claim agents at once as you choose.
-          </p>
-        </div>
-        <div className="run-controls">
+      <PageHeader
+        eyebrow="Claims desk"
+        title="Claims queue"
+        lede={<>{claims ? `${claims.length} claims on the desk` : 'Loading the desk'}. A dispatch carries on every claim in progress
+            and works every waiting one, oldest first, with as many claim agents at once as you choose.</>}
+        actions={<div className="run-controls">
           <label className="limit">
             <span>Claim agents at once</span>
             <input
@@ -79,8 +77,8 @@ export default function Queue() {
           <button className="btn btn-primary" onClick={onStart} disabled={starting || running || !work || !validN}>
             Start dispatch
           </button>
-        </div>
-      </div>
+        </div>}
+      />
 
       {claims && (
         <div className="tiles">
@@ -93,7 +91,7 @@ export default function Queue() {
         </div>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {error && <ErrorState>{error}</ErrorState>}
       {latest && <RunPanel data={latest} />}
       {claims && (
         <div className="card">

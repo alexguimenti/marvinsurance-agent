@@ -5,6 +5,8 @@ import StatusBadge from '../components/StatusBadge'
 import { DOCUMENT_LABEL, describeUsage, formatTime, formatUsd, humanize, stampFor } from '../format'
 import { usePolling } from '../usePolling'
 import Trace from './Trace'
+import PageHeader from '../components/PageHeader'
+import { ErrorState, Loading } from '../components/States'
 
 const POLL_MS = 2000
 const POLL_WORKING_MS = 1000
@@ -26,8 +28,8 @@ export default function ClaimDetail() {
   // quicker while the agent is at it: a signed-off claim should show as paid within seconds
   usePolling(load, data?.status === 'in_progress' ? POLL_WORKING_MS : POLL_MS)
 
-  if (error && !data) return <p className="error">{error}</p>
-  if (!data) return <p className="muted">Loading</p>
+  if (error && !data) return <ErrorState>{error}</ErrorState>
+  if (!data) return <Loading what="the page" />
 
   const { claim, decision, payment } = data
   return (
@@ -35,20 +37,16 @@ export default function ClaimDetail() {
       <p className="crumb">
         <Link to="/">← Claims queue</Link>
       </p>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">Case file</p>
-          <h1>{claim.claim_id}</h1>
-          <p className="lede">
-            {humanize(claim.claim_type)} · {data.customer.name} · {claim.incident_location} · incident{' '}
-            {claim.incident_date}
-          </p>
-        </div>
-        <div className="row">
+      <PageHeader
+        eyebrow="Case file"
+        title={claim.claim_id}
+        lede={<>{humanize(claim.claim_type)} · {data.customer.name} · {claim.incident_location} · incident{' '}
+            {claim.incident_date}</>}
+        actions={<div className="row">
           <StatusBadge status={data.status} />
-        </div>
-      </div>
-      {error && <p className="error">{error}</p>}
+        </div>}
+      />
+      {error && <ErrorState>{error}</ErrorState>}
 
       {data.copy_of && (
         <div className="notice notice-copy">

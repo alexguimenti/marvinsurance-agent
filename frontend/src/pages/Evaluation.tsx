@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { getEvaluation, type EvaluationReport } from '../api'
 import { DECISION_LABEL, RUN_LABEL, describeSet, formatCost, formatGrade, formatSeconds, formatShare, formatUsd } from '../format'
 import { usePolling } from '../usePolling'
+import PageHeader from '../components/PageHeader'
+import { ErrorState, Loading } from '../components/States'
 
 const POLL_MS = 3000
 
@@ -32,8 +34,8 @@ export default function Evaluation() {
   }, [id])
   usePolling(load, POLL_MS)
 
-  if (error && !data) return <p className="error">{error}</p>
-  if (!data) return <p className="muted">Loading</p>
+  if (error && !data) return <ErrorState>{error}</ErrorState>
+  if (!data) return <Loading what="the page" />
   const { run, measures: m, claims } = data
 
   return (
@@ -41,15 +43,11 @@ export default function Evaluation() {
       <p className="crumb">
         <Link to="/scoreboard">← Scoreboard</Link>
       </p>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">{describeSet(run.eval_set, run.tiny)}</p>
-          <h1>Evaluation {run.run_id}</h1>
-          <p className="lede">
-            {RUN_LABEL[run.status]} · {run.model} · effort {run.reasoning_effort} · {run.workers} claim agents at once
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={describeSet(run.eval_set, run.tiny)}
+        title={<>Evaluation {run.run_id}</>}
+        lede={<>{RUN_LABEL[run.status]} · {run.model} · effort {run.reasoning_effort} · {run.workers} claim agents at once</>}
+      />
       <div className="tiles">
         {[
           ['Decision accuracy', formatShare(m.decision_accuracy)],

@@ -17,6 +17,8 @@ import {
   runRefused,
 } from '../format'
 import { usePolling } from '../usePolling'
+import PageHeader from '../components/PageHeader'
+import { ErrorState } from '../components/States'
 
 const POLL_MS = 3000
 
@@ -57,16 +59,11 @@ export default function Scoreboard() {
 
   return (
     <section>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">How the agent is doing</p>
-          <h1>Scoreboard</h1>
-          <p className="lede">
-            Each evaluation works copies of a labelled set and compares the agent with the handlers. Copies never show
-            in the queue, and nobody signs them off.
-          </p>
-        </div>
-        <div className="run-controls">
+      <PageHeader
+        eyebrow="How the agent is doing"
+        title="Scoreboard"
+        lede="Each evaluation works copies of a labelled set and compares the agent with the handlers. Copies never show in the queue, and nobody signs them off."
+        actions={<div className="run-controls">
           <label className="limit">
             <span>Set</span>
             <select value={evalSet} onChange={(e) => setEvalSet(e.target.value as EvalSet)}>
@@ -95,9 +92,9 @@ export default function Scoreboard() {
           <button className="btn btn-primary" onClick={onStart} disabled={starting || running || !validN}>
             Start evaluation
           </button>
-        </div>
-      </div>
-      {error && <p className="error">{error}</p>}
+        </div>}
+      />
+      {error && <ErrorState>{error}</ErrorState>}
       {evaluations?.length === 0 && <p className="muted">No evaluations yet. Start one and its measures appear here.</p>}
       {evaluations && evaluations.length > 0 && (
         <div className="card">

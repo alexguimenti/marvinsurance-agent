@@ -321,3 +321,63 @@ export interface VersionDiff {
 
 export const getConfiguration = () => request<ConfigurationData>('/configuration')
 export const getVersionDiff = (kind: 'config' | 'recipe', version: number) => request<VersionDiff>(`/configuration/${kind}/${version}/diff`)
+
+export interface Proposal {
+  id: number
+  kind: 'change' | 'recipe'
+  reason: string
+  status: 'waiting' | 'approved' | 'rejected'
+  decided_by: string | null
+  decided_by_name: string | null
+  decided_at: string | null
+  decision_reason: string | null
+  created_at: string
+}
+
+/** What a round waits on: the improver's proposal, shown as a diff against what is current. */
+export interface WaitingProposal {
+  id: number
+  kind: 'change' | 'recipe'
+  reason: string
+  lines: DiffLine[]
+  model?: { before: string | null; after: string | null }
+  reasoning_effort?: { before: string | null; after: string | null }
+}
+
+export interface RoundScores {
+  accuracy?: number | null
+  grade?: number | null
+  [other: string]: number | null | undefined
+}
+
+export interface RoundView {
+  round_id: number
+  stage: 'first_evaluations' | 'improving' | 'awaiting_change' | 'evaluating' | 'verdict' | 'awaiting_recipe' | 'finished' | 'stopped'
+  progress: string | null
+  open: boolean
+  recipe_version: number
+  settings: Record<string, unknown>
+  version_tried: number | null
+  reason: string | null
+  verdict: 'kept' | 'rolled_back' | null
+  why: string | null
+  before: RoundScores | null
+  after: RoundScores | null
+  started_by: string
+  started_by_name: string | null
+  stopped_by: string | null
+  stopped_by_name: string | null
+  error: string | null
+  started_at: string
+  finished_at: string | null
+  spent_usd: number
+  spending_limit: number
+  proposals: Proposal[]
+  waiting: WaitingProposal | null
+}
+
+export const listRounds = () => request<RoundView[]>('/rounds')
+export const startRound = () => request<{ status: string; round_id: number }>('/rounds', post())
+export const stopRound = (id: number) => request<{ round_id: number; stage: string }>(`/rounds/${id}/stop`, post())
+export const decideProposal = (roundId: number, proposalId: number, approve: boolean, reason: string) =>
+  request<{ status: string }>(`/rounds/${roundId}/decision`, post({ proposal_id: proposalId, approve, reason }))

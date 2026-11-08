@@ -4,6 +4,8 @@ import { ApiError, approvePayment, listApprovals, type Approval } from '../api'
 import { useAuth } from '../auth/context'
 import { formatUsd, humanize } from '../format'
 import { usePolling } from '../usePolling'
+import PageHeader from '../components/PageHeader'
+import { Empty, ErrorState } from '../components/States'
 
 export default function Approvals() {
   const [approvals, setApprovals] = useState<Approval[] | null>(null)
@@ -36,21 +38,19 @@ export default function Approvals() {
 
   return (
     <section>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">Sign-off</p>
-          <h1>Approvals</h1>
-          <p className="lede">Payouts above $1,000 wait here until a handler signs them off. The agent then pays them.</p>
-        </div>
-        {handler.can_approve_over_limit && <p className="muted small">Signing off as {handler.name} ({handler.role})</p>}
-      </div>
+      <PageHeader
+        eyebrow="Sign-off"
+        title="Approvals"
+        lede="Payouts above $1,000 wait here until a handler signs them off. The agent then pays them."
+        actions={handler.can_approve_over_limit && <p className="muted small">Signing off as {handler.name} ({handler.role})</p>}
+      />
       {!handler.can_approve_over_limit && (
         <p className="notice" role="note">
           You can't sign off payouts over the limit, so you can't approve these payments. They wait for a handler who can.
         </p>
       )}
-      {error && <p className="error">{error}</p>}
-      {approvals && approvals.length === 0 && <p className="empty">Nothing is waiting for approval.</p>}
+      {error && <ErrorState>{error}</ErrorState>}
+      {approvals && approvals.length === 0 && <Empty>Nothing is waiting for approval.</Empty>}
       {approvals && approvals.length > 0 && (
         <div className="card">
           <table>

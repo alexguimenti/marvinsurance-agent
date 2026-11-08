@@ -12,6 +12,13 @@
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+:root[data-theme="dark"] {
+  --ok: #9fcf86;
+  --ok-tint: #22331b;
+  --no: #f0907a;
+  --no-tint: #3a1f19;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
@@ -87,7 +94,7 @@ code { font: 500 0.88em var(--font-mono); background: var(--bg-muted); padding: 
   position: sticky; top: 12px; z-index: 10;
   display: flex; align-items: center; justify-content: space-between;
   height: 58px; max-width: var(--container-max); margin: 12px auto 0; padding: 0 22px;
-  background: rgba(255, 252, 249, 0.82);
+  background: color-mix(in srgb, var(--bg-page) 82%, transparent);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border: 1px solid var(--border-subtle); border-radius: 14px; box-shadow: var(--shadow-xs);
 }
@@ -164,11 +171,15 @@ tr.total td { font-weight: 500; border-top: 1px solid var(--border-strong); }
 }
 .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(63, 39, 28, 0.18); }
 .btn:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
-.btn-primary { background: var(--bg-inverse); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: #33271f; }
+.btn-primary { background: var(--bg-inverse); color: var(--text-inverse); }
+.btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--bg-inverse) 85%, var(--accent)); }
 .btn-secondary { background: var(--bg-elevated); color: var(--text-ink); box-shadow: var(--shadow-xs); }
 .btn-accent { background: var(--accent); color: #fff; }
 .btn-accent:hover:not(:disabled) { background: var(--accent-strong); }
+.btn-danger { background: var(--no); color: var(--bg-surface); }
+.btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--no) 85%, var(--text-ink)); }
+.btn-ghost { background: transparent; color: var(--text-ink); box-shadow: none; }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-overlay); box-shadow: none; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
 .linkbtn { background: none; border: 0; padding: 0; font: 500 13px var(--font-sans); color: var(--text-secondary); cursor: pointer; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
@@ -386,3 +397,42 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 .pill-grade-F { background: color-mix(in srgb, #D64545 28%, transparent); }
 .check-yes { margin-right: 8px; }
 .check-no { margin-right: 8px; color: var(--accent-strong); }
+
+/* the improvement page */
+.steps { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 6px; }
+.step { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: var(--radius-md); color: var(--text-muted); }
+.step::before { content: ''; width: 10px; height: 10px; border-radius: var(--radius-full); border: 2px solid var(--border-strong); flex: none; }
+.step-done { color: var(--text-secondary); }
+.step-done::before { background: var(--success); border-color: var(--success); }
+.step-current { color: var(--text-ink); background: var(--accent-tint); font-weight: 600; }
+.step-current::before { background: var(--accent); border-color: var(--accent); }
+.step-progress { margin-left: auto; font-family: var(--font-mono); font-size: 12px; }
+.actions { display: grid; gap: 6px; justify-items: end; }
+.row { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+.pill-kept { background: color-mix(in srgb, var(--success) 35%, transparent); }
+.pill-rolled_back { background: color-mix(in srgb, #D64545 22%, transparent); }
+.pill-stopped { background: color-mix(in srgb, #E0A100 28%, transparent); }
+.error-text { color: var(--accent-strong); }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.chart { margin: 0; }
+.chart figcaption { font-weight: 600; margin-bottom: 4px; }
+.chart-svg { width: 100%; height: auto; }
+.chart-grid { stroke: var(--border-subtle); }
+.chart-tick { fill: var(--text-secondary); font-size: 11px; font-family: var(--font-mono); }
+.chart-line { stroke: var(--border-strong); stroke-width: 1.5; }
+.point, .dot { stroke: var(--accent); stroke-width: 2; }
+.point-kept { fill: var(--accent); }
+.point-rolled-back { fill: var(--bg-elevated); }
+.chart-legend { grid-column: 1 / -1; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-full); border: 2px solid var(--accent); vertical-align: middle; }
+.dot-kept { background: var(--accent); }
+.dot-rolled-back { background: var(--bg-elevated); }
+
+/* StatusPill tones: the word carries the meaning, the tint helps the eye find it. */
+.pill-tone-success { background: var(--ok-tint); color: var(--ok); }
+.pill-tone-danger { background: var(--no-tint); color: var(--no); }
+.pill-tone-warning { background: color-mix(in srgb, #E0A100 28%, transparent); color: var(--text-ink); }
+.pill-tone-info { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text-ink); }
+.pill-tone-neutral { background: var(--bg-muted); color: var(--text-body); }
+.state { padding: 16px 0; }
+.state-error { display: flex; align-items: center; gap: 12px; }

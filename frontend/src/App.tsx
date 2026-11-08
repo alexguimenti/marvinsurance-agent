@@ -6,6 +6,7 @@ import Approvals from './pages/Approvals'
 import ClaimDetail from './pages/ClaimDetail'
 import Configuration from './pages/Configuration'
 import Evaluation from './pages/Evaluation'
+import Improvement from './pages/Improvement'
 import Queue from './pages/Queue'
 import Scoreboard from './pages/Scoreboard'
 import Settings from './pages/Settings'
@@ -50,6 +51,7 @@ export default function App() {
             )}
           </NavLink>
           <NavLink to="/scoreboard">Scoreboard</NavLink>
+          <NavLink to="/improvement">Improvement</NavLink>
           <NavLink to="/configuration">Configuration</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/claims/:id" element={<ClaimDetail />} />
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/scoreboard" element={<Scoreboard />} />
+          <Route path="/improvement" element={<Improvement />} />
           <Route path="/scoreboard/:id" element={<Evaluation />} />
           <Route path="/configuration" element={<Configuration />} />
           <Route path="/settings" element={<Settings />} />

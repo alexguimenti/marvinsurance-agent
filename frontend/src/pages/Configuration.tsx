@@ -3,6 +3,9 @@ import { getConfiguration, getVersionDiff, type ConfigurationData, type VersionD
 import DiffView from '../components/DiffView'
 import { formatTime } from '../format'
 import { usePolling } from '../usePolling'
+import PageHeader from '../components/PageHeader'
+import StatusPill from '../components/StatusPill'
+import { ErrorState, Loading } from '../components/States'
 
 const WHO: Record<string, string> = { seed: 'Starting point', improver: 'The improver' }
 
@@ -40,17 +43,13 @@ export default function Configuration() {
 
   return (
     <section>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">Claim agent</p>
-          <h1>Configuration</h1>
-          <p className="lede">
-            The instructions, model and reasoning effort the claim agent works from, kept in versions, and the recipe the improver follows. A new version becomes the current one only when a round keeps it.
-          </p>
-        </div>
-      </div>
-      {error && <p className="error" role="alert">{error}</p>}
-      {!data && !error && <p className="muted">Loading the configuration</p>}
+      <PageHeader
+        eyebrow="Claim agent"
+        title="Configuration"
+        lede="The instructions, model and reasoning effort the claim agent works from, kept in versions, and the recipe the improver follows. A new version becomes the current one only when a round keeps it."
+      />
+      {error && <ErrorState>{error}</ErrorState>}
+      {!data && !error && <Loading what="the configuration" />}
       {data && (
         <>
           <section className="card pad" aria-label="Current version">
@@ -84,7 +83,7 @@ export default function Configuration() {
                     <tr key={v.version}>
                       <td>
                         <span className="mono">{v.version}</span>{' '}
-                        {v.version === data.current.version && <span className="pill pill-success">Current</span>}
+                        {v.version === data.current.version && <StatusPill tone="success">Current</StatusPill>}
                       </td>
                       <td>
                         {v.summary}
@@ -127,7 +126,7 @@ export default function Configuration() {
                   <tr key={r.version}>
                     <td>
                       <span className="mono">{r.version}</span>{' '}
-                      {r.version === data.current_recipe && <span className="pill pill-success">Current</span>}
+                      {r.version === data.current_recipe && <StatusPill tone="success">Current</StatusPill>}
                     </td>
                     <td>{r.summary}</td>
                     <td className="small">{r.reason}</td>
@@ -146,7 +145,7 @@ export default function Configuration() {
             </table>
           </div>
 
-          {diffError && <p className="error" role="alert">{diffError}</p>}
+          {diffError && <ErrorState>{diffError}</ErrorState>}
           {diff && (
             <section className="card pad" aria-label="Changes">
               <h2>
