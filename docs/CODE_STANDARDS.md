@@ -2,18 +2,25 @@
 
 ## The backend and the agent
 
-- `backend/app/` holds the records and the API. `backend/agent/` holds the agent. `app` never imports LangGraph or LangChain; its one import from `agent` is `agent.prompts`, for the instructions page.
+- `backend/app/` holds the records and the API. `backend/agent/` holds the agent. `app` never imports LangGraph or LangChain; it imports from `agent` only the loaders in `agent.prompts` (the first instructions and the first recipe, which seed version 1).
 - The agent calls `app`'s operations in Python and has its own connections to the same database.
 - Our code, not the model, enforces the rules: the $1,000 limit, which claims a run works, attempts, and one decision and one payment per claim.
 - The graph never applies the limit. It asks the backend (`needs_sign_off`) and the backend refuses a payout over the limit with no sign-off (`pay`).
 
-## The five parts of the agent
+## The six parts of the agent
 
-1. **Prompts** (`prompts.py`, `instructions_*.md`): what it is told. Never a claim id, and nothing from the handlers' decisions in `data/evals/`.
+1. **Prompts** (`prompts.py`, `instructions_*.md`, `recipe_v1.md`): what it is told. Never a claim id, and nothing from the handlers' decisions in `data/evals/`. Instructions are written as goals, what the agent is for and what good looks like, around the recipe where there is one; a list of steps to follow goes in the recipe, which a handler can change.
 2. **Tools** (`tools.py`, and those in `queue.py`): what it can do. Customer text reaches the model only inside tool results. Tools take the claim from the graph's state, not from the model. A refusal is text returned to the model.
 3. **The run loop**: the nodes of the claim agent's hand-written graph in `graph.py`, which record every step and its cost, return refusals to the model and allow at most 30 model calls.
 4. **The service** (`service.py`, `__main__.py`): its entry points. `worker.py` says what working a claim means, whichever entry point asks; `worker.work` is the one way in.
+6. **The improver** (`improver.py`, `improver_backend.py`, `improver_instructions.md`): an agent of its own whose four tools reach the records only through `improver_backend.py`. It proposes; code keeps or rolls back, and a handler decides.
 5. **The dispatcher** (`dispatcher.py`): a graph with no model that works a run's claims, up to N at once, through `worker.work` only, so it could later point at the agent in the cloud. Each claim keeps its own thread, never a shared one or a subgraph, and the dispatcher saves no progress of its own.
+
+## Clients
+
+- Each outside service has one module that talks to it, and the rest of the code asks that module: the model through `agent/models.py` (`chat_model`), the judge through `app/judge.py`, Langfuse through `agent/tracing.py`, Supabase Auth's keys through `app/auth.py` and, in the dashboard, `auth/supabase.ts`.
+- A client is made from settings and passed in, so a test hands in a stub. `conftest.py` makes `app.judge.make_client` raise, so a test that would reach a model fails.
+- The claim agent's modules never import `app.scoring`, `app.improvement`, `app.judge`, `agent.improver` or `agent.improver_backend`, and `answer_key` is named only in `db.py`, `seed.py`, `scoring.py` and `judge.py`. Tests read the modules' imports to keep it so.
 
 ## The records
 
@@ -21,6 +28,7 @@
 - An operation takes the `Engine`. Never hold a connection across a model call, or inside another operation: each process has 4 at most, and up to 25 claim agents share them. They wait for a connection rather than fail.
 - Every statement commits by itself. A trip to Supabase takes about 220 ms, and `BEGIN`, `COMMIT` and a ping per checkout would make each query four trips. `engine.begin()` therefore does not open a transaction here. A single statement, with its constraints, is atomic.
 - So an operation must be safe if it stops between two statements, and when run again. A step can run again after a restart anyway: an operation that records something treats a repeat as done, and returns the claim. Something different is refused.
+- Anything a handler decides is one conditional statement (`UPDATE ... WHERE still open`), never a read and then a write.
 - `tests/test_round_trips.py` keeps the path from a sign-off to its payment short.
 - A `DATABASE_URL` or `UNDERCOVER_AGENT` in a `.env` file means nothing on its own: they count only in the process environment.
 

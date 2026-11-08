@@ -1,10 +1,15 @@
 # Status
 
-Last updated 2026-11-05, after the swarm and the scoreboard (`docs/PLAN_SWARM.md`).
+Last updated 2026-11-08, after the improver and sign-in (`docs/PLAN_IMPROVE.md`). The live verification of the improver is recorded below when it has been run.
 
 ## What works
 
-- The queue, claim detail, the agent's live activity, its instructions, approvals and the Scoreboard, on `npm run dev`.
+- The queue, claim detail, the agent's live activity, approvals, the Scoreboard, Improvement, Configuration and Settings, on `npm run dev`, behind a sign-in.
+- **Sign-in.** Handlers sign in with Supabase Auth; the backend checks the token on every action, and only Dana Whitfield may sign off over the limit, decide a proposal or change a setting.
+- **Settings.** The approval limit, the objectives, noise and tolerance, the round spending limit and N, each with who changed it and when. A decision keeps the limit it was made under. Light and dark appearance.
+- **Versions.** The claim agent's instructions, model and effort are kept in versions, as is the improver's recipe; each run records the version it worked with.
+- **The judge.** Jev grades each claim's explanation against the handler's reason; the grade shows on the Scoreboard and in an evaluation.
+- **The improver.** Rounds of first evaluations, a proposal, a handler's decision, an evaluation of the new version and a verdict by code; a spending limit per round; a round waiting for a handler holds nothing; rounds left working show as stopped after a restart.
 - **Dispatches.** A dispatcher with no model works every claim left in progress and every waiting claim, oldest submitted first, with N claim agents at once (1 to 25, 3 to start with). The run panel shows each claim and where it stands, the dispatch's model cost and agent time, and, when it ends, a summary from the records.
 - **Problems are put right.** A rate limit or a timeout waits and carries the claim on from its last step, as the same attempt; still failing after its waits, it stays in progress for the next dispatch. Any other error puts the claim back in the queue and the same dispatch tries it once more; a claim that fails twice is left for a handler. One bad claim never stops a dispatch.
 - **One run at a time.** A second start of a dispatch or an evaluation is refused. When the agent's service starts, a run left running shows as stopped, and the next dispatch carries on its claims.
@@ -51,4 +56,4 @@ Each claim does dozens of short statements: its trace events (302 in that run), 
 
 ## Not built
 
-Sign-in, real payments, messages to customers, rejecting a held payout.
+Real payments, messages to customers, rejecting a held payout.

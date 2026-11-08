@@ -39,6 +39,9 @@ Ctrl-C stops all three. If one dies, the others stop too and the output says whi
 A run with the real model spends money and writes to Supabase and Langfuse. Before any of them:
 
 1. Reseed once: `npm run seed`.
-2. Keep to the runs the brief names, for this change those in `docs/SWARM.md`: a dispatch at N=3 stopped partway, a dispatch at N=25, an evaluation of the evaluation set at N=25 and one of the held-out set's five tiny claims at N=5. Evaluations work copies and need no reseed.
+2. Keep to the runs the brief names, for this change those in `docs/IMPROVE.md`: two rounds of the improver, signed in as a handler, and one dispatch at N=25 on the version they leave current. Evaluations work copies and need no reseed. Earlier changes' runs are in `docs/SWARM.md`.
+3. Check the credit limit on the OpenRouter key first: a round's evaluations, the improver and the judge all spend on it. Each round has a spending limit of its own (50 cents to start with), and the dashboard says what a round may spend before it starts.
 
 The free plan allows 15 connections at once through the session pooler, across every process. Each of our processes uses at most 4. A notebook left open with a pool from the labs counts too, so close the labs before measuring.
+
+Handlers sign in with Supabase Auth. The live checks sign in as Dana Whitfield (and, for the rights, as Marcus Oyelaran) with `HANDLER_PASSWORD`; `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env` carry the same values as `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. `scripts/check_live.py --round N` shows a round's stages, proposals, verdict and cost, and `--session round-N` its traces in Langfuse.

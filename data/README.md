@@ -8,8 +8,13 @@ The data behind MarvInsurance, a fictional insurer. Everything here is invented,
 - `plans.json`: the three plans (Economy, Premium, First) with their limits, waiting periods and deductibles, and the three add-ons.
 - `policies.json`: one policy per trip, with the plan, the add-ons, the purchase date, the trip and the travelers.
 - `customers.json`: contact details and claim history, with the date and a one line summary of each earlier claim. This is personal data.
-- `handlers.json`: the claims handlers.
+- `handlers.json`: the claims handlers, with their email (what a signed-in handler is matched on) and `can_approve_over_limit`. Only Dana Whitfield may sign off over the limit, and so decide an improvement proposal or change a setting; Marcus Oyelaran and Priya Raman may not.
 - `claims.json`: the claims queue, twenty-five claims. Each has the customer's story, the items claimed and the supporting documents as text.
+
+## The improver's settings
+
+- `improvement.json`: where the settings start: the objectives (accuracy, grade), the noise and the tolerance of each measure, the round spending limit (USD) and the claim agents at once. After seeding they are settings a senior handler changes, with a history.
+- `models.json`: the models the improver may propose for the claim agent, each with its allowed reasoning efforts and its price per million tokens in and out, which the round's estimate uses. A proposal for any other model, or an effort a model does not allow, goes back to the improver.
 
 ## The documents
 
@@ -22,6 +27,8 @@ The data behind MarvInsurance, a fictional insurer. Everything here is invented,
 - `evals/held_out_claims.json` and `evals/held_out_decisions.json`: twenty-five more claims with their decisions, kept out of the queue for checking that an improvement generalizes. They have the same blend as the queue. Keep them out of sight while you write a prompt or a rule, and score them afterwards.
 
 The queue is the development set and the held-out claims are the test set. Nothing is trained on either.
+
+Each decision's `reason` is the handler's own explanation. Seeding stores it as `reference` in the answer key, and the judge compares the agent's explanation with it. It is never shown to the claim agent.
 
 Every decision also carries a few tags. `difficulty` is `routine`, `hard` (the wording settles it and it stretches a small model) or `manual` (it needs something the prompt does not hold, listed in `needs`: the claims manual, the customer's history or both). `failure_class` groups the hard claims that one rule should fix. `tone` is `plain`, `amusing` or `nod`. `tiny` marks a subset of five claims in each set, one of each kind, which fits inside a free model's daily allowance.
 
