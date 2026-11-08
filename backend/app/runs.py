@@ -22,15 +22,15 @@ def start(engine: Engine, kind: str, workers: int, model: str, effort: str | Non
         with engine.begin() as conn:
             return conn.execute(
                 insert(runs).values(kind=kind, status="running", workers=workers, model=model,
-                                    reasoning_effort=effort or "none", **extra)
+                                    reasoning_effort=effort or "default", **extra)
                 .returning(runs.c.run_id)
             ).scalar_one()
     except IntegrityError as exc:  # the one_running_run index
         raise RunActive("a dispatch or evaluation is already running") from exc
 
 
-def start_dispatch(engine: Engine, workers: int, model: str, effort: str | None) -> int:
-    return start(engine, "dispatch", workers, model, effort)
+def start_dispatch(engine: Engine, workers: int, model: str, effort: str | None, config_version: int | None = None) -> int:
+    return start(engine, "dispatch", workers, model, effort, config_version=config_version)
 
 
 def get_run(engine: Engine, run_id: int):

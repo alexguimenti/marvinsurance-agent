@@ -174,11 +174,8 @@ def test_the_list_of_handlers_to_choose_from_is_gone(client):
     assert client.get("/handlers").status_code == 404  # the signed-in handler signs off, not one picked from a list
 
 
-def test_instructions_are_the_claim_agents_as_it_receives_them(client):
-    got = client.get("/instructions").json()
-    assert set(got) == {"claim"}
-    assert got["claim"].startswith(load_instructions("claim"))
-    assert "Claims manual: 1. Purpose and scope" in got["claim"]  # the section index the claim agent is given
+def test_the_old_instructions_route_is_gone(client):
+    assert client.get("/instructions").status_code == 404
 
 
 def test_old_run_routes_are_gone(client):

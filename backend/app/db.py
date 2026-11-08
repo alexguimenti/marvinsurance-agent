@@ -99,6 +99,8 @@ runs = Table(
     Column("reasoning_effort", Text, nullable=False),  # "none" when none was sent
     Column("eval_set", Text),
     Column("tiny", Boolean),
+    Column("config_version", Integer),  # the configuration the run used
+    Column("round_id", Integer),  # set on the evaluations an improver round asked for
     Column("error", Text),
     _timestamp("started_at"),
     _timestamp("finished_at", default=False),
@@ -122,6 +124,40 @@ settings_history = Table(
     Column("value", Text, nullable=False),
     Column("changed_by", Text, nullable=False),
     Column("changed_at", DateTime(timezone=True), nullable=False),
+)
+
+config_versions = Table(
+    "config_versions", metadata,
+    Column("version", Integer, primary_key=True),
+    Column("instructions", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("reasoning_effort", Text, nullable=False),  # "default" when none is sent
+    Column("summary", Text, nullable=False),  # what changed from the version before
+    Column("reason", Text, nullable=False),
+    Column("proposed_by", Text, nullable=False),  # "seed", "improver", or a handler
+    Column("approved_by", Text, nullable=False),
+    Column("approved_at", DateTime(timezone=True)),
+    Column("round_id", Integer),
+    _timestamp("created_at"),
+)
+
+recipe_versions = Table(
+    "recipe_versions", metadata,
+    Column("version", Integer, primary_key=True),
+    Column("recipe", Text, nullable=False),
+    Column("summary", Text, nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("proposed_by", Text, nullable=False),
+    Column("approved_by", Text, nullable=False),
+    Column("approved_at", DateTime(timezone=True)),
+    Column("round_id", Integer),
+    _timestamp("created_at"),
+)
+
+current_version = Table(
+    "current_version", metadata,
+    Column("kind", Text, primary_key=True),  # config or recipe
+    Column("version", Integer, nullable=False),
 )
 
 run_claims = Table(

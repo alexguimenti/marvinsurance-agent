@@ -39,7 +39,7 @@ def test_service_starts_a_dispatch_with_n(service, db_path):
     assert answer.status_code == 202 and answer.json() == {"status": "started", "run_id": 1}
     engine = engine_for(db_path)
     row = runs.latest_run(engine, "dispatch")
-    assert (row["status"], row["workers"], row["model"], row["reasoning_effort"]) == ("finished", 4, "scripted", "none")
+    assert (row["status"], row["workers"], row["model"], row["reasoning_effort"]) == ("finished", 4, "scripted", "default")
     rows = RawDb(engine).execute("SELECT COUNT(*) FROM claims WHERE status = 'waiting'")
     assert rows.fetchone()[0] == 0
 

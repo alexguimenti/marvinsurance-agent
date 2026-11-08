@@ -24,9 +24,10 @@ test('a claim shows its decision, rationale and the agent trace', async ({ page 
   await expect(page.locator('.trace .kind', { hasText: 'tool call' }).first()).toBeVisible()
 })
 
-test('the agent instructions are visible', async ({ page }) => {
-  await page.goto('/instructions')
-  await expect(page.getByRole('heading', { name: 'Working a claim' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Running the queue' })).toHaveCount(0)
-  await expect(page.getByText(/You are the Marvin Agent/)).toBeVisible()
+test('the configuration shows version 1 and its instructions', async ({ page }) => {
+  await page.goto('/configuration')
+  await expect(page.getByRole('heading', { name: 'Configuration' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Current version' })).toContainText('Version 1')
+  await expect(page.getByRole('region', { name: 'Current version' })).toContainText(/You are the Marvin Agent/)
+  await expect(page.getByRole('table', { name: 'Versions', exact: true }).getByText('Current')).toBeVisible()
 })

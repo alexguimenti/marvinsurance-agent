@@ -365,3 +365,16 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 .setting-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .appearance { margin-top: 16px; }
 .radio { display: inline-flex; align-items: center; gap: 8px; margin-right: 24px; }
+
+/* pills, the diff view and the configuration page */
+.pill { display: inline-block; padding: 1px 8px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; background: var(--bg-muted); color: var(--text-body); }
+.pill-success { background: color-mix(in srgb, var(--success) 35%, transparent); color: var(--text-ink); }
+.instructions-text { white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px; line-height: 1.5; max-height: 320px; overflow: auto; margin: 12px 0 0; padding: 12px; background: var(--bg-subtle); border-radius: var(--radius-md); }
+.diff-lines { font-family: var(--font-mono); font-size: 13px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; }
+.diff-line { display: grid; grid-template-columns: 28px 1fr; padding: 1px 8px 1px 0; white-space: pre-wrap; }
+.diff-mark { text-align: center; user-select: none; }
+.diff-add { background: color-mix(in srgb, var(--success) 28%, transparent); }
+.diff-remove { background: color-mix(in srgb, #D64545 22%, transparent); }
+.diff-fold { background: var(--bg-subtle); color: var(--text-secondary); font-style: italic; padding-left: 28px; display: block; }
+.diff-setting { margin: 0 0 8px; }
+.diff-setting-changed { font-weight: 600; }

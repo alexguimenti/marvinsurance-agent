@@ -9,8 +9,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from agent.prompts import claim_prompt
-from app import agent_client, runs
+from app import agent_client, configs, runs
 from app.auth import Handler, handler_view, make_guards, make_jwks
 from app.config import Settings
 from app.db import (
@@ -138,6 +137,10 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         handler = next((h for h in ref.handlers if h["handler_id"] == payment["approved_by"]), None)
         return {**plain(payment), "approved_by_name": handler["name"] if handler else None}
 
+    def version_scores_view(version: int) -> dict:
+        """A version's held-out scores. Rounds produce them (the improvement tasks); until a round has, there are none."""
+        return {}
+
     def forward_run(path: str, body: dict) -> dict:
         try:
             return agent_client.start(http, settings.agent_url, path, body)
@@ -250,10 +253,37 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             raise HTTPException(404, f"no evaluation {run_id}")
         return report
 
-    @app.get("/instructions", operation_id="get_instructions")
-    def instructions():
-        """Show the instructions the claim agent works from."""
-        return {"claim": claim_prompt(ref)}
+    @app.get("/configuration", operation_id="get_configuration")
+    def configuration():
+        """Show the current version of the claim agent's configuration, every version and the recipe's versions."""
+        names = {h["handler_id"]: h["name"] for h in ref.handlers}
+
+        def named(row: dict) -> dict:
+            return {**row, "approved_by_name": names.get(row["approved_by"])}
+
+        return {
+            "current": named(configs.current(engine, "config")),
+            "current_recipe": configs.current(engine, "recipe")["version"],
+            "versions": [{**named(v), "scores": version_scores_view(v["version"])} for v in configs.list_versions(engine, "config")],
+            "recipes": [named(r) for r in configs.list_versions(engine, "recipe")],
+        }
+
+    @app.get("/configuration/{kind}/{version}/diff", operation_id="get_version_diff")
+    def version_diff(kind: Literal["config", "recipe"], version: int):
+        """Show what a version changed from the one before it, line by line."""
+        try:
+            row = configs.get_version(engine, kind, version)
+            before = configs.get_version(engine, kind, version - 1) if version > 1 else None
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
+        text = "instructions" if kind == "config" else "recipe"
+        out = {"kind": kind, "version": version, "against": before["version"] if before else None, "summary": row["summary"],
+               "lines": configs.diff(before[text] if before else "", row[text])}
+        if kind == "config":
+            before_cfg = before or {"model": None, "reasoning_effort": None}
+            out["model"] = {"before": before_cfg["model"], "after": row["model"]}
+            out["reasoning_effort"] = {"before": before_cfg["reasoning_effort"], "after": row["reasoning_effort"]}
+        return out
 
     @app.post("/payouts/calculate", operation_id="calculate_payout")
     def payout(body: PayoutBody):

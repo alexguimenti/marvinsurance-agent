@@ -15,7 +15,7 @@ from agent.worker import AgentEnv, carry_on, open_env, signed_off_claims
 from app.config import Settings, get_settings
 from app.db import claims, init_schema, make_engine
 from app.reference import Reference
-from app import evaluations, runs
+from app import configs, evaluations, runs
 from app.seed import seed_claims
 
 log = logging.getLogger(__name__)
@@ -68,6 +68,13 @@ def sweep_signed_off(env: AgentEnv) -> None:
             resume(env, claim_id)
     except Exception:  # the next sweep tries again
         log.warning("the sweep for signed-off claims failed", exc_info=True)
+
+
+def run_label(env: AgentEnv) -> tuple[int, str, str]:
+    """The configuration version a new run uses, and the model and reasoning effort it runs with."""
+    config = configs.current(env.engine, "config")
+    model, effort = env.effective(config)
+    return config["version"], model, effort
 
 
 def create_service(settings: Settings, inline: bool = False) -> FastAPI:
@@ -142,16 +149,20 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
     @app.post("/dispatches", status_code=202, operation_id="start_dispatch")
     def start_dispatch(body: DispatchBody):
         """Start a dispatch of every claim in progress and every waiting claim, with N claim agents at once."""
-        effort = settings.reasoning_effort if settings.agent_provider == "openrouter" else None
-        return start("dispatch", lambda env: runs.start_dispatch(env.engine, body.workers, env.model_id, effort),
-                     body.workers)
+        def create(env: AgentEnv) -> int:
+            version, model, effort = run_label(env)
+            return runs.start_dispatch(env.engine, body.workers, model, effort, version)
+
+        return start("dispatch", create, body.workers)
 
     @app.post("/evaluations", status_code=202, operation_id="start_evaluation")
     def start_evaluation(body: EvaluationBody):
         """Start an evaluation on copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
-        effort = settings.reasoning_effort if settings.agent_provider == "openrouter" else None
-        return start("evaluation", lambda env: evaluations.start_evaluation(
-            env.engine, env.ref, body.eval_set, body.tiny, body.workers, env.model_id, effort), body.workers)
+        def create(env: AgentEnv) -> int:
+            version, model, effort = run_label(env)
+            return evaluations.start_evaluation(env.engine, env.ref, body.eval_set, body.tiny, body.workers, model, effort, version)
+
+        return start("evaluation", create, body.workers)
 
     @app.post("/claims/{claim_id}/resume", status_code=202, operation_id="resume_claim")
     def resume_claim(claim_id: str):

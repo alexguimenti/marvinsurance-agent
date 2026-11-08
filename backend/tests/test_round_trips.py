@@ -67,7 +67,7 @@ def test_from_a_sign_off_to_the_payment_is_a_handful_of_statements(held):
     with statements(held.engine) as seen:
         carry_on(held, CLAIM)
     upto_paid = next(i for i, s in enumerate(seen) if "UPDATE payments" in s) + 1
-    assert upto_paid <= 4, seen[:upto_paid]
+    assert upto_paid <= 5, seen[:upto_paid]  # four, and one to read the run's configuration version
 
 
 def test_a_paused_claim_saves_no_checkpoint_before_it_is_paid(held):

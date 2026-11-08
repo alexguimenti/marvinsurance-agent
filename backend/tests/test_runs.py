@@ -26,7 +26,7 @@ def test_a_run_records_its_kind_n_model_and_effort(engine):
 
 
 def test_no_effort_is_recorded_as_none(engine):
-    assert runs.get_run(engine, runs.start_dispatch(engine, 3, "other/model", None))["reasoning_effort"] == "none"
+    assert runs.get_run(engine, runs.start_dispatch(engine, 3, "other/model", None))["reasoning_effort"] == "default"
 
 
 def test_a_new_run_can_start_after_the_last_finished(engine):

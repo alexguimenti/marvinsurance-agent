@@ -18,7 +18,7 @@ def copy_id(run_id: int, claim_id: str) -> str:
 
 
 def start_evaluation(engine: Engine, ref: Reference, eval_set: str, tiny: bool, workers: int, model: str,
-                     effort: str | None) -> int:
+                     effort: str | None, config_version: int | None = None, round_id: int | None = None) -> int:
     """Create the evaluation and its copies, waiting, oldest submitted first. Raises RunActive while a run is going."""
     if eval_set not in EVAL_SETS:
         raise ValueError(f"unknown set {eval_set!r}; use one of {', '.join(EVAL_SETS)}")
@@ -30,7 +30,8 @@ def start_evaluation(engine: Engine, ref: Reference, eval_set: str, tiny: bool, 
         else:
             payloads = [json.loads(p) for p in conn.execute(
                 select(held_out_claims.c.payload).where(held_out_claims.c.claim_id.in_(members))).scalars()]
-    run_id = runs.start(engine, "evaluation", workers, model, effort, eval_set=eval_set, tiny=tiny)
+    run_id = runs.start(engine, "evaluation", workers, model, effort, eval_set=eval_set, tiny=tiny,
+                          config_version=config_version, round_id=round_id)
     payloads.sort(key=lambda c: (c["submitted_on"], c["claim_id"]))
     copies = [{**c, "claim_id": copy_id(run_id, c["claim_id"])} for c in payloads]
     try:

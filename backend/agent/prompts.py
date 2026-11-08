@@ -7,12 +7,18 @@ from app.reference import Reference
 
 
 def load_instructions(name: Literal["claim"]) -> str:
+    """The claim agent's instructions as the file has them: version 1 of its configuration."""
     return (Path(__file__).parent / f"instructions_{name}.md").read_text(encoding="utf-8")
 
 
-def claim_prompt(ref: Reference) -> str:
-    """What the claim agent is told: its instructions, then the sections it can read."""
-    return f"{load_instructions('claim')}\n\n{section_index(ref)}"
+def load_recipe() -> str:
+    """The improver's first recipe: version 1 of the recipe."""
+    return (Path(__file__).parent / "recipe_v1.md").read_text(encoding="utf-8")
+
+
+def claim_prompt(ref: Reference, instructions: str) -> str:
+    """What the claim agent is told: its version's instructions, then the sections it can read."""
+    return f"{instructions}\n\n{section_index(ref)}"
 
 
 def section_index(ref: Reference) -> str:

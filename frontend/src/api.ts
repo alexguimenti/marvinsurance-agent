@@ -202,7 +202,6 @@ export const getClaim = (id: string) => request<ClaimDetailData>(`/claims/${id}`
 export const getTrace = (id: string) => request<TraceEvent[]>(`/claims/${id}/trace`)
 export const startDispatch = (workers: number) => request<{ status: string }>('/dispatches', post({ workers }))
 export const getLatestDispatch = () => request<LatestDispatch>('/dispatches/latest')
-export const getInstructions = () => request<{ claim: string }>('/instructions')
 export const listApprovals = () => request<Approval[]>('/approvals')
 export const getMe = () => request<Me>('/me')
 export const approvePayment = (id: string) => request<Payment>(`/payments/${id}/approve`, post())
@@ -272,3 +271,46 @@ export interface PlatformSettings {
 export const getSettings = () => request<PlatformSettings>('/settings')
 export const changeSetting = (name: string, value: unknown) =>
   request<{ name: string; value: unknown }>(`/settings/${name}`, { ...post({ value }), method: 'PUT' })
+
+/** One version of the claim agent's configuration, or of the improver's recipe, with who proposed and approved it. */
+export interface VersionRow {
+  version: number
+  summary: string
+  reason: string
+  proposed_by: string
+  approved_by: string
+  approved_by_name: string | null
+  approved_at: string | null
+  round_id: number | null
+  created_at: string
+  instructions?: string
+  recipe?: string
+  model?: string
+  reasoning_effort?: string
+  scores?: Record<string, { accuracy: number | null; grade: number | null; runs: number } | undefined>
+}
+
+export interface ConfigurationData {
+  current: VersionRow & { instructions: string; model: string; reasoning_effort: string }
+  current_recipe: number
+  versions: (VersionRow & { model: string; reasoning_effort: string })[]
+  recipes: VersionRow[]
+}
+
+export interface DiffLine {
+  kind: 'same' | 'add' | 'remove'
+  text: string
+}
+
+export interface VersionDiff {
+  kind: 'config' | 'recipe'
+  version: number
+  against: number | null
+  summary: string
+  lines: DiffLine[]
+  model?: { before: string | null; after: string | null }
+  reasoning_effort?: { before: string | null; after: string | null }
+}
+
+export const getConfiguration = () => request<ConfigurationData>('/configuration')
+export const getVersionDiff = (kind: 'config' | 'recipe', version: number) => request<VersionDiff>(`/configuration/${kind}/${version}/diff`)

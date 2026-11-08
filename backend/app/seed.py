@@ -3,6 +3,7 @@ import json
 from sqlalchemy import Engine, func, select
 
 from app.db import answer_key, claims, drop_tables, eval_sets, held_out_claims, init_schema, insert_or_ignore
+from app.configs import seed_versions
 from app.reference import Reference
 from app.settings_store import seed_settings
 
@@ -19,6 +20,7 @@ def seed_claims(engine: Engine, ref: Reference) -> int:
         ))
     seed_answer_key(engine, ref)
     seed_settings(engine, ref)
+    seed_versions(engine, ref)
     with engine.connect() as conn:
         return conn.execute(select(func.count()).select_from(claims).where(claims.c.copy_of.is_(None))).scalar_one()
 

@@ -44,7 +44,8 @@ def _tool_refused(error: Exception) -> str:
     return f"Error: {error}"
 
 
-def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_model_calls: int, checkpointer):
+def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_model_calls: int, checkpointer,
+                      instructions: str):
     tools = build_tools(engine, ref)
     by_name = {t.name: t for t in tools}
     offered = [t for t in tools if t.name not in NOT_OFFERED]
@@ -76,7 +77,7 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
         deadline = config.get("configurable", {}).get("deadline")
         if deadline is not None and time.monotonic() > deadline:
             raise TimeoutError("the agent took too long on this claim")
-        reply = bound.invoke([SystemMessage(claim_prompt(ref)), *state.messages])
+        reply = bound.invoke([SystemMessage(claim_prompt(ref, instructions)), *state.messages])
         run_id = config.get("configurable", {}).get("run_id")
         record_model_call(engine, state.claim_id, run_id, model_id, call_usage(reply))
         usage = Usage(state.usage)

@@ -13,6 +13,7 @@ from sqlalchemy import Engine, select, update
 from agent.checkpoints import Checkpoints, make_checkpoints
 from agent.graph import build_claim_graph
 from agent.tracing import flush_traces, trace_config, warm_up_tracing
+from app import configs
 from app.claims import get_claim, needs_sign_off
 from app.config import Settings
 from app.db import claims, make_engine, payments, warm_up
@@ -32,28 +33,52 @@ class AgentEnv:
     ref: Reference
     settings: Settings
     checkpoints: Checkpoints
-    model: object
-    model_id: str
+    model: object | None  # a fixed model (scripted, or a test's stub); None builds each version's own
+    model_id: str | None
     clock: Callable[[], float] = time.monotonic  # a test can move it on without sleeping
     _working: set = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _reader: object = None
     _stack: ExitStack = field(default_factory=ExitStack)
+    _models: dict = field(default_factory=dict)
 
-    def _build(self, saver):
-        return build_claim_graph(self.engine, self.ref, self.model, self.model_id, self.settings.agent_max_model_calls, saver)
+    def config_for(self, run_id: int | None) -> dict:
+        """The configuration version a run uses: its instructions, model and reasoning effort, and nothing else."""
+        return configs.config_for_run(self.engine, run_id)
+
+    def effective(self, config: dict) -> tuple[str, str]:
+        """The model and reasoning effort a version runs with. A fixed model (scripted, or a test's) has no effort."""
+        if self.model is not None:
+            return self.model_id or "fixed", "default"
+        return config["model"], config["reasoning_effort"]
+
+    def model_for(self, config: dict):
+        if self.model is not None:
+            return self.model
+        key = (config["model"], config["reasoning_effort"])
+        if key not in self._models:
+            from agent.models import chat_model
+
+            self._models[key] = chat_model(self.settings, *key)
+        return self._models[key]
+
+    def _build(self, saver, config: dict):
+        return build_claim_graph(self.engine, self.ref, self.model_for(config), self.effective(config)[0],
+                                 self.settings.agent_max_model_calls, saver, config["instructions"])
 
     @contextmanager
-    def claim_graph(self) -> Iterator:
-        """The claim graph on a saver of its own, for one claim run: a saver takes turns between its callers."""
+    def claim_graph(self, run_id: int | None = None, config: dict | None = None) -> Iterator:
+        """The claim graph for a run's version, on a saver of its own for one claim run: a saver takes turns between
+        its callers."""
+        config = config or self.config_for(run_id)
         with self.checkpoints.saver() as saver:
-            yield self._build(saver)
+            yield self._build(saver, config)
 
     @property
     def graph(self):
         """A graph on a saver of its own for looking at threads from outside a claim run, as tests do."""
         if self._reader is None:
-            self._reader = self._build(self._stack.enter_context(self.checkpoints.saver()))
+            self._reader = self._build(self._stack.enter_context(self.checkpoints.saver()), self.config_for(None))
         return self._reader
 
     def close(self) -> None:
@@ -86,9 +111,7 @@ def open_env(settings: Settings, model=None, model_id: str | None = None) -> Ite
 
             model, model_id = ScriptedChatModel(), "scripted"
         else:
-            from agent.models import chat_model
-
-            model, model_id = chat_model(settings), settings.agent_model
+            model, model_id = None, None  # each configuration version builds its own model
     engine = make_engine(settings, max_connections=RECORD_CONNECTIONS)
     warm_up(engine, RECORD_CONNECTIONS)
     warm_up_tracing()
@@ -103,12 +126,12 @@ def open_env(settings: Settings, model=None, model_id: str | None = None) -> Ite
         engine.dispose()
 
 
-def _config(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None) -> dict:
+def _config(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, model_id: str) -> dict:
     return {
         "configurable": {"thread_id": thread_id, "run_id": run_id,
                          "deadline": time.monotonic() + env.settings.agent_claim_timeout_s},
         "recursion_limit": 3 * env.settings.agent_max_model_calls + 10,  # model, tools, tools_done per call
-        **trace_config(claim_id, thread_id, env.model_id, run_id),
+        **trace_config(claim_id, thread_id, model_id, run_id),
     }
 
 
@@ -118,8 +141,9 @@ def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input, run_id: in
     try:
         # In a context of its own: Langfuse takes the session from a trace's root, so a claim worked inside another
         # traced call would lose its work from the claim's session.
-        config = _config(env, claim_id, thread_id, run_id)
-        with env.claim_graph() as graph:
+        version = env.config_for(run_id)
+        config = _config(env, claim_id, thread_id, run_id, env.effective(version)[0])
+        with env.claim_graph(config=version) as graph:
             return contextvars.Context().run(graph.invoke, graph_input, config, durability="sync")
     finally:
         record_work_time(env.engine, claim_id, run_id, started_at, env.clock() - start)
@@ -189,7 +213,7 @@ def work_claim(env: AgentEnv, claim_id: str, run_id: int | None = None, max_atte
     with env.working(claim_id) as free:
         if not free:
             return f"{claim_id}: not worked, it is already being worked."
-        add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "model": env.model_id, "attempt": attempt})
+        add_trace_event(env.engine, claim_id, "status", {"status": "in_progress", "model": env.effective(env.config_for(run_id))[0], "attempt": attempt})
         return _drive(env, claim_id, thread_id, run_id, attempt, max_attempts, {"claim_id": claim_id})
 
 
@@ -213,7 +237,7 @@ def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
         if claim["payment"] == "signed_off":
             graph_input = None  # straight on: the paused step runs again and finds the sign-off
         else:
-            with env.claim_graph() as graph:
+            with env.claim_graph(run_id) as graph:
                 state = graph.get_state({"configurable": {"thread_id": thread_id}})
             if not state.values:  # stopped before the first step was saved
                 graph_input = {"claim_id": claim_id}
