@@ -5,6 +5,8 @@
                                                   the sum of their agent time against the run's time
     python scripts/check_live.py --claim CLM-1003 also that claim's thread, payment and Langfuse traces
     python scripts/check_live.py --tag run-3      the Langfuse traces with that tag
+    python scripts/check_live.py --round 1        also that round: its stage, proposals, verdict, scores, runs and cost
+    python scripts/check_live.py --session round-1  the Langfuse traces of that session (a round's improver)
 """
 import argparse
 import os
@@ -86,17 +88,48 @@ def show_run(conn, run_id: int) -> None:
     print(f"  model calls: {cost[0]}, cost: ${cost[1] or 0:.4f}")
 
 
+def show_round(conn, round_id: int) -> None:
+    r = conn.execute(text("SELECT stage, progress, open, recipe_version, version_tried, verdict, why, before, after, "
+                          "started_by, stopped_by, error, started_at, finished_at FROM rounds WHERE round_id = :r"),
+                     {"r": round_id}).mappings().one()
+    print(f"round {round_id}: stage={r['stage']} progress={r['progress']} open={r['open']} recipe=v{r['recipe_version']} "
+          f"tried=v{r['version_tried']} verdict={r['verdict']} ({r['why']}) by={r['started_by']} error={r['error']}")
+    print(f"  before: {r['before']}")
+    print(f"  after:  {r['after']}")
+    for p in conn.execute(text("SELECT id, kind, status, decided_by, decision_reason FROM proposals WHERE round_id = :r ORDER BY id"),
+                          {"r": round_id}).mappings():
+        print(f"  proposal {p['id']}: {p['kind']} {p['status']} by={p['decided_by']} reason={p['decision_reason']!r}")
+    for run in conn.execute(text("SELECT run_id, kind, status, eval_set, config_version FROM runs WHERE round_id = :r ORDER BY run_id"),
+                            {"r": round_id}).mappings():
+        print(f"  run {run['run_id']}: {run['kind']} {run['eval_set']} version={run['config_version']} {run['status']}")
+    cost = conn.execute(text("SELECT COUNT(*), SUM(cost_usd) FROM model_calls WHERE round_id = :r"), {"r": round_id}).one()
+    print(f"  the improver's model calls: {cost[0]}, cost: ${cost[1] or 0:.4f}")
+    claims_cost = conn.execute(text("SELECT SUM(m.cost_usd) FROM model_calls m JOIN runs u ON u.run_id = m.run_id "
+                                    "WHERE u.round_id = :r"), {"r": round_id}).scalar_one()
+    judged = conn.execute(text("SELECT SUM(g.cost_usd) FROM judge_grades g JOIN runs u ON u.run_id = g.run_id "
+                               "WHERE u.round_id = :r"), {"r": round_id}).scalar_one()
+    print(f"  the claim agents' cost in its evaluations: ${claims_cost or 0:.4f}; the judge's: ${judged or 0:.4f}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=int)
     parser.add_argument("--claim")
     parser.add_argument("--tag")
+    parser.add_argument("--round", type=int)
+    parser.add_argument("--session")
     args = parser.parse_args()
     if args.tag:
         traces = traces_with_tag(args.tag)
         print(f"Langfuse traces tagged {args.tag}: {len(traces)}")
         sessions = sorted({str(getattr(t, "session_id", None)) for t in traces})
         print(f"  sessions ({len(sessions)}):", sessions)
+        return
+    if args.session:
+        traces = traces_in_session(args.session)
+        print(f"Langfuse session {args.session}: {len(traces)} traces")
+        for trace in traces:
+            print(" ", trace.start_time, trace.name, "trace", trace.trace_id)
         return
     engine = make_engine(Settings(), max_connections=1)
     with engine.connect() as conn:
@@ -106,6 +139,8 @@ def main() -> None:
             print("run:", tuple(row))
         if args.run:
             show_run(conn, args.run)
+        if args.round:
+            show_round(conn, args.round)
         if args.claim:
             row = conn.execute(text("SELECT status, attempts, thread_id FROM claims WHERE claim_id = :c"), {"c": args.claim}).one()
             print(f"{args.claim}: status={row[0]} attempts={row[1]} thread={row[2]}")
