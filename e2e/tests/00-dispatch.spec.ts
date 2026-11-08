@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 // Specs share one backend and database and run in file order. This one runs first, on a queue
 // where all 25 claims are waiting, and dispatches the whole queue on the scripted model.

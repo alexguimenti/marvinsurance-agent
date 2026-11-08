@@ -13,7 +13,7 @@ from app.db import init_schema, make_engine
 from app.payments import get_payment, sign_off
 from app.reference import Reference
 from app.seed import seed_claims
-from tests.fakes import RawDb
+from tests.fakes import MINT, RawDb
 
 
 def make_settings(db_path, data_dir):
@@ -140,10 +140,10 @@ def test_a_full_sign_off_through_backend_and_service(db_path, data_dir):
     """The dashboard's path end to end: the backend saves the sign-off, then the service pays."""
     settings = make_settings(db_path, data_dir)
     with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service)) as backend:
+        with TestClient(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as backend:
             backend.post("/dispatches", json={"workers": 3})
             assert backend.get("/claims/CLM-1003").json()["status"] == "awaiting_approval"
-            answer = backend.post("/payments/PAY-CLM-1003/approve", json={"handler_id": "HND-01"})
+            answer = backend.post("/payments/PAY-CLM-1003/approve")
             assert answer.status_code == 200 and answer.json()["status"] == "signed_off"
             detail = backend.get("/claims/CLM-1003").json()
     assert detail["status"] == "decided"
@@ -160,8 +160,8 @@ class Down:
 
 def test_sign_off_stands_when_the_service_is_down(db_path, data_dir):
     engine = hold(db_path, data_dir)
-    with TestClient(create_app(make_settings(db_path, data_dir), http=Down())) as backend:
-        answer = backend.post("/payments/PAY-CLM-1003/approve", json={"handler_id": "HND-01"})
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Down(), jwks=MINT), headers=MINT.header()) as backend:
+        answer = backend.post("/payments/PAY-CLM-1003/approve")
         assert answer.status_code == 200
         assert backend.get("/claims/CLM-1003").json()["status"] == "in_progress"
     payment = get_payment(engine, "CLM-1003")
@@ -177,8 +177,8 @@ def test_sign_off_reaches_the_service_after_it_is_saved(db_path, data_dir):
             seen.append((url, get_payment(engine, "CLM-1003").status))
             return httpx.Response(202)
 
-    with TestClient(create_app(make_settings(db_path, data_dir), http=Spy())) as backend:
-        backend.post("/payments/PAY-CLM-1003/approve", json={"handler_id": "HND-01"})
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Spy(), jwks=MINT), headers=MINT.header()) as backend:
+        backend.post("/payments/PAY-CLM-1003/approve")
     assert seen == [("http://127.0.0.1:8002/claims/CLM-1003/resume", "signed_off")]
 
 
@@ -191,14 +191,14 @@ def test_a_repeated_sign_off_does_not_call_the_service_again(db_path, data_dir):
             seen.append(url)
             return httpx.Response(202)
 
-    with TestClient(create_app(make_settings(db_path, data_dir), http=Spy())) as backend:
-        backend.post("/payments/PAY-CLM-1003/approve", json={"handler_id": "HND-01"})
-        backend.post("/payments/PAY-CLM-1003/approve", json={"handler_id": "HND-02"})
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Spy(), jwks=MINT), headers=MINT.header()) as backend:
+        backend.post("/payments/PAY-CLM-1003/approve")
+        backend.post("/payments/PAY-CLM-1003/approve")
     assert len(seen) == 2  # a retry is harmless and helps if the first call was lost
 
 
 def test_a_dispatch_with_no_agent_is_503(db_path, data_dir):
-    with TestClient(create_app(make_settings(db_path, data_dir), http=Down())) as backend:
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Down(), jwks=MINT), headers=MINT.header()) as backend:
         answer = backend.post("/dispatches", json={"workers": 3})
         assert answer.status_code == 503 and "not running" in answer.json()["detail"]
         assert backend.get("/dispatches/latest").json()["run"] is None
@@ -349,7 +349,7 @@ def test_a_service_error_with_a_plain_text_body_reaches_the_dashboard(db_path, d
         def post(self, url, json=None, timeout=None):
             return httpx.Response(500, text="Internal Server Error")
 
-    with TestClient(create_app(make_settings(db_path, data_dir), http=Broken())) as backend:
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Broken(), jwks=MINT), headers=MINT.header()) as backend:
         answer = backend.post("/dispatches", json={"workers": 3})
         assert answer.status_code == 500 and "Internal Server Error" in answer.json()["detail"]
 

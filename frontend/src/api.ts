@@ -142,16 +142,35 @@ export interface Approval {
   rationale: string | null
 }
 
-export interface Handler {
+/** The signed-in handler, as the backend names them from the sign-in's email. */
+export interface Me {
   handler_id: string
   name: string
   role: string
+  email: string
+  can_approve_over_limit: boolean
 }
 
 const BASE = '/api'
 
+interface Auth {
+  getToken: () => Promise<string | null>
+  onUnauthorized: () => void
+}
+
+let auth: Auth | null = null
+
+/** How requests prove who is signed in. The AuthProvider sets this up, and a 401 from the backend ends the session. */
+export function setAuth(next: Auth | null) {
+  auth = next
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init)
+  const headers = new Headers(init?.headers)
+  const token = await auth?.getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const res = await fetch(`${BASE}${path}`, { ...init, headers })
+  if (res.status === 401) auth?.onUnauthorized()
   if (!res.ok) {
     let detail = res.statusText
     try {
@@ -185,9 +204,8 @@ export const startDispatch = (workers: number) => request<{ status: string }>('/
 export const getLatestDispatch = () => request<LatestDispatch>('/dispatches/latest')
 export const getInstructions = () => request<{ claim: string }>('/instructions')
 export const listApprovals = () => request<Approval[]>('/approvals')
-export const listHandlers = () => request<Handler[]>('/handlers')
-export const approvePayment = (id: string, handlerId: string) =>
-  request<Payment>(`/payments/${id}/approve`, post({ handler_id: handlerId }))
+export const getMe = () => request<Me>('/me')
+export const approvePayment = (id: string) => request<Payment>(`/payments/${id}/approve`, post())
 
 /** The scoreboard's measures for one evaluation. Shares are 0 to 1; none when there were no claims. */
 export interface Measures {

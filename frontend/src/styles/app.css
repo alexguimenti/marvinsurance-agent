@@ -341,3 +341,11 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 .read-list { margin: 0; padding-left: 20px; font-size: 14px; display: grid; gap: 6px; }
 .read-list li::marker { font: 500 12px var(--font-mono); color: var(--text-muted); }
 .section-title { font: 400 22px var(--font-display); color: var(--text-heading); margin: 28px 0 12px; }
+
+/* sign-in and the signed-in handler in the header */
+.who { display: flex; align-items: center; gap: var(--space-3, 12px); margin-left: auto; }
+.who-name { font-weight: 600; }
+.signin { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.signin-card { width: min(420px, 100%); display: grid; gap: 8px; }
+.signin-card input { width: 100%; }
+.auth-loading { padding: 24px; }

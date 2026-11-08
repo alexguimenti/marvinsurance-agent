@@ -2,8 +2,19 @@ import { render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { vi } from 'vitest'
+import { AuthContext } from './auth/context'
+import type { Me } from './api'
 
 type Route = unknown | { status: number; body: unknown }
+
+export const DANA: Me = {
+  handler_id: 'HND-01', name: 'Dana Whitfield', role: 'Senior Claims Handler',
+  email: 'dana.whitfield@marvinsurance.example', can_approve_over_limit: true,
+}
+export const MARCUS: Me = {
+  handler_id: 'HND-02', name: 'Marcus Oyelaran', role: 'Claims Handler',
+  email: 'marcus.oyelaran@marvinsurance.example', can_approve_over_limit: false,
+}
 
 /** Stub fetch with a map of "METHOD /path" (or "/path" for GET) to JSON bodies. */
 export function mockApi(routes: Record<string, Route>) {
@@ -24,11 +35,16 @@ export function mockApi(routes: Record<string, Route>) {
   return { calls, fetchMock }
 }
 
-export function renderAt(ui: ReactElement, path: string, routePath = '*') {
+/** Wrap a tree in a signed-in handler, Dana Whitfield unless another is given. */
+export function signedIn(ui: ReactElement, handler: Me = DANA) {
+  return <AuthContext.Provider value={{ handler, signOut: vi.fn() }}>{ui}</AuthContext.Provider>
+}
+
+export function renderAt(ui: ReactElement, path: string, routePath = '*', handler: Me = DANA) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path={routePath} element={ui} />
+        <Route path={routePath} element={signedIn(ui, handler)} />
       </Routes>
     </MemoryRouter>,
   )

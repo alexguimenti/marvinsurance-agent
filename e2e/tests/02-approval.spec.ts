@@ -1,8 +1,9 @@
-import { expect, test, type APIRequestContext } from '@playwright/test'
+import type { APIRequestContext } from '@playwright/test'
+import { asHandler, expect, test } from './fixtures'
 
 test.beforeAll(async ({ request }) => {
   // make sure the queue has run, in case this file is run on its own
-  await request.post('/api/dispatches', { data: { workers: 5 } })
+  await request.post('/api/dispatches', { data: { workers: 5 }, headers: await asHandler(request) })
   await expect
     .poll(async () => (await (await request.get('/api/approvals')).json()).length, { timeout: 30_000 })
     .toBe(3)
@@ -25,7 +26,7 @@ test('a sign-off on the dashboard reaches the agent service, and the claim shows
   await expect(row).toContainText('$3,750.00')
   expect(await received(request)).toEqual([])
 
-  await page.getByLabel('Approve as').selectOption({ label: 'Dana Whitfield (Senior Claims Handler)' })
+  await expect(page.getByText('Signing off as Dana Whitfield')).toBeVisible()
   await row.getByRole('button', { name: 'Approve payment' }).click()
 
   await expect(page.locator('tbody tr')).toHaveCount(2)

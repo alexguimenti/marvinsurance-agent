@@ -6,7 +6,7 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 # Set in the shell, these would point a test at Supabase, Langfuse, a running agent service or another model.
 OUTSIDE_WORLD = ("DATABASE_URL", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL", "UNDERCOVER_AGENT",
-                 "MODEL_NAME", "AGENT_MODEL", "AGENT_REASONING_EFFORT")
+                 "MODEL_NAME", "AGENT_MODEL", "AGENT_REASONING_EFFORT", "VITE_SUPABASE_URL", "OPENROUTER_DECISIONS_URL")
 
 
 @pytest.fixture(autouse=True)

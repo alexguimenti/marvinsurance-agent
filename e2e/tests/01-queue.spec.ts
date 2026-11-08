@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 // Specs share one backend and database, and run in file order: 00-dispatch has already worked the
 // whole queue, so no claim is waiting when this file starts.

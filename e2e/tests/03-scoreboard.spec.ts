@@ -1,12 +1,25 @@
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { asHandler, expect, test } from './fixtures'
 
 const received = async (page: Page) => (await (await page.request.get('http://127.0.0.1:8003/received')).json()).starts
 
-/** The queue page's tile counts, which an evaluation must leave as they were. */
+/**
+ * The queue page's counts, which an evaluation must leave as they were. A claim signed off earlier is paid by the
+ * service's own 30 second sweep, which moves it from In progress to Decided whatever the evaluation does, so those two
+ * count together.
+ */
 async function queueCounts(page: Page) {
   await page.goto('/')
   await expect(page.locator('tbody tr')).toHaveCount(25)
-  return page.locator('.tile').allTextContents()
+  const tiles = await page.locator('.tile').allTextContents()
+  const n = (label: string) => Number(tiles.find((t) => t.endsWith(label))?.replace(label, '') ?? NaN)
+  return {
+    waiting: n('Waiting'),
+    awaiting: n('Awaiting approval'),
+    handler: n('Needs a handler'),
+    inProgressOrDecided: n('In progress') + n('Decided'),
+    claims: await page.locator('tbody tr').count(),
+  }
 }
 
 test('an evaluation started on the dashboard reaches the service with N, and shows on the scoreboard', async ({ page }) => {
@@ -37,7 +50,7 @@ test('an evaluation started on the dashboard reaches the service with N, and sho
 })
 
 test('an evaluation played out through the API appears on the scoreboard', async ({ page }) => {
-  const answer = await page.request.post('/api/evaluations', { data: { eval_set: 'evaluation', tiny: true, workers: 3 } })
+  const answer = await page.request.post('/api/evaluations', { data: { eval_set: 'evaluation', tiny: true, workers: 3 }, headers: await asHandler(page.request) })
   expect(answer.status()).toBe(202)
   await page.goto('/scoreboard')
   await expect(page.locator('tbody tr')).toHaveCount(2)

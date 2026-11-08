@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { mockApi, renderAt } from '../testUtils'
+import { MARCUS, mockApi, renderAt } from '../testUtils'
 import Approvals from './Approvals'
 
 const held = {
@@ -13,17 +13,12 @@ const held = {
   claim_type: 'emergency_medical',
   rationale: 'Covered by section 7.',
 }
-const handlers = [
-  { handler_id: 'HND-01', name: 'Dana Whitfield', role: 'Senior Claims Handler' },
-  { handler_id: 'HND-02', name: 'Marcus Oyelaran', role: 'Claims Handler' },
-]
 
 describe('Approvals', () => {
-  it('lists held payments and approving calls approvePayment with the chosen handler', async () => {
+  it('lists held payments, and approving signs off as the signed-in handler with no name to choose', async () => {
     let approved = false
     const { calls } = mockApi({
       '/api/approvals': () => (approved ? [] : [held]),
-      '/api/handlers': handlers,
       'POST /api/payments/PAY-CLM-1003/approve': () => {
         approved = true
         return { payment_id: 'PAY-CLM-1003', status: 'signed_off' }
@@ -33,24 +28,31 @@ describe('Approvals', () => {
 
     expect(await screen.findByText('CLM-1003')).toBeInTheDocument()
     expect(screen.getByText('$3,750.00')).toBeInTheDocument()
-    await userEvent.selectOptions(screen.getByLabelText(/approve as/i), 'HND-02')
+    expect(screen.queryByLabelText(/approve as/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/signing off as Dana Whitfield/i)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /approve payment/i }))
 
-    await waitFor(() =>
-      expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ handler_id: 'HND-02' }),
-    )
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url === '/api/payments/PAY-CLM-1003/approve')).toBe(true))
+    expect(calls.find((c) => c.method === 'POST')?.body).toBeUndefined()
     expect(await screen.findByText(/nothing is waiting for approval/i)).toBeInTheDocument()
   })
 
   it('shows a clear error when the API returns 403', async () => {
     mockApi({
       '/api/approvals': [held],
-      '/api/handlers': handlers,
       'POST /api/payments/PAY-CLM-1003/approve': { status: 403, body: { detail: 'HND-01 cannot approve' } },
     })
     renderAt(<Approvals />, '/approvals')
     await userEvent.click(await screen.findByRole('button', { name: /approve payment/i }))
     expect(await screen.findByText(/not allowed to approve/i)).toBeInTheDocument()
     expect(screen.getByText('CLM-1003')).toBeInTheDocument()
+  })
+
+  it("tells a handler who can't sign off over the limit what they can't do and why", async () => {
+    mockApi({ '/api/approvals': [held] })
+    renderAt(<Approvals />, '/approvals', '*', MARCUS)
+    expect(await screen.findByText('CLM-1003')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approve payment/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/can't sign off payouts over the limit/i)).toBeInTheDocument()
   })
 })

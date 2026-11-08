@@ -218,3 +218,40 @@ def agent_env(db_path: str, data_dir: str, model, **settings):
     engine.dispose()
     with open_env(config, model=model, model_id="stub/model") as env:
         yield env
+
+
+# --- sign-in: tokens like Supabase's, signed with a key of our own ---------------------------------------------
+
+import time as _time  # noqa: E402
+import types as _types  # noqa: E402
+
+import jwt as _jwt  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric import ec as _ec  # noqa: E402
+
+EMAILS = {
+    "HND-01": "dana.whitfield@marvinsurance.example",
+    "HND-02": "marcus.oyelaran@marvinsurance.example",
+    "HND-03": "priya.raman@marvinsurance.example",
+}
+
+
+class TokenMint:
+    """Makes access tokens the way Supabase Auth does (ES256) and stands in for PyJWKClient, which would fetch the
+    project's public keys over the network."""
+
+    def __init__(self):
+        self.private = _ec.generate_private_key(_ec.SECP256R1())
+
+    def get_signing_key_from_jwt(self, token: str):
+        return _types.SimpleNamespace(key=self.private.public_key())
+
+    def token(self, email: str, audience: str = "authenticated", expires_in: int = 3600) -> str:
+        now = int(_time.time())
+        claims = {"sub": "user-1", "email": email, "aud": audience, "iat": now, "exp": now + expires_in}
+        return _jwt.encode(claims, self.private, algorithm="ES256")
+
+    def header(self, handler_id: str = "HND-01", **kwargs) -> dict:
+        return {"Authorization": f"Bearer {self.token(EMAILS[handler_id], **kwargs)}"}
+
+
+MINT = TokenMint()  # one key pair for the whole run: the backend under test checks tokens against it

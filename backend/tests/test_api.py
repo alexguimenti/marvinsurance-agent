@@ -9,7 +9,7 @@ from agent.service import create_service
 from agent.worker import work_claim
 from app.api import create_app
 from app.config import Settings
-from tests.fakes import agent_env, connect, decline, stub, tool_call
+from tests.fakes import MINT, agent_env, connect, decline, stub, tool_call
 
 
 def make_settings(db_path, data_dir, **over):
@@ -20,7 +20,7 @@ def make_settings(db_path, data_dir, **over):
 def client(db_path, data_dir):
     settings = make_settings(db_path, data_dir)
     with TestClient(create_service(settings, inline=True)) as service:  # work is done before a call returns
-        with TestClient(create_app(settings, http=service)) as c:
+        with TestClient(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as c:
             yield c
 
 
@@ -74,7 +74,7 @@ def test_backend_forwards_n_to_the_service(db_path, data_dir):
             self.calls.append((url, json))
             return httpx.Response(202, json={"status": "started"})
 
-    with TestClient(create_app(make_settings(db_path, data_dir), http=Recorder())) as backend:
+    with TestClient(create_app(make_settings(db_path, data_dir), http=Recorder(), jwks=MINT), headers=MINT.header()) as backend:
         assert backend.post("/dispatches", json={"workers": 3}).status_code == 202
     assert Recorder.calls == [("http://127.0.0.1:8002/dispatches", {"workers": 3})]
 
@@ -118,7 +118,7 @@ def read_with(db_path, data_dir, *reads):
     steps = [tool_call("read_section", {"document": d, "section": n}, f"r{i}") for i, (d, n) in enumerate(reads)]
     with agent_env(db_path, data_dir, stub({"CLM-1001": [[*steps, decline()]]})) as env:
         work_claim(env, "CLM-1001")
-    with TestClient(create_app(make_settings(db_path, data_dir))) as client:
+    with TestClient(create_app(make_settings(db_path, data_dir), jwks=MINT), headers=MINT.header()) as client:
         return client.get("/claims/CLM-1001").json()["read"]
 
 
@@ -151,7 +151,7 @@ def test_sign_off_is_recorded_and_the_agent_pays(client):
     held = client.get("/approvals").json()
     assert {h["claim_id"] for h in held} == {"CLM-1003", "CLM-1008", "CLM-1011"}
     pid = held[0]["payment_id"]
-    resp = client.post(f"/payments/{pid}/approve", json={"handler_id": "HND-01"})
+    resp = client.post(f"/payments/{pid}/approve")
     assert resp.status_code == 200 and resp.json()["status"] == "signed_off"
     assert resp.json()["approved_by"] == "HND-01" and resp.json()["approved_at"] and resp.json()["paid_at"] is None
     detail = client.get(f"/claims/{held[0]['claim_id']}").json()
@@ -162,17 +162,16 @@ def test_sign_off_is_recorded_and_the_agent_pays(client):
 def test_approve_with_unauthorized_handler_403(client):
     client.post("/dispatches", json={"workers": 5})
     pid = client.get("/approvals").json()[0]["payment_id"]
-    assert client.post(f"/payments/{pid}/approve", json={"handler_id": "HND-99"}).status_code == 403
+    assert client.post(f"/payments/{pid}/approve", headers=MINT.header("HND-02")).status_code == 403  # Marcus
     assert len(client.get("/approvals").json()) == 3
 
 
 def test_approve_unknown_payment_404(client):
-    assert client.post("/payments/PAY-nope/approve", json={"handler_id": "HND-01"}).status_code == 404
+    assert client.post("/payments/PAY-nope/approve").status_code == 404
 
 
-def test_handlers_lists_approvers(client):
-    ids = [h["handler_id"] for h in client.get("/handlers").json()]
-    assert ids == ["HND-01", "HND-02", "HND-03"]
+def test_the_list_of_handlers_to_choose_from_is_gone(client):
+    assert client.get("/handlers").status_code == 404  # the signed-in handler signs off, not one picked from a list
 
 
 def test_instructions_are_the_claim_agents_as_it_receives_them(client):
@@ -197,12 +196,12 @@ def test_no_route_serves_evals(client, path):
 
 def test_backend_restart_changes_nothing(db_path, data_dir):
     settings = make_settings(db_path, data_dir)
-    with TestClient(create_app(settings)):
+    with TestClient(create_app(settings, jwks=MINT), headers=MINT.header()):
         pass
     conn = connect(db_path)
     conn.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
     conn.execute("UPDATE claims SET status='in_progress', run_id=1, thread_id='CLM-1001-1' WHERE claim_id='CLM-1001'")
 
-    with TestClient(create_app(settings)) as client:  # marking a stopped run is the service's job, not the backend's
+    with TestClient(create_app(settings, jwks=MINT), headers=MINT.header()) as client:  # marking a stopped run is the service's job, not the backend's
         assert client.get("/dispatches/latest").json()["run"]["status"] == "running"
         assert client.get("/claims/CLM-1001").json()["status"] == "in_progress"

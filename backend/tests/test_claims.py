@@ -160,7 +160,7 @@ def test_sign_off_twice_keeps_the_first_handler(engine, ref):
     record_decision(engine, ref, CLAIM, approve(2000.0), "m")
     hold_for_sign_off(engine, ref, CLAIM)
     first = sign_off(engine, ref, f"PAY-{CLAIM}", "HND-01")
-    second = sign_off(engine, ref, f"PAY-{CLAIM}", "HND-02")
+    second = sign_off(engine, ref, f"PAY-{CLAIM}", "HND-01")
     assert second.approved_by == "HND-01" and second.approved_at == first.approved_at
 
 
@@ -169,7 +169,7 @@ def test_sign_off_after_paying_records_nothing(engine, ref):
     hold_for_sign_off(engine, ref, CLAIM)
     sign_off(engine, ref, f"PAY-{CLAIM}", "HND-01")
     pay(engine, ref, CLAIM)
-    assert sign_off(engine, ref, f"PAY-{CLAIM}", "HND-02").approved_by == "HND-01"
+    assert sign_off(engine, ref, f"PAY-{CLAIM}", "HND-01").approved_by == "HND-01"
     assert status(engine) == "decided"
 
 
@@ -184,3 +184,12 @@ def test_handler_without_the_right_is_refused(engine, ref):
 def test_sign_off_of_an_unknown_payment(engine, ref):
     with pytest.raises(LookupError):
         sign_off(engine, ref, "PAY-NOPE", "HND-01")
+
+
+def test_a_handler_who_cannot_sign_off_over_the_limit_is_refused(engine, ref):
+    record_decision(engine, ref, CLAIM, approve(2000.0), "m")
+    hold_for_sign_off(engine, ref, CLAIM)
+    for handler_id in ("HND-02", "HND-03"):  # Marcus and Priya
+        with pytest.raises(PermissionError):
+            sign_off(engine, ref, f"PAY-{CLAIM}", handler_id)
+    assert get_payment(engine, CLAIM).status == "held"

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { listApprovals } from './api'
+import { useAuth } from './auth/context'
 import Approvals from './pages/Approvals'
 import ClaimDetail from './pages/ClaimDetail'
 import Instructions from './pages/Instructions'
@@ -27,6 +28,7 @@ function useHeldCount() {
 
 export default function App() {
   const held = useHeldCount()
+  const { handler, signOut } = useAuth()
   return (
     <>
       <header className="nav">
@@ -49,6 +51,13 @@ export default function App() {
           <NavLink to="/scoreboard">Scoreboard</NavLink>
           <NavLink to="/instructions">Agent instructions</NavLink>
         </nav>
+        <div className="who">
+          <span className="who-name">{handler.name}</span>
+          <span className="who-role muted small">{handler.role}</span>
+          <button className="btn btn-ghost" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </div>
       </header>
       <main className="container">
         <Routes>

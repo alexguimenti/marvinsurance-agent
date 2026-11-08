@@ -31,5 +31,5 @@ def test_a_cent_over_the_limit_waits(engine, ref):
     record_decision(engine, ref, "CLM-1001", approve(1000.01), "m")
     hold_for_sign_off(engine, ref, "CLM-1001")
     assert get_payment(engine, "CLM-1001").status == "held"
-    sign_off(engine, ref, "PAY-CLM-1001", "HND-02")
-    assert get_payment(engine, "CLM-1001").approved_by == "HND-02"
+    sign_off(engine, ref, "PAY-CLM-1001", "HND-01")
+    assert get_payment(engine, "CLM-1001").approved_by == "HND-01"

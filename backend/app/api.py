@@ -5,12 +5,13 @@ from dataclasses import asdict
 from typing import Literal, Mapping
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from agent.prompts import claim_prompt
 from app import agent_client, runs
+from app.auth import Handler, handler_view, make_guards, make_jwks
 from app.config import Settings
 from app.db import (
     claims,
@@ -34,10 +35,6 @@ from app.usage import claim_totals, run_totals
 # How the claim agent traces a section it read: "[claims_manual section 7: Interpretation notes, 5000 characters]".
 # Refused reads (errors, rereads, past the cap) are traced as plain text and do not match.
 _SECTION_READ = re.compile(r"^\[(\w+) section (\d+): .+, \d+ characters\]$")
-
-
-class ApproveBody(BaseModel):
-    handler_id: str
 
 
 class PayoutBody(BaseModel):
@@ -77,8 +74,9 @@ def _run(row: Mapping | None) -> dict | None:
     return None if row is None else plain(row)
 
 
-def create_app(settings: Settings, http=httpx) -> FastAPI:
+def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     ref = Reference(settings.data_dir)
+    signed_in, senior = make_guards(ref, jwks if jwks is not None else make_jwks(settings))  # noqa: F841
     docs = documents_for(ref)
     engine = make_engine(settings, max_connections=4)
 
@@ -210,12 +208,12 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
                  "created_at": iso(r["created_at"])} for r in trace_rows(claim_id)]
 
     @app.post("/dispatches", status_code=202, operation_id="start_dispatch")
-    def start_dispatch(body: DispatchBody):
+    def start_dispatch(body: DispatchBody, handler: Handler = Depends(signed_in)):
         """Ask the agent to work every claim in progress and every waiting claim, with N claim agents at once."""
         return forward_run("/dispatches", {"workers": body.workers})
 
     @app.post("/evaluations", status_code=202, operation_id="start_evaluation")
-    def start_evaluation(body: EvaluationBody):
+    def start_evaluation(body: EvaluationBody, handler: Handler = Depends(signed_in)):
         """Ask the agent to evaluate copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
         return forward_run("/evaluations", body.model_dump())
 
@@ -286,20 +284,16 @@ def create_app(settings: Settings, http=httpx) -> FastAPI:
             })
         return out
 
-    @app.get("/handlers", operation_id="list_handlers")
-    def handlers():
-        """List the handlers who may sign off a payout over the limit."""
-        return [
-            {"handler_id": h["handler_id"], "name": h["name"], "role": h["role"]}
-            for h in ref.handlers
-            if h["can_approve_over_limit"]
-        ]
+    @app.get("/me", operation_id="get_signed_in_handler")
+    def me(handler: Handler = Depends(signed_in)):
+        """Say who is signed in and whether they can sign off payouts over the limit."""
+        return handler_view(handler)
 
     @app.post("/payments/{payment_id}/approve", operation_id="sign_off_payment")
-    def approve(payment_id: str, body: ApproveBody, background: BackgroundTasks):
+    def approve(payment_id: str, background: BackgroundTasks, handler: Handler = Depends(signed_in)):
         """Record a handler's sign-off, then tell the agent, which pays."""
         try:
-            payment = sign_off(engine, ref, payment_id, body.handler_id)
+            payment = sign_off(engine, ref, payment_id, handler.handler_id)
         except LookupError:
             raise HTTPException(404, f"unknown payment {payment_id}")
         except PermissionError as exc:

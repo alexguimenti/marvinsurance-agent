@@ -6,6 +6,8 @@ const DB = 'e2e.db'
 const API_PORT = 8100
 const WEB_PORT = 5273
 const AGENT_PORT = 8003 // a stand-in for the agent's service: never the one `npm run dev` starts
+const AUTH_PORT = 8004 // a stand-in for Supabase Auth: the tests never reach the real project
+const AUTH_URL = `http://127.0.0.1:${AUTH_PORT}`
 const DB_PATH = `${process.cwd()}/.tmp/${DB}`
 const PYTHON = resolve(
   '../backend/.venv',
@@ -21,6 +23,13 @@ export default defineConfig({
   use: { baseURL: `http://127.0.0.1:${WEB_PORT}`, trace: 'retain-on-failure' },
   webServer: [
     {
+      command: `"${PYTHON}" -m uvicorn stand_in_auth:app --app-dir ../e2e --port ${AUTH_PORT}`,
+      cwd: '../backend',
+      url: `${AUTH_URL}/auth/v1/health`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
       // scripted model: no model calls; fresh throwaway database (see scripts/clean.mjs)
       command: `"${PYTHON}" -m uvicorn stand_in_agent:app --app-dir ../e2e --port ${AGENT_PORT}`,
       cwd: '../backend',
@@ -32,14 +41,20 @@ export default defineConfig({
     {
       command: `"${PYTHON}" -m uvicorn app.main:app --port ${API_PORT}`,
       cwd: '../backend',
-      env: { AGENT_PROVIDER: 'scripted', DB_PATH, UNDERCOVER_AGENT: `http://127.0.0.1:${AGENT_PORT}` },
+      env: {
+        AGENT_PROVIDER: 'scripted', DB_PATH, UNDERCOVER_AGENT: `http://127.0.0.1:${AGENT_PORT}`,
+        VITE_SUPABASE_URL: AUTH_URL,
+      },
       url: `http://127.0.0.1:${API_PORT}/claims`,
       reuseExistingServer: false,
       timeout: 60_000,
     },
     {
       command: `npm run dev -- --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
-      env: { API_TARGET: `http://127.0.0.1:${API_PORT}` },
+      env: {
+        API_TARGET: `http://127.0.0.1:${API_PORT}`,
+        VITE_SUPABASE_URL: AUTH_URL, VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_e2e',
+      },
       cwd: '../frontend',
       url: `http://127.0.0.1:${WEB_PORT}`,
       reuseExistingServer: false,
