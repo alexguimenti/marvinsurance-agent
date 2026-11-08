@@ -87,7 +87,7 @@ def test_the_claim_agents_view_of_its_version_holds_no_scores(engine):
         "INSERT INTO runs (kind, status, workers, model, reasoning_effort, config_version) VALUES ('dispatch', 'running', 3, 'm', 'low', 1) RETURNING run_id"
     ).fetchone()[0]
     view = configs.config_for_run(engine, run_id)
-    assert set(view) == {"version", "instructions", "model", "reasoning_effort"}
+    assert set(view) == {"version", "instructions", "model", "reasoning_effort", "round_id"}  # no scores, no decisions
 
 
 def test_a_run_without_a_version_uses_the_current_one(engine):

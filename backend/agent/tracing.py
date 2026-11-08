@@ -42,7 +42,7 @@ def session_name(claim_id: str, thread_id: str) -> str:
     return f"{claim_id}:{thread_id}"
 
 
-def trace_config(claim_id: str, thread_id: str, model: str, run_id: int | None = None,
+def trace_config(claim_id: str, thread_id: str, model: str, run_id: int | None = None, round_id: int | None = None,
                  handler_factory: Callable = _handler) -> dict:
     """What a graph run needs for its traces to land in the claim's session, tagged with its run so that a whole
     dispatch or evaluation can be found together."""
@@ -50,12 +50,28 @@ def trace_config(claim_id: str, thread_id: str, model: str, run_id: int | None =
         "metadata": {
             "langfuse_session_id": session_name(claim_id, thread_id),
             "langfuse_trace_name": f"claim {claim_id}",
-            "langfuse_tags": [claim_id, model, *([f"run-{run_id}"] if run_id is not None else [])],
+            "langfuse_tags": [claim_id, model, *([f"run-{run_id}"] if run_id is not None else []),
+                              *([f"round-{round_id}"] if round_id is not None else [])],
         }
     }
     if _enabled():
         try:
             config["callbacks"] = [handler_factory()]
+        except Exception as exc:  # tracing must never stop the work
+            log.warning("Langfuse is not available: %s", exc)
+    return config
+
+
+def improver_trace_config(round_id: int, callbacks: list | None = None) -> dict:
+    """What the improver's runs need: all of a round's work in one Langfuse session named after the round."""
+    config: dict = {
+        "callbacks": list(callbacks or []),
+        "metadata": {"langfuse_session_id": f"round-{round_id}", "langfuse_trace_name": f"improver round {round_id}",
+                     "langfuse_tags": [f"round-{round_id}"]},
+    }
+    if _enabled():
+        try:
+            config["callbacks"].append(_handler())
         except Exception as exc:  # tracing must never stop the work
             log.warning("Langfuse is not available: %s", exc)
     return config

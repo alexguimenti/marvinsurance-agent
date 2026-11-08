@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 from typing import Literal
 
-from sqlalchemy import Engine, and_, func, insert, select, update
+from sqlalchemy import Engine, and_, func, insert, null, select, update
 
 from agent.prompts import load_instructions, load_recipe
 from app.config import DEFAULT_EFFORT, DEFAULT_MODEL, _agent_toml
@@ -118,8 +118,8 @@ def config_for_run(engine: Engine, run_id: int | None) -> dict:
     """What a claim agent needs from its run's version, and nothing else: no scores, no handler decisions. One
     statement: a trip to the database costs time a sign-off is waiting through."""
     columns = (config_versions.c.version, config_versions.c.instructions, config_versions.c.model, config_versions.c.reasoning_effort)
-    of_the_run = select(*columns).select_from(runs.join(config_versions, runs.c.config_version == config_versions.c.version)).where(runs.c.run_id == run_id)
-    the_current = select(*columns).select_from(config_versions.join(
+    of_the_run = select(*columns, runs.c.round_id).select_from(runs.join(config_versions, runs.c.config_version == config_versions.c.version)).where(runs.c.run_id == run_id)
+    the_current = select(*columns, null().label("round_id")).select_from(config_versions.join(
         current_version, and_(current_version.c.kind == "config", current_version.c.version == config_versions.c.version)))
     with engine.connect() as conn:
         row = conn.execute(of_the_run).mappings().first() if run_id is not None else None

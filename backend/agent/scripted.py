@@ -59,3 +59,43 @@ class ScriptedChatModel(BaseChatModel):
             claim = json.loads(claim_text.removeprefix("<claim_data>").rstrip().removesuffix("</claim_data>"))
             call = {"name": "save_decision", "args": _decision(original, claim["amount_claimed"]), "id": f"save-{claim_id}"}
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])
+
+
+class ScriptedImproverModel(BaseChatModel):
+    """The improver without a model, for the end-to-end runs: it reads the results, proposes the current instructions with
+    one added rule, has the version evaluated, then proposes the recipe with one added step. A proposal that comes back
+    rejected is proposed again with a different rule."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "scripted-improver"
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        tool_results = [m for m in messages if m.type == "tool"]
+        attempts = sum(1 for m in tool_results if getattr(m, "status", None) == "error")
+        last = tool_results[-1] if tool_results else None
+        saved = last is not None and str(last.content).startswith("Saved as")
+        step = f"{attempts + 1}"
+        if last is None:
+            call = {"name": "read_results", "args": {}, "id": "read"}
+        elif last.name == "read_results" or (last.name == "propose_change" and not saved):
+            view = next(json.loads(m.content) for m in tool_results if m.name == "read_results")
+            current = view["current_version"]
+            call = {"name": "propose_change", "id": f"change-{step}", "args": {
+                "instructions": current["instructions"].rstrip("\n") + f"\n- When a receipt is missing, refer the claim instead of approving it (rule {step}).",
+                "model": current["model"], "reasoning_effort": current["reasoning_effort"],
+                "reason": "The misses are approvals with documents missing."}}
+        elif last.name == "propose_change":
+            call = {"name": "run_evaluation", "args": {}, "id": "evaluate"}
+        elif last.name == "run_evaluation" or (last.name == "propose_recipe" and not saved):
+            system = next(m.content for m in messages if m.type == "system")
+            recipe = system.split("# Your recipe", 1)[1].strip()
+            call = {"name": "propose_recipe", "id": f"recipe-{step}", "args": {
+                "recipe": recipe + f"\n6. Read the earlier rounds before you start (step {step}).",
+                "reason": "This round showed that earlier rounds should be read first."}}
+        else:
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="The round is done."))])
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])

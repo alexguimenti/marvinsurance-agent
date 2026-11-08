@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from app import configs, scoring
 from app.auth import Handler
 from app.config import Settings
-from app.db import judge_grades, model_calls, plain, proposals, rounds, runs
+from app.db import eval_sets, iso, judge_grades, model_calls, plain, proposals, rounds, runs
 from app.reference import Reference
 from app.settings_store import models_allowed
 
@@ -20,7 +20,7 @@ RULE = ("A new version is kept when it meets the objectives, at least one score 
         "and none gets worse by more than the tolerance")
 SCORES = ("accuracy", "grade", "decision_accuracy", "cost_per_claim", "seconds_per_claim", "mistake_cost", "straight_through")
 FIRST_EVALUATIONS = {"evaluation": 1, "held_out": 2}  # what a version needs before a round can compare against it
-FALLBACK_COST_PER_CLAIM = 0.01  # dollars, when no evaluation has run yet: a careful guess, not a cheap one
+FALLBACK_COST_PER_CLAIM = 0.004  # dollars, when no evaluation has run yet: twice what a claim and its grade cost in the labs
 ENDS = ("finished", "stopped")
 
 
@@ -198,6 +198,17 @@ def estimate(engine: Engine, model: str, claims: int, models: dict, current_mode
     return claims * per_claim
 
 
+def set_size(engine: Engine, eval_set: str) -> int:
+    """How many claims a whole evaluation of a set works."""
+    with engine.connect() as conn:
+        return conn.execute(select(func.count()).select_from(eval_sets).where(eval_sets.c.eval_set == eval_set)).scalar_one()
+
+
+def run_status(engine: Engine, run_id: int) -> str:
+    with engine.connect() as conn:
+        return conn.execute(select(runs.c.status).where(runs.c.run_id == run_id)).scalar_one()
+
+
 # --- rounds and proposals ---------------------------------------------------------------------------------
 
 def get_round(engine: Engine, round_id: int):
@@ -226,7 +237,7 @@ def start_round(engine: Engine, started_by: str, recipe_version: int, settings: 
                 stage="first_evaluations", open=True, recipe_version=recipe_version, settings=json.dumps(settings),
                 thread_id="pending", started_by=started_by).returning(rounds.c.round_id)).scalar_one()
     except IntegrityError as exc:  # the one_open_round index
-        raise RoundOpen("a round is already open") from exc
+        raise RoundOpen(f"round {open_round(engine)['round_id']} is already open") from exc
     with engine.begin() as conn:  # a new thread for each round, so a reseed never meets an old round's checkpoints
         conn.execute(update(rounds).where(rounds.c.round_id == round_id).values(thread_id=f"round-{round_id}-{secrets.token_hex(4)}"))
     return round_id
@@ -253,6 +264,19 @@ def add_proposal(engine: Engine, round_id: int, kind: str, payload: dict, reason
         return conn.execute(insert(proposals).values(
             round_id=round_id, kind=kind, payload=json.dumps(payload), reason=reason, status="waiting",
         ).returning(proposals.c.id)).scalar_one()
+
+
+def get_proposal(engine: Engine, proposal_id: int):
+    with engine.connect() as conn:
+        row = conn.execute(select(proposals).where(proposals.c.id == proposal_id)).mappings().first()
+    if row is None:
+        raise LookupError(f"there is no proposal {proposal_id}")
+    return row
+
+
+def list_proposals(engine: Engine, round_id: int) -> list:
+    with engine.connect() as conn:
+        return list(conn.execute(select(proposals).where(proposals.c.round_id == round_id).order_by(proposals.c.id)).mappings())
 
 
 def waiting_proposal(engine: Engine, round_id: int):
@@ -321,6 +345,42 @@ def stop_round(engine: Engine, round_id: int, handler_id: str | None) -> bool:
     with engine.begin() as conn:
         return bool(conn.execute(update(rounds).where(_open(round_id)).values(
             stage="stopped", open=False, progress=None, stopped_by=handler_id, finished_at=datetime.now(timezone.utc))).rowcount)
+
+
+def round_report(engine: Engine, ref: Reference, row) -> dict:
+    """A round as the Improvement page reads it: where it has got to, what it has cost, who decided what, and the proposal
+    it waits on with its change shown as a diff against what is current."""
+    names = {h["handler_id"]: h["name"] for h in ref.handlers}
+    settings = json.loads(row["settings"])
+    decided = [{"id": p["id"], "kind": p["kind"], "reason": p["reason"], "status": p["status"], "decided_by": p["decided_by"],
+                "decided_by_name": names.get(p["decided_by"]), "decided_at": iso(p["decided_at"]),
+                "decision_reason": p["decision_reason"], "created_at": iso(p["created_at"])}
+               for p in list_proposals(engine, row["round_id"])]
+    waiting = None
+    proposal = waiting_proposal(engine, row["round_id"])
+    if proposal is not None:
+        payload = json.loads(proposal["payload"])
+        if proposal["kind"] == "change":
+            now = configs.current(engine, "config")
+            waiting = {"id": proposal["id"], "kind": "change", "reason": proposal["reason"],
+                       "lines": configs.diff(now["instructions"], payload["instructions"]),
+                       "model": {"before": now["model"], "after": payload["model"]},
+                       "reasoning_effort": {"before": now["reasoning_effort"], "after": payload["reasoning_effort"]}}
+        else:
+            now = configs.current(engine, "recipe")
+            waiting = {"id": proposal["id"], "kind": "recipe", "reason": proposal["reason"],
+                       "lines": configs.diff(now["recipe"], payload["recipe"])}
+    return {
+        "round_id": row["round_id"], "stage": row["stage"], "progress": row["progress"], "open": bool(row["open"]),
+        "recipe_version": row["recipe_version"], "settings": settings, "version_tried": row["version_tried"],
+        "reason": row["reason"], "verdict": row["verdict"], "why": row["why"],
+        "before": json.loads(row["before"]) if row["before"] else None, "after": json.loads(row["after"]) if row["after"] else None,
+        "started_by": row["started_by"], "started_by_name": names.get(row["started_by"]),
+        "stopped_by": row["stopped_by"], "stopped_by_name": names.get(row["stopped_by"]), "error": row["error"],
+        "started_at": iso(row["started_at"]), "finished_at": iso(row["finished_at"]),
+        "spent_usd": round(round_spent(engine, row["round_id"]), 6), "spending_limit": settings["round_spending_limit"],
+        "proposals": decided, "waiting": waiting,
+    }
 
 
 def stop_working_rounds(engine: Engine) -> list[int]:

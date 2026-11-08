@@ -207,7 +207,7 @@ def counting_stub(seconds: float = 0.05, outcomes: dict | None = None, default=N
 
 
 @contextmanager
-def agent_env(db_path: str, data_dir: str, model, **settings):
+def agent_env(db_path: str, data_dir: str, model, improver_model=None, **settings):
     """A real AgentEnv, with its checkpoints on disk, around a stub model."""
     from agent.worker import open_env
 
@@ -216,7 +216,7 @@ def agent_env(db_path: str, data_dir: str, model, **settings):
     init_schema(engine)
     seed_claims(engine, Reference(data_dir))
     engine.dispose()
-    with open_env(config, model=model, model_id="stub/model") as env:
+    with open_env(config, model=model, model_id="stub/model", improver_model=improver_model) as env:
         yield env
 
 

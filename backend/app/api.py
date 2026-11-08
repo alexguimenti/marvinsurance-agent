@@ -28,7 +28,7 @@ from app.payments import sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.scoring import evaluation_report, list_evaluations
-from app.improvement import version_scores
+from app.improvement import get_round as get_round_row, list_rounds as list_round_rows, round_report, stop_round as stop_round_row, version_scores
 from app.seed import seed_claims
 from app.settings_store import approval_limit, change_setting, models_allowed, setting_history
 from app.usage import claim_totals, run_totals
@@ -51,6 +51,12 @@ class SettingValue(BaseModel):
 
 class DispatchBody(BaseModel):
     workers: int = Field(ge=1, le=25)  # claim agents at once
+
+
+class DecisionBody(BaseModel):
+    proposal_id: int
+    approve: bool
+    reason: str  # a rejection's reason goes back to the improver
 
 
 class EvaluationBody(BaseModel):
@@ -225,6 +231,40 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     def start_evaluation(body: EvaluationBody, handler: Handler = Depends(signed_in)):
         """Ask the agent to evaluate copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
         return forward_run("/evaluations", body.model_dump())
+
+    @app.post("/rounds", status_code=202, operation_id="start_round")
+    def start_round(handler: Handler = Depends(senior)):
+        """Ask the agent to start an improvement round. Only a handler who can sign off over the limit may."""
+        return forward_run("/rounds", {"handler_id": handler.handler_id})
+
+    @app.post("/rounds/{round_id}/stop", operation_id="stop_round")
+    def stop_round(round_id: int, handler: Handler = Depends(senior)):
+        """Stop a round that is open. What its verdict already decided stays."""
+        try:
+            get_round_row(engine, round_id)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
+        if not stop_round_row(engine, round_id, handler.handler_id):
+            raise HTTPException(409, f"round {round_id} has ended")
+        return {"round_id": round_id, "stage": "stopped"}
+
+    @app.post("/rounds/{round_id}/decision", status_code=202, operation_id="decide_proposal")
+    def decide_proposal_route(round_id: int, body: DecisionBody, handler: Handler = Depends(senior)):
+        """Approve or reject the proposal a round waits on, as the signed-in handler."""
+        return forward_run(f"/rounds/{round_id}/decision", {**body.model_dump(), "handler_id": handler.handler_id})
+
+    @app.get("/rounds", operation_id="list_rounds")
+    def rounds_list():
+        """List the improvement rounds, newest first, each with where it has got to and what it cost."""
+        return [round_report(engine, ref, r) for r in list_round_rows(engine)]
+
+    @app.get("/rounds/{round_id}", operation_id="get_round")
+    def round_one(round_id: int):
+        """Get one round with its proposals, the one it waits on shown as a diff, and what it cost."""
+        try:
+            return round_report(engine, ref, get_round_row(engine, round_id))
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
 
     def run_report(row: Mapping) -> dict:
         """A run with its claims, its totals and, once it has ended, its summary from the records."""

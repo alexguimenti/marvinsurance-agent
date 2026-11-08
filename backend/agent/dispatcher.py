@@ -36,7 +36,7 @@ class ClaimTask(TypedDict):
     run_id: int
 
 
-def build_dispatcher(env: AgentEnv, retry: RetryPolicy):
+def build_dispatcher(env: AgentEnv, retry: RetryPolicy, allowed=None, skipped: list | None = None):
     engine = env.engine
 
     def list_claims(state: DispatchState) -> Command:
@@ -52,6 +52,10 @@ def build_dispatcher(env: AgentEnv, retry: RetryPolicy):
     def work_claim(task: ClaimTask) -> dict:
         """Work one claim. One that failed and went back to the queue is tried once more, straight away."""
         claim_id, run_id = task["claim_id"], task["run_id"]
+        if allowed is not None and not allowed():  # a round that has spent its limit starts no more claims
+            if skipped is not None:
+                skipped.append(claim_id)
+            return {"outcomes": [{"claim_id": claim_id, "line": f"{claim_id}: not started, the round's spending limit was reached."}]}
         runs.claim_started(engine, run_id, claim_id)
         line = work(env, claim_id, run_id)
         if get_claim(engine, claim_id)["status"] == "waiting":
@@ -79,11 +83,16 @@ def build_dispatcher(env: AgentEnv, retry: RetryPolicy):
     return builder.compile()  # no checkpointer: the claims save their own progress
 
 
-def dispatch(env: AgentEnv, run_id: int, workers: int, retry: RetryPolicy = CLAIM_RETRY) -> None:
-    """Work the run's claims with up to `workers` claim agents at once, then close the run."""
+def dispatch(env: AgentEnv, run_id: int, workers: int, retry: RetryPolicy = CLAIM_RETRY, allowed=None) -> None:
+    """Work the run's claims with up to `workers` claim agents at once, then close the run. With `allowed`, a claim
+    that is not allowed to start is left, and a run cut short that way shows as stopped."""
+    skipped: list[str] = []
     try:
-        build_dispatcher(env, retry).invoke(DispatchState(run_id=run_id), {"max_concurrency": workers})
+        build_dispatcher(env, retry, allowed, skipped).invoke(DispatchState(run_id=run_id), {"max_concurrency": workers})
     except Exception as exc:  # the dispatcher itself broke, not a claim: the run ends stopped, and says why
         runs.finish_run(env.engine, run_id, error=f"{type(exc).__name__}: {exc}")
         raise
+    if skipped:
+        runs.finish_run(env.engine, run_id, error="the round's spending limit was reached")
+        return
     runs.finish_run(env.engine, run_id, settings=env.settings)

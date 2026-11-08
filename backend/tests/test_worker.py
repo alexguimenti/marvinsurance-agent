@@ -234,9 +234,9 @@ def test_after_the_pause_the_trace_goes_in_the_same_session(env_for, monkeypatch
     sessions = []
     real = worker_module.trace_config
 
-    def spy(claim_id, thread_id, model, run_id):
+    def spy(claim_id, thread_id, model, run_id, round_id=None):
         sessions.append((claim_id, thread_id))
-        return real(claim_id, thread_id, model, run_id)
+        return real(claim_id, thread_id, model, run_id, round_id)
 
     monkeypatch.setattr(worker_module, "trace_config", spy)
     work_claim(env, CLAIM)

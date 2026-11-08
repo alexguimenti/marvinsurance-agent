@@ -35,6 +35,7 @@ class AgentEnv:
     checkpoints: Checkpoints
     model: object | None  # a fixed model (scripted, or a test's stub); None builds each version's own
     model_id: str | None
+    improver_model: object | None = None  # a test's own, for the improver
     clock: Callable[[], float] = time.monotonic  # a test can move it on without sleeping
     _working: set = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -103,7 +104,7 @@ class AgentEnv:
 
 
 @contextmanager
-def open_env(settings: Settings, model=None, model_id: str | None = None) -> Iterator[AgentEnv]:
+def open_env(settings: Settings, model=None, model_id: str | None = None, improver_model=None) -> Iterator[AgentEnv]:
     """Everything the agent needs in a process: its connections, its checkpoints and its graph."""
     if model is None:
         if settings.agent_provider == "scripted":
@@ -117,7 +118,7 @@ def open_env(settings: Settings, model=None, model_id: str | None = None) -> Ite
     warm_up_tracing()
     try:
         with make_checkpoints(settings) as checkpoints:
-            env = AgentEnv(engine, Reference(settings.data_dir), settings, checkpoints, model, model_id)
+            env = AgentEnv(engine, Reference(settings.data_dir), settings, checkpoints, model, model_id, improver_model)
             try:
                 yield env
             finally:
@@ -126,12 +127,12 @@ def open_env(settings: Settings, model=None, model_id: str | None = None) -> Ite
         engine.dispose()
 
 
-def _config(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, model_id: str) -> dict:
+def _config(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, model_id: str, round_id: int | None = None) -> dict:
     return {
         "configurable": {"thread_id": thread_id, "run_id": run_id,
                          "deadline": time.monotonic() + env.settings.agent_claim_timeout_s},
         "recursion_limit": 3 * env.settings.agent_max_model_calls + 10,  # model, tools, tools_done per call
-        **trace_config(claim_id, thread_id, model_id, run_id),
+        **trace_config(claim_id, thread_id, model_id, run_id, round_id),
     }
 
 
@@ -142,7 +143,7 @@ def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input, run_id: in
         # In a context of its own: Langfuse takes the session from a trace's root, so a claim worked inside another
         # traced call would lose its work from the claim's session.
         version = env.config_for(run_id)
-        config = _config(env, claim_id, thread_id, run_id, env.effective(version)[0])
+        config = _config(env, claim_id, thread_id, run_id, env.effective(version)[0], version.get("round_id"))
         with env.claim_graph(config=version) as graph:
             return contextvars.Context().run(graph.invoke, graph_input, config, durability="sync")
     finally:
