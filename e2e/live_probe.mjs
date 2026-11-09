@@ -1,0 +1,17 @@
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
+const { chromium } = require('@playwright/test')
+process.loadEnvFile('../.env')
+const browser = await chromium.launch()
+const page = await browser.newPage()
+const seen = []
+page.on('console', (m) => seen.push('console: ' + m.text().slice(0, 200)))
+page.on('response', (r) => { if (r.url().includes('supabase') || r.url().includes(':8000')) seen.push(`${r.status()} ${r.url().replace(/\?.*/, '').slice(0, 120)}`) })
+await page.goto('http://127.0.0.1:5173/')
+await page.getByLabel('Email').fill('dana.whitfield@marvinsurance.example')
+await page.getByLabel('Password').fill(process.env.HANDLER_PASSWORD)
+await page.getByRole('button', { name: 'Sign in' }).click()
+await page.waitForTimeout(4000)
+console.log((await page.locator('body').innerText()).replace(/\s+/g, ' ').slice(0, 400))
+console.log(seen.join('\n'))
+await browser.close()
