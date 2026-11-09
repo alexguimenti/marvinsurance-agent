@@ -9,7 +9,7 @@ from agent.tracing import trace_config
 from app.claims import get_claim
 from app.runs import (RunActive, claims_to_dispatch, get_run, run_claims_view, run_summary, start_dispatch,
                       stop_running)
-from tests.fakes import RawDb, agent_env, approve, counting_stub, decline, stub, tool_call
+from tests.fakes import RawDb, agent_env, approve, counting_stub, credit_error, decline, stub, tool_call
 
 SEARCH = tool_call("search_documents", {"query": "delay"}, "s1")
 FAST_RETRY = CLAIM_RETRY._replace(initial_interval=0.01, max_interval=0.01, jitter=False)
@@ -176,3 +176,23 @@ def test_the_summary_is_built_from_the_records(env_for):
 def test_each_claims_trace_carries_its_runs_tag():
     assert trace_config("CLM-1001", "CLM-1001-1", "m", 7)["metadata"]["langfuse_tags"] == ["CLM-1001", "m", "run-7"]
     assert trace_config("CLM-1001", "CLM-1001-1", "m", None)["metadata"]["langfuse_tags"] == ["CLM-1001", "m"]
+
+
+def test_a_key_out_of_credit_stops_the_run_and_blames_no_claim(env_for):
+    model = stub(default=credit_error())
+    env = env_for(model)
+    run_id = run(env, workers=1)
+    row = get_run(env.engine, run_id)
+    assert row["status"] == "stopped" and "credit" in row["error"]
+    assert model.asked == ["CLM-1001"]  # the rest were not started: each would only meet the same refusal
+    assert {claim(env, c)["status"] for c in ALL} == {"in_progress", "waiting"}  # no claim is left for a handler
+    assert all(claim(env, c)["attempts"] == 0 for c in ALL)
+
+
+def test_the_next_run_starts_clear_of_the_last_one_s_credit_trouble(env_for):
+    env = env_for(stub(default=credit_error()))
+    run(env, workers=1)
+    assert env.out_of_credit.is_set()
+    env.model.default = decline()
+    run_id = run(env, workers=3)
+    assert get_run(env.engine, run_id)["status"] == "finished"

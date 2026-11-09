@@ -15,6 +15,7 @@ def chat_model(settings: Settings, model: str | None = None, effort: str | None 
         api_key=settings.openrouter_api_key,
         base_url=OPENROUTER_URL,
         temperature=settings.agent_temperature,
+        max_tokens=settings.agent_max_tokens,  # without it OpenRouter reserves the model's own ceiling (131,072) from the key's credit
         timeout=settings.agent_claim_timeout_s,
         max_retries=settings.agent_step_retries,
         extra_body={

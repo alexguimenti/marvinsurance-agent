@@ -20,7 +20,7 @@ from app.api import create_app
 from app.auth import Handler
 from app.config import Settings
 from app.settings_store import change_setting, get_settings
-from tests.fakes import MINT, RawDb, agent_env, script, tool_call
+from tests.fakes import MINT, FakeToolModel, RawDb, agent_env, credit_error, script, tool_call
 from tests.test_judge import StubJudge, answers
 
 DANA = Handler("HND-01", "Dana Whitfield", "Senior Claims Handler", "dana.whitfield@marvinsurance.example", True)
@@ -119,6 +119,17 @@ def test_a_round_that_proposes_nothing_finishes_with_no_version_tried(db_path, d
         round_id = run_round(env, script(AIMessage(content="Nothing to improve.")))
         row = improvement.get_round(env.engine, round_id)
         assert (row["stage"], row["version_tried"], row["open"]) == ("finished", None, False)
+
+
+def test_a_key_out_of_credit_ends_the_round_saying_so(db_path, data_dir, no_first_evaluations):
+    class OutOfCredit(FakeToolModel):
+        def _generate(self, *args, **kwargs):
+            raise credit_error()
+
+    with open_env(db_path, data_dir) as env:
+        round_id = run_round(env, OutOfCredit(messages=iter([]), seen=[]))
+        row = improvement.get_round(env.engine, round_id)
+        assert row["open"] is False and "credit limit" in row["error"] and "402" not in row["error"]
 
 
 def test_the_improvers_calls_are_recorded_with_its_round(db_path, data_dir, no_first_evaluations):

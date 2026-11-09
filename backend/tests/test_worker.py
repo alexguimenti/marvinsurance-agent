@@ -11,7 +11,7 @@ from app.config import Settings
 from app.payments import get_payment, sign_off
 from app.reference import Reference
 from app.seed import reseed
-from tests.fakes import RawDb, Stopped, agent_env, approve, decline, refer, stub, tool_call
+from tests.fakes import RawDb, Stopped, agent_env, approve, credit_error, decline, refer, stub, tool_call
 
 CLAIM = "CLM-1003"
 SEARCH = tool_call("search_documents", {"query": "delay"}, "s1")
@@ -392,3 +392,11 @@ def test_any_other_error_still_fails_the_attempt(env_for):
     env, _ = env_for({CLAIM: [RuntimeError("broken")]})
     assert "back in the queue" in work(env, CLAIM, 7)
     assert (claim(env)["status"], claim(env)["attempts"]) == ("waiting", 1)
+
+
+def test_a_key_out_of_credit_is_not_the_claims_failure(env_for):
+    env, _ = env_for({CLAIM: [credit_error()]})
+    line = work_claim(env, CLAIM)
+    row = claim(env)
+    assert (row["status"], row["attempts"], row["last_error"]) == ("in_progress", 0, None)  # not left for a handler
+    assert "credit" in line and env.out_of_credit.is_set()

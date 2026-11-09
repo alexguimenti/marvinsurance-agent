@@ -23,7 +23,7 @@ from agent import improver_backend as backend
 from agent.dispatcher import CLAIM_RETRY, dispatch
 from agent.events import call_usage
 from agent.tracing import improver_trace_config
-from agent.worker import AgentEnv
+from agent.worker import CREDIT_OUT, AgentEnv, out_of_credit
 
 log = logging.getLogger(__name__)
 
@@ -273,7 +273,7 @@ def work_round(env: AgentEnv, round_id: int, resume: dict | None = None) -> None
     except Exception as exc:  # the round ends where it is, with what went wrong, and the service stays up
         log.exception("round %s failed", round_id)
         try:
-            backend.finish_round(env.engine, round_id, error=f"{type(exc).__name__}: {exc}")
+            backend.finish_round(env.engine, round_id, error=CREDIT_OUT if out_of_credit(exc) else f"{type(exc).__name__}: {exc}")
         except Exception:
             log.exception("could not record how round %s ended", round_id)
 

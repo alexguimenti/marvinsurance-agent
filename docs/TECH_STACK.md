@@ -64,7 +64,7 @@ Environment variables, kept in a local `.env` file that is not committed:
 | `HANDLER_PASSWORD` | The password the demo handlers' accounts were made with. Used by the live checks, never by the app |
 | `OPENROUTER_DECISIONS_URL` | Where the judge calls, `https://openrouter.ai` by default. Tests and the end-to-end run point it at a stand-in |
 
-The models the improver may propose, with their allowed reasoning efforts and prices, are in `data/models.json`; the objectives, the noise and tolerance, the round's spending limit and N start from `data/improvement.json` and are settings after that. The model, the temperature and the limits (`max_attempts`, `step_retries`, `claim_timeout_s`, `max_model_calls`) live in `agent.toml` at the repo root. Environment variables win over it.
+The models the improver may propose, with their allowed reasoning efforts and prices, are in `data/models.json`; the objectives, the noise and tolerance, the round's spending limit and N start from `data/improvement.json` and are settings after that. The model, the temperature and the limits (`max_attempts`, `step_retries`, `claim_timeout_s`, `max_model_calls`, `max_tokens`) live in `agent.toml` at the repo root. Environment variables win over it.
 
 Each recorded decision stores the model ID that produced it, so results can be compared across models.
 

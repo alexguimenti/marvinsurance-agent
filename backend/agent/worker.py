@@ -25,6 +25,13 @@ from app.usage import record_work_time
 RECORD_CONNECTIONS = 2  # with the checkpointer's 2, the 4 a process may use
 # Worth waiting out: the caller retries, and the claim carries on from its last saved step as the same attempt.
 RETRYABLE = (ModelRateLimitError, ModelTimeoutError)
+CREDIT_OUT = "OpenRouter's credit limit for the key was reached. Raise the key's limit, then start again: nothing is lost."
+
+
+def out_of_credit(exc: BaseException) -> bool:
+    """OpenRouter answers 402 when the key's credit or daily limit cannot pay for the call. It is nobody's fault but
+    the key's: not a claim's failure, and every other claim would meet the same answer."""
+    return getattr(exc, "status_code", None) == 402
 
 
 @dataclass
@@ -37,6 +44,7 @@ class AgentEnv:
     model_id: str | None
     improver_model: object | None = None  # a test's own, for the improver
     clock: Callable[[], float] = time.monotonic  # a test can move it on without sleeping
+    out_of_credit: threading.Event = field(default_factory=threading.Event)  # set by the first 402; a run stops starting claims
     _working: set = field(default_factory=set)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _reader: object = None
@@ -187,6 +195,10 @@ def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, att
         add_trace_event(env.engine, claim_id, "error", {"message": f"{type(exc).__name__}: {exc}. The agent waits and will carry on from here."})
         raise
     except Exception as exc:  # any model, tool or database failure; a kill or Ctrl-C is not one of these
+        if out_of_credit(exc):  # the claim stays in progress, with no failed attempt, for the next run
+            env.out_of_credit.set()
+            add_trace_event(env.engine, claim_id, "error", {"message": f"{CREDIT_OUT} This claim stays in progress."})
+            return f"{claim_id}: not decided, {CREDIT_OUT}"
         if get_claim(env.engine, claim_id)["decision"] is None:
             return _fail(env, claim_id, thread_id, run_id, attempt, max_attempts, exc)
         # The decision stands, so this must not start again: the next run carries on from the failed step.

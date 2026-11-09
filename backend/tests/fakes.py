@@ -176,6 +176,16 @@ class StubModel(BaseChatModel):
         return ChatResult(generations=[ChatGeneration(message=step)])
 
 
+def credit_error() -> Exception:
+    """What OpenRouter answers when the key's credit or daily limit cannot pay for the request: a 402."""
+    import httpx
+    import openai
+
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    return openai.APIStatusError("This request requires more credits, or fewer max_tokens.",
+                                 response=httpx.Response(402, request=request), body=None)
+
+
 def stub(outcomes: dict | None = None, default=None) -> StubModel:
     return StubModel(outcomes=outcomes or {}, default=default, asked=[], shown=[], current={}, calls=0)
 

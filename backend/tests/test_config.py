@@ -112,3 +112,11 @@ def test_database_url_and_agent_address_in_the_environment_are_used(monkeypatch)
     settings = Settings(_env_file=None)
     assert settings.database_url == "postgresql://u:p@h/d"
     assert settings.agent_url == "http://127.0.0.1:8003"
+
+
+def test_a_model_never_asks_for_more_tokens_than_a_claim_needs():
+    # OpenRouter holds back credit for the most a call may produce: a model's own ceiling (131,072) needs a rich key
+    from agent.models import chat_model
+
+    assert chat_model(Settings(_env_file=None, openrouter_api_key="test")).max_tokens == 16384
+    assert chat_model(Settings(_env_file=None, openrouter_api_key="test", agent_max_tokens=4096)).max_tokens == 4096

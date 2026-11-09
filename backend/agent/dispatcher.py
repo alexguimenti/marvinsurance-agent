@@ -15,7 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, RetryPolicy, Send
 from pydantic import BaseModel, Field
 
-from agent.worker import RETRYABLE, AgentEnv, work
+from agent.worker import CREDIT_OUT, RETRYABLE, AgentEnv, work
 from app import runs
 from app.claims import get_claim
 
@@ -52,6 +52,9 @@ def build_dispatcher(env: AgentEnv, retry: RetryPolicy, allowed=None, skipped: l
     def work_claim(task: ClaimTask) -> dict:
         """Work one claim. One that failed and went back to the queue is tried once more, straight away."""
         claim_id, run_id = task["claim_id"], task["run_id"]
+        if env.out_of_credit.is_set():  # the key cannot pay: each claim would only meet the same refusal
+            skipped.append(claim_id)
+            return {"outcomes": [{"claim_id": claim_id, "line": f"{claim_id}: not started, {CREDIT_OUT}"}]}
         if allowed is not None and not allowed():  # a round that has spent its limit starts no more claims
             if skipped is not None:
                 skipped.append(claim_id)
@@ -87,11 +90,15 @@ def dispatch(env: AgentEnv, run_id: int, workers: int, retry: RetryPolicy = CLAI
     """Work the run's claims with up to `workers` claim agents at once, then close the run. With `allowed`, a claim
     that is not allowed to start is left, and a run cut short that way shows as stopped."""
     skipped: list[str] = []
+    env.out_of_credit.clear()
     try:
         build_dispatcher(env, retry, allowed, skipped).invoke(DispatchState(run_id=run_id), {"max_concurrency": workers})
     except Exception as exc:  # the dispatcher itself broke, not a claim: the run ends stopped, and says why
         runs.finish_run(env.engine, run_id, error=f"{type(exc).__name__}: {exc}")
         raise
+    if env.out_of_credit.is_set():
+        runs.finish_run(env.engine, run_id, error=CREDIT_OUT)
+        return
     if skipped:
         runs.finish_run(env.engine, run_id, error="the round's spending limit was reached")
         return
