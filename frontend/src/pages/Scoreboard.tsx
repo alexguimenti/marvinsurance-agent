@@ -74,7 +74,7 @@ export default function Scoreboard() {
               ))}
             </select>
           </label>
-          <label className="limit">
+          <label className="check">
             <input type="checkbox" checked={tiny} onChange={(e) => setTiny(e.target.checked)} />
             <span>Only the five tiny claims</span>
           </label>

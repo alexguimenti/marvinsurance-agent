@@ -113,7 +113,10 @@ code { font: 500 0.88em var(--font-mono); background: var(--bg-muted); padding: 
 .count { min-width: 20px; height: 20px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--accent); color: #fff; font: 600 11px var(--font-mono); animation: pop 400ms var(--ease) both; }
 
 .container { max-width: var(--container-max); margin: 0 auto; padding: 56px 24px 120px; }
-.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; margin-bottom: 32px; }
+.page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 20px 32px; margin-bottom: 32px; }
+.page-head > div:first-child { flex: 1 1 380px; min-width: 0; }
+.page-head > .actions { flex: 0 0 auto; }
+.page-head > .actions:has(.run-controls) { display: block; }
 
 /* ---------- cards, tables ---------- */
 
@@ -138,8 +141,6 @@ tr.total td { font-weight: 500; border-top: 1px solid var(--border-strong); }
 .queue td { vertical-align: middle; }
 .case-id { font: 500 14px var(--font-mono); letter-spacing: -0.01em; color: var(--text-heading); text-decoration: none; border-bottom: 1px solid var(--border-strong); }
 .case-id:hover { border-color: var(--accent); color: var(--accent-strong); }
-.check { width: 20px; padding-right: 0; }
-.check input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
 .amount { font-family: var(--font-display); font-size: 20px; letter-spacing: -0.02em; color: var(--text-heading); }
 
 /* ---------- queue summary ---------- */
@@ -308,13 +309,24 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 
 /* ---------- runs: limit, to-do list, what was read ---------- */
 
-.run-controls { display: flex; align-items: flex-end; gap: 12px; }
-.limit { display: flex; flex-direction: column; gap: 4px; }
+.run-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+.limit { display: flex; flex-direction: column; gap: 4px; flex: none; }
 .limit input {
   width: 84px; height: 42px; padding: 0 12px; border-radius: var(--radius-md); border: 1px solid var(--border-strong);
   background: var(--bg-elevated); font: 400 14px var(--font-mono); color: var(--text-ink);
 }
-.limit input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.limit input:focus, .limit select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.limit select {
+  height: 42px; padding: 0 36px 0 12px; border-radius: var(--radius-md); border: 1px solid var(--border-strong);
+  background: var(--bg-elevated); color: var(--text-ink); font: 400 14px var(--font-sans); cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 18px, calc(100% - 13px) 18px; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.check { display: inline-flex; white-space: nowrap; flex: none; align-items: center; gap: 10px; height: 42px; padding: 0 14px; border-radius: var(--radius-md); border: 1px solid var(--border-strong); background: var(--bg-elevated); color: var(--text-body); font-size: 14px; cursor: pointer; }
+.check:hover { border-color: var(--accent); }
+.check input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.check:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .todo-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
 .todo-head h3 { margin: 0; }
