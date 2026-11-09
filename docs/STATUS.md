@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-08, after the improver and sign-in (`docs/PLAN_IMPROVE.md`). The live verification of the improver is recorded below when it has been run.
+Last updated 2026-11-09, after the improver and sign-in (`docs/PLAN_IMPROVE.md`). Its live verification is only partly done: see "Live verification of the improver (2026-11-09)" below.
 
 ## What works
 
@@ -45,6 +45,22 @@ On Supabase and the default model, after one `npm run seed`, through the Playwri
 ### Where the time goes at N=25
 
 Each claim does dozens of short statements: its trace events (302 in that run), one row per model call (58), the claim's own reads and writes, and a checkpoint after every step, with its writes. Every statement is a trip of about 213 ms to Supabase, and the process has 2 connections for records and 2 for checkpoints. With 17 claim agents at once, they spend much of their time waiting for one of those 4, not for the model. This is an estimate from the counts and the trip time, not a profile. Ways to win it back, keeping to 4 connections: fewer trace events per step, or writing a step's events in one statement. Saving fewer checkpoints would also help, but would weaken carrying on after a restart.
+
+## Live verification of the improver (2026-11-09)
+
+Partly done. The owner stopped it to start `docs/PLAN_SECURE.md`. On Supabase and the default model, signed in as Dana Whitfield and Marcus Oyelaran. About $0.25 on OpenRouter in all (round 1's evaluations $0.13 and round 2's $0.09, with the improver's and judge's calls). This is an estimate from the round totals.
+
+| Check | Result |
+|---|---|
+| Round 1 (limit $0.50), 1 evaluation-set run and 2 held-out runs of version 1 | Finished. Held-out scores of version 1: accuracy 0.86, grade 1.31, decision accuracy 0.92, $0.0017 and 105 s per claim, straight-through 0.84 |
+| Round 1's version 2 | **Rolled back:** the round could not afford to evaluate it, about $0.84 against $0.37 left. Version 1 stayed current |
+| Round 2 (limit raised to $1.00 as Dana) | The first proposal was rejected with a reason; the improver's next proposal was about a failure shared by the two wrong claims (an account of a fact the wording requires a document for), not about one claim type. It was approved and saved as version 3. The round was **stopped by the owner** during its third evaluation, so it has no verdict |
+| Marcus Oyelaran starting a round or changing a setting | 403 on each |
+| Handlers' sign-off, one dispatch at N=25, Langfuse sessions `round-1` and `round-2`, the design review | **Not done** |
+| Screenshots at 1280x800, light and dark | Taken; the Improvement page and the Scoreboard's controls read well in both. The Scoreboard and Configuration were still loading in the dark and light shots, taken while a round used the connections; not re-taken |
+| Two held-out runs of version 1 against noise and tolerance | Not reported: the per-measure differences were not computed |
+
+**Finding:** the spending estimate follows the brief (an evaluation's claims times the highest cost per claim seen for its model). Here the highest claim cost $0.011 against a mean of $0.0017, so a whole new version is estimated at $0.84. With the starting limit of $0.50 and the first evaluations already spent, no new version can be afforded on this model, and every round rolls back. A limit of about $1.00 lets it through; the real cost of version 3's three evaluations was about $0.13.
 
 ## Known limits
 
