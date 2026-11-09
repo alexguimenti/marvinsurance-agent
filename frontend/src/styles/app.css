@@ -356,9 +356,23 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 /* sign-in and the signed-in handler in the header */
 .who { display: flex; align-items: center; gap: var(--space-3, 12px); margin-left: auto; }
 .who-name { font-weight: 600; }
-.signin { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-.signin-card { width: min(420px, 100%); display: grid; gap: 8px; }
-.signin-card input { width: 100%; }
+.signin {
+  min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  background: radial-gradient(ellipse 70% 50% at 50% 0%, var(--accent-tint), transparent 70%), var(--bg-page);
+}
+.signin-card { width: min(440px, 100%); display: grid; gap: 20px; padding: 40px 36px 36px; border-top: 3px solid var(--accent); box-shadow: var(--shadow-lg); }
+.signin-head h1 { font-size: 44px; line-height: 1.05; margin: 8px 0 0; }
+.signin-head .lede { font-size: 15px; margin-top: 12px; }
+.signin-field { display: grid; gap: 6px; }
+.signin-field label { font-weight: 600; color: var(--text-body); }
+.signin-field input {
+  width: 100%; height: 44px; padding: 0 14px; border-radius: var(--radius-md); border: 1px solid var(--border-strong);
+  background: var(--bg-elevated); color: var(--text-ink); font: 400 15px var(--font-sans);
+}
+.signin-field input::placeholder { color: var(--text-muted); }
+.signin-field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+.signin-error { margin: 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--no-tint); }
+.signin-submit { width: 100%; height: 46px; margin-top: 4px; }
 .auth-loading { padding: 24px; }
 
 /* the confirmation dialog */

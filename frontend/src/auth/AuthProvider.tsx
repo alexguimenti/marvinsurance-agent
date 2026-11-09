@@ -71,17 +71,23 @@ function SignIn({ message, onSignedIn }: { message: string | null; onSignedIn: (
 
   return (
     <main className="signin">
-      <form className="card pad signin-card" onSubmit={submit}>
-        <p className="eyebrow">MarvInsurance claims desk</p>
-        <h1>Sign in</h1>
-        <p className="lede">Handlers sign in with their work email. There is no sign-up: ask the head of claims operations for access.</p>
+      <form className="card signin-card" onSubmit={submit}>
+        <header className="signin-head">
+          <p className="eyebrow">MarvInsurance claims desk</p>
+          <h1>Sign in</h1>
+          <p className="lede">Use your work email. There is no sign-up: ask the head of claims operations for access.</p>
+        </header>
         {message && <p className="notice" role="status">{message}</p>}
-        {error && <p className="error" role="alert">{error}</p>}
-        <label htmlFor="signin-email">Email</label>
-        <input id="signin-email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <label htmlFor="signin-password">Password</label>
-        <input id="signin-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <button className="btn btn-primary" type="submit" disabled={busy}>Sign in</button>
+        {error && <p className="error signin-error" role="alert">{error}</p>}
+        <div className="signin-field">
+          <label htmlFor="signin-email">Email</label>
+          <input id="signin-email" type="email" autoComplete="username" placeholder="name@marvinsurance.example" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div className="signin-field">
+          <label htmlFor="signin-password">Password</label>
+          <input id="signin-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </div>
+        <button className="btn btn-primary signin-submit" type="submit" disabled={busy}>{busy ? 'Signing in' : 'Sign in'}</button>
       </form>
     </main>
   )

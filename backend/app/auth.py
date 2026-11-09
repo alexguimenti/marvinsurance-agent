@@ -1,6 +1,7 @@
 """Who is signed in. The dashboard signs a handler in with Supabase Auth and sends the session's access token with each
 action; this checks it against the project's public keys (no secret is needed: the project signs with asymmetric keys)
 and finds the handler by the token's email in data/handlers.json."""
+import logging
 from dataclasses import asdict, dataclass
 
 import jwt
@@ -13,6 +14,8 @@ from app.reference import Reference
 
 AUDIENCE = "authenticated"
 SIGNING_ALGORITHMS = ["ES256", "RS256"]  # asymmetric only: never a shared secret
+CLOCK_LEEWAY_S = 60  # Supabase's clock and this computer's can differ by seconds; a fresh token must not be refused for it
+log = logging.getLogger("uvicorn.error")
 
 
 class NotSignedIn(Exception):
@@ -45,7 +48,7 @@ def handler_from_token(token: str, ref: Reference, jwks) -> Handler:
         raise NotSignedIn("sign-in is not set up on this server")
     try:
         key = jwks.get_signing_key_from_jwt(token).key
-        claims = jwt.decode(token, key, algorithms=SIGNING_ALGORITHMS, audience=AUDIENCE)
+        claims = jwt.decode(token, key, algorithms=SIGNING_ALGORITHMS, audience=AUDIENCE, leeway=CLOCK_LEEWAY_S)
     except jwt.PyJWTError as exc:
         raise NotSignedIn(str(exc)) from exc
     email = str(claims.get("email", "")).lower()
@@ -64,7 +67,8 @@ def make_guards(ref: Reference, jwks):
             raise HTTPException(401, "sign in first")
         try:
             return handler_from_token(credentials.credentials, ref, jwks)
-        except NotSignedIn:
+        except NotSignedIn as exc:
+            log.warning("token refused: %s", exc)  # the reason stays in the log; the handler is only told to sign in again
             raise HTTPException(401, "your session is not valid: sign in again")
         except UnknownHandler as exc:
             raise HTTPException(403, str(exc))

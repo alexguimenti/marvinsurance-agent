@@ -42,7 +42,18 @@ def test_a_token_that_is_not_one_is_refused(mint, ref, bad):
 
 def test_an_expired_token_is_refused(mint, ref):
     with pytest.raises(NotSignedIn):
-        handler_from_token(mint.token(EMAILS["HND-01"], expires_in=-10), ref, mint)
+        handler_from_token(mint.token(EMAILS["HND-01"], expires_in=-600), ref, mint)  # past the clock leeway
+
+
+def test_a_token_from_a_clock_a_few_seconds_ahead_of_ours_is_accepted(mint, ref):
+    # Supabase's clock and this computer's can differ by seconds; a fresh token must not be refused for it
+    token = mint.token(EMAILS["HND-01"], issued_in=20)
+    assert handler_from_token(token, ref, mint).handler_id == "HND-01"
+
+
+def test_a_token_issued_well_in_the_future_is_refused(mint, ref):
+    with pytest.raises(NotSignedIn):
+        handler_from_token(mint.token(EMAILS["HND-01"], issued_in=600), ref, mint)
 
 
 def test_another_audience_is_refused(mint, ref):

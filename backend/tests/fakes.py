@@ -245,9 +245,10 @@ class TokenMint:
     def get_signing_key_from_jwt(self, token: str):
         return _types.SimpleNamespace(key=self.private.public_key())
 
-    def token(self, email: str, audience: str = "authenticated", expires_in: int = 3600) -> str:
+    def token(self, email: str, audience: str = "authenticated", expires_in: int = 3600, issued_in: int = 0) -> str:
+        """issued_in: seconds from now the token says it was issued; positive is a clock that runs ahead of ours."""
         now = int(_time.time())
-        claims = {"sub": "user-1", "email": email, "aud": audience, "iat": now, "exp": now + expires_in}
+        claims = {"sub": "user-1", "email": email, "aud": audience, "iat": now + issued_in, "exp": now + expires_in}
         return _jwt.encode(claims, self.private, algorithm="ES256")
 
     def header(self, handler_id: str = "HND-01", **kwargs) -> dict:
