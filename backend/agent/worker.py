@@ -201,6 +201,14 @@ def _fail(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, atte
     return f"{claim_id}: attempt {attempt} of {max_attempts} failed ({message}). Left for a handler."
 
 
+def _settle(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, attempt: int, max_attempts: int) -> str:
+    """A run of the graph that ended: the claim's outcome. Ending with no decision on record is a failed attempt, never a
+    claim to report: a thread cannot be carried on from an end, so the next attempt starts afresh."""
+    if api.claim_state(claim_id)["decision"] is None:
+        return _fail(env, claim_id, thread_id, run_id, attempt, max_attempts, ValueError("the saved progress ended with no decision"))
+    return _report(env, claim_id)
+
+
 def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, attempt: int, max_attempts: int, graph_input) -> str:
     """Run the graph until it ends or pauses, and settle what that means for the claim."""
     try:
@@ -221,7 +229,7 @@ def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, att
         message = f"{type(exc).__name__}: {exc}"
         api.add_step(claim_id, "error", {"message": f"{message}. The decision stands; the next run carries on from here."})
         return f"{claim_id}: an error after the decision ({message}). The next run carries it on."
-    return _report(env, claim_id)
+    return _settle(env, claim_id, thread_id, run_id, attempt, max_attempts)
 
 
 def work_claim(env: AgentEnv, claim_id: str, run_id: int | None = None, max_attempts: int = 2) -> str:
@@ -257,8 +265,8 @@ def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
             graph_input = {"claim_id": claim_id}
         elif state.next:
             graph_input = None
-        else:
-            return _report(env, claim_id)  # it had finished; only the last report was lost
+        else:  # the saved progress ended: if there is a decision only the last report was lost, and if not it is a failed attempt
+            return _settle(env, claim_id, thread_id, run_id, claim["attempts"] + 1, env.settings.agent_max_attempts)
         if run_id is not None:  # its steps are traced under the run carrying it on
             api.carry_on(claim_id, run_id)
         api.add_step(claim_id, "status", {"status": "in_progress", "note": "carried on"})

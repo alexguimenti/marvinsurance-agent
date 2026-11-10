@@ -400,3 +400,14 @@ def test_a_key_out_of_credit_is_not_the_claims_failure(env_for):
     row = claim(env)
     assert (row["status"], row["attempts"], row["last_error"]) == ("in_progress", 0, None)  # not left for a handler
     assert "credit" in line and env.out_of_credit.is_set()
+
+
+def test_saved_progress_that_ended_with_no_decision_fails_the_attempt_instead_of_crashing(env_for):
+    env, _ = env_for({CLAIM: [decline()]})
+    work_claim(env, CLAIM)  # the graph ends on its thread
+    raw(env).execute("DELETE FROM decisions WHERE claim_id = ?", (CLAIM,))  # the saved progress has an end the records do not
+    raw(env).execute("UPDATE claims SET status = 'in_progress' WHERE claim_id = ?", (CLAIM,))
+    line = carry_on(env, CLAIM)
+    assert line.startswith("CLM-1003: attempt 1 of 2 failed (ValueError: the saved progress ended with no decision)")
+    row = claim(env)
+    assert (row["status"], row["attempts"], row["thread_id"]) == ("waiting", 1, None)  # back in the queue, on a new thread next time
