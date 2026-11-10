@@ -13,6 +13,7 @@ from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
 from agent import api
 from agent.checkpoints import Checkpoints, make_checkpoints
 from agent.graph import build_claim_graph
+from agent.route import make_route
 from agent.tracing import flush_traces, trace_config, warm_up_tracing
 from app.config import Settings
 from app.reference import Reference
@@ -38,6 +39,7 @@ class AgentEnv:
     model_id: str | None
     improver_model: object | None = None  # a test's own, for the improver
     screen_model: object | None = None  # the security check's model: a test's stub, or the scripted one; None builds the real one
+    route: object | None = None  # a test's route to the tools; None reads the environment each time a graph is built
     clock: Callable[[], float] = time.monotonic  # a test can move it on without sleeping
     out_of_credit: threading.Event = field(default_factory=threading.Event)  # set by the first 402; a run stops starting claims
     _working: set = field(default_factory=set)
@@ -80,7 +82,7 @@ class AgentEnv:
         screen_model, screen_model_id = self.screen()
         return build_claim_graph(self.ref, self.model_for(config), self.effective(config)[0],
                                  self.settings.agent_max_model_calls, saver, config["instructions"],
-                                 screen_model, screen_model_id)
+                                 screen_model, screen_model_id, self.route or make_route())
 
     @contextmanager
     def claim_graph(self, run_id: int | None = None, config: dict | None = None) -> Iterator:
@@ -119,7 +121,8 @@ class AgentEnv:
 
 
 @contextmanager
-def open_env(settings: Settings, model=None, model_id: str | None = None, improver_model=None, screen_model=None) -> Iterator[AgentEnv]:
+def open_env(settings: Settings, model=None, model_id: str | None = None, improver_model=None, screen_model=None,
+             route=None) -> Iterator[AgentEnv]:
     """Everything the agent needs in a process: its connections, its checkpoints and its graph."""
     if model is None:
         if settings.agent_provider == "scripted":
@@ -131,7 +134,8 @@ def open_env(settings: Settings, model=None, model_id: str | None = None, improv
             model, model_id = None, None  # each configuration version builds its own model
     warm_up_tracing()
     with make_checkpoints(settings) as checkpoints:  # the one connection the agent keeps to the database
-        env = AgentEnv(Reference(settings.data_dir), settings, checkpoints, model, model_id, improver_model, screen_model)
+        env = AgentEnv(Reference(settings.data_dir), settings, checkpoints, model, model_id, improver_model, screen_model,
+                       route=route)
         try:
             yield env
         finally:

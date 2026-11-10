@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react'
-import { getTrace, type TraceEvent } from '../api'
-import { DOCUMENT_LABEL, describeUsage, formatUsd, humanize } from '../format'
+import { getTrace, type Source, type TraceEvent } from '../api'
+import { DOCUMENT_LABEL, describeLookup, describeUsage, formatUsd, humanize } from '../format'
 import { usePolling } from '../usePolling'
 
 const POLL_MS = 1000
@@ -33,7 +33,7 @@ function summarize(name: string, raw: string, data: any): string {
       return `${data.claim_id} · ${humanize(data.claim_type)} · ${formatUsd(data.amount_claimed)} claimed`
     case 'get_policy':
       return `${data.plan} plan · ${data.policy_id} · ${data.trip?.destination}`
-    case 'get_customer_history':
+    case 'get_claim_history':
       return `${data.name} · ${plural(data.previous_claims?.length ?? 0, 'earlier claim')}`
     case 'get_plan':
       return `${data.plan?.plan} plan limits${data.add_ons?.length ? ` + ${plural(data.add_ons.length, 'add-on')}` : ''}`
@@ -86,9 +86,11 @@ function describeCall(name: string, args: Record<string, any>): ReactNode {
   )
 }
 
+const REFUSER: Record<string, string> = { gateway: 'the Gateway', app: 'the app', context: 'the context layer' }
+
 function Row({ event }: { event: TraceEvent }) {
   const c = event.content as Record<string, any>
-  const label = event.kind.replace(/_/g, ' ')
+  const label = event.kind === 'refusal' ? `Refused by ${REFUSER[c.by] ?? c.by}` : event.kind.replace(/_/g, ' ')
   let body
   switch (event.kind) {
     case 'tool_result':
@@ -96,6 +98,54 @@ function Row({ event }: { event: TraceEvent }) {
       break
     case 'tool_call':
       body = <span className="body">{describeCall(c.name, c.args ?? {})}</span>
+      break
+    case 'lookup':
+      body = (
+        <span className="body">
+          <span>Looked up {describeLookup(c.tool, c.args ?? {})}</span> <span className="muted small">via {c.tool}</span>
+          {c.found && <span className="muted"> — {String(c.found)}</span>}
+          {((c.sources ?? []) as Source[]).map((s) => (
+            <span key={s.file} className="muted small source">
+              {`${s.file} · ${s.system} · ${s.owner} · ${s.reviewed}`}
+            </span>
+          ))}
+        </span>
+      )
+      break
+    case 'memory_search':
+      body = (
+        <span className="body">
+          <span>Searched memory for "{c.query}"</span>
+          {(c.found ?? []).length === 0 ? (
+            <span className="muted"> — nothing found</span>
+          ) : (
+            (c.found as string[]).map((f, i) => (
+              <span key={i} className="muted small source">
+                {f}
+              </span>
+            ))
+          )}
+        </span>
+      )
+      break
+    case 'memory_save':
+      body = (
+        <span className="body">
+          {c.error ? <span>Could not save to memory — {String(c.error)}</span> : <span>Saved to memory</span>}
+          {((c.saved ?? []) as string[]).map((f, i) => (
+            <span key={i} className="muted small source">
+              {f}
+            </span>
+          ))}
+        </span>
+      )
+      break
+    case 'refusal':
+      body = (
+        <span className="body">
+          <span className="muted small">{c.tool}</span> <span>{String(c.reason)}</span>
+        </span>
+      )
       break
     case 'status':
       body = (

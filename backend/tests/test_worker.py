@@ -34,6 +34,22 @@ def env_for(db_path, data_dir):
         cm.__exit__(None, None, None)
 
 
+def around_payment(monkeypatch, wrapper):
+    """Have every payment call go through wrapper(real, *args): the payment is the app's `pay_claim` operation, through
+    the route. `real(claim_id, amount)` makes it."""
+    from agent.direct import DirectRoute
+
+    real_app = DirectRoute.app
+
+    def app(self, operation, args):
+        if operation != "pay_claim":
+            return real_app(self, operation, args)
+        return wrapper(lambda claim_id, amount: real_app(self, operation, {"claim_id": claim_id, "amount": amount}),
+                       args["claim_id"], args["amount"])
+
+    monkeypatch.setattr(DirectRoute, "app", app)
+
+
 def raw(env):
     return RawDb(env.engine)
 
@@ -141,18 +157,15 @@ def test_carrying_on_a_finished_thread_reports_from_the_records(env_for):
 
 
 def test_error_after_the_decision_is_carried_on_not_retried(env_for, monkeypatch):
-    import agent.graph as graph_module
-
     env, model = env_for({CLAIM: [approve(420.0)]})
-    real = graph_module.api.pay_claim
     failures = [RuntimeError("the database went away")]
 
-    def flaky(*args):
+    def flaky(real, *args):
         if failures:
             raise failures.pop()
         return real(*args)
 
-    monkeypatch.setattr(graph_module.api, "pay_claim", flaky)
+    around_payment(monkeypatch, flaky)
     line = work_claim(env, CLAIM)
     row = claim(env)
     assert (row["status"], row["attempts"], row["thread_id"]) == ("in_progress", 0, "CLM-1003-1")
@@ -167,18 +180,15 @@ def test_error_after_the_decision_is_carried_on_not_retried(env_for, monkeypatch
 
 
 def test_repeated_decide_step_after_a_stop_counts_as_done(env_for, monkeypatch):
-    import agent.graph as graph_module
-
     env, _ = env_for({CLAIM: [approve(420.0)]})
-    real = graph_module.api.pay_claim
     stops = [Stopped()]
 
-    def stopping(*args):
+    def stopping(real, *args):
         if stops:
             raise stops.pop()
         return real(*args)
 
-    monkeypatch.setattr(graph_module.api, "pay_claim", stopping)
+    around_payment(monkeypatch, stopping)
     with pytest.raises(Stopped):
         work_claim(env, CLAIM)
     assert carry_on(env, CLAIM) == "CLM-1003: approve $420.00, paid"
@@ -186,7 +196,6 @@ def test_repeated_decide_step_after_a_stop_counts_as_done(env_for, monkeypatch):
 
 
 def test_a_sign_off_pays_and_an_agent_resumed_afterwards_makes_no_payment_call(env_for, monkeypatch):
-    import agent.graph as graph_module
     import agent.worker as worker_module
 
     env, model = env_for({CLAIM: [approve(2000.0)]})
@@ -198,8 +207,7 @@ def test_a_sign_off_pays_and_an_agent_resumed_afterwards_makes_no_payment_call(e
     payment = get_payment(env.engine, CLAIM)
     assert (payment.status, payment.approved_by) == ("paid", "HND-01") and payment.paid_at
     paid = []
-    real = graph_module.api.pay_claim
-    monkeypatch.setattr(graph_module.api, "pay_claim", lambda *args: paid.append(args) or real(*args))
+    around_payment(monkeypatch, lambda real, *args: paid.append(args) or real(*args))
     worker_module.invoke(env, CLAIM, "CLM-1003-1", None, None)  # the agent, resumed on its paused thread
     assert paid == [] and model.calls == calls and count(env, "payments") == 1
     assert carry_on(env, CLAIM).startswith("CLM-1003: not worked")

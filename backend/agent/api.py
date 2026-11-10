@@ -47,8 +47,9 @@ def record_decision(claim_id: str, decision: dict, model: str) -> dict:
     return call("POST", f"/api/claims/{claim_id}/decision", json={**decision, "model": model})
 
 
-def pay_claim(claim_id: str, amount: float) -> dict:
-    return call("POST", f"/api/claims/{claim_id}/pay", json={"amount": amount})
+def gateway_refused(claim_id: str) -> bool:
+    """The Gateway refused the claim's payment: put it on the approvals list. True the first time."""
+    return call("POST", f"/api/agent/claims/{claim_id}/gateway-refused")["first_time"]
 
 
 # --- the claim's own bookkeeping ----------------------------------------------------------------

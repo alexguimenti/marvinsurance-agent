@@ -61,8 +61,12 @@ class Usage:
         }
 
 
-def emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
-    """Trace one message of an agent: tool calls, tool results and plain text."""
+GATEWAY_REFUSAL = "Error: refused by the Gateway: "
+
+
+def emit_message(message, on_event: Emit, calls: dict[str, dict], shown: Callable[[str], str] = lambda name: name) -> None:
+    """Trace one message of an agent: tool calls, tool results, refusals and plain text. `shown` gives a tool the name
+    a handler sees for it: the Gateway's on the Gateway route."""
     if isinstance(message, AIMessage):
         for call in message.tool_calls:
             calls[call["id"]] = call["args"]
@@ -72,6 +76,13 @@ def emit_message(message, on_event: Emit, calls: dict[str, dict]) -> None:
             on_event("message", {"text": str(message.content)})
     elif isinstance(message, ToolMessage):
         content = str(message.content)
+        if getattr(message, "status", "success") == "error":  # the app, the context layer or the Gateway said no
+            from agent.operations import CONTEXT_TOOLS
+
+            by = "gateway" if content.startswith(GATEWAY_REFUSAL) else "context" if message.name in CONTEXT_TOOLS else "app"
+            reason = content.removeprefix(GATEWAY_REFUSAL).removeprefix("Error: ")
+            on_event("refusal", {"by": by, "tool": shown(message.name), "reason": reason})
+            return
         if message.name == "save_decision" and not content.startswith("Error:"):
             return
         if message.name == "read_section" and not content.startswith(("Error:", "You already read")):

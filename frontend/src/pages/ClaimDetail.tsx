@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getClaim, type ClaimDetailData } from '../api'
 import StatusBadge from '../components/StatusBadge'
-import { DOCUMENT_LABEL, describeUsage, formatTime, formatUsd, humanize, stampFor } from '../format'
+import { capitalize, describeLookup, describeUsage, formatTime, formatUsd, humanize, stampFor } from '../format'
 import { usePolling } from '../usePolling'
 import Trace from './Trace'
 import PageHeader from '../components/PageHeader'
@@ -58,7 +58,10 @@ export default function ClaimDetail() {
 
       {data.status === 'awaiting_approval' && payment && !data.copy_of && (
         <div className="notice">
-          Held for approval: the payout of {formatUsd(payment.amount)} is above the $1,000 limit and waits for a handler.{' '}
+          Held for approval:{' '}
+          {payment.hold_reason === 'gateway_refused'
+            ? `the Gateway refused the payment of ${formatUsd(payment.amount)}, so it waits for a handler.`
+            : `the payout of ${formatUsd(payment.amount)} is above the $1,000 limit and waits for a handler.`}{' '}
           <Link to="/approvals">Go to approvals</Link>
         </div>
       )}
@@ -139,10 +142,10 @@ export default function ClaimDetail() {
                 </div>
                 <p>{decision.rationale}</p>
                 {decision.citations.length > 0 && <p className="muted small">{decision.citations.join(' · ')}</p>}
-                {decision.calculation.length > 0 && (
+                {decision.calculation && decision.calculation.lines.length > 0 && (
                   <table className="calc">
                     <tbody>
-                      {decision.calculation.map((s, i) => (
+                      {decision.calculation.lines.map((s, i) => (
                         <tr key={i}>
                           <td>{s.step}</td>
                           <td className="num mono">{formatUsd(s.amount)}</td>
@@ -150,12 +153,21 @@ export default function ClaimDetail() {
                       ))}
                       <tr className="total">
                         <td>Payout</td>
-                        <td className="num mono">{formatUsd(decision.payout)}</td>
+                        <td className="num mono">{formatUsd(decision.calculation.payout)}</td>
                       </tr>
                     </tbody>
                   </table>
                 )}
-                <p className="muted small">Decided by {decision.model}</p>
+                <p className="muted small">
+                  Decided by {decision.decided_by ?? decision.model}
+                  {decision.decided_at && <> on {formatTime(decision.decided_at)}</>}
+                </p>
+                {decision.signed_off_by && (
+                  <p className="muted small">
+                    Signed off by {decision.signed_off_by}
+                    {decision.signed_off_at && <> on {formatTime(decision.signed_off_at)}</>}
+                  </p>
+                )}
                 {decision.manual_version && (
                   <p className="muted small">
                     Claims manual {decision.manual_version} · policy wording {decision.wording_version}
@@ -170,16 +182,22 @@ export default function ClaimDetail() {
             )}
           </div>
 
-          {data.read && data.read.length > 0 && (
+          {data.context_used && data.context_used.length > 0 && (
             <div className="card pad">
-              <h3>What the agent read</h3>
-              <ol className="read-list">
-                {data.read.map((r) => (
-                  <li key={`${r.document}-${r.section}`}>
-                    {DOCUMENT_LABEL[r.document] ?? r.document}, section {r.section}: {r.title}
-                  </li>
-                ))}
-              </ol>
+              <h3>Context used</h3>
+              {data.context_used.map((file) => (
+                <div key={file.file} className="context-file">
+                  <p className="mono small">{file.file}</p>
+                  <p className="muted small">
+                    {file.system} · {file.owner} · reviewed {file.reviewed}
+                  </p>
+                  <ul className="read-list">
+                    {file.lookups.map((l, i) => (
+                      <li key={i}>{capitalize(describeLookup(l.tool, l.args))}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           )}
 

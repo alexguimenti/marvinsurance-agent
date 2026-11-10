@@ -95,13 +95,14 @@ def needs_sign_off(engine: Engine, ref: Reference, claim_id: str) -> bool:
     return row is not None and row[0] == "approve" and row[1] > _limit_of(row[3], ref) and row[2] is None
 
 
-def hold_for_sign_off(engine: Engine, ref: Reference, claim_id: str) -> dict:
-    """Put the payout on the approvals list, once, and return the claim. A signed-off payment stays as it is."""
+def hold_for_sign_off(engine: Engine, ref: Reference, claim_id: str, reason: str = "over_limit") -> dict:
+    """Put the payout on the approvals list, once, and return the claim. A signed-off payment stays as it is.
+    `reason` says why it waits: over_limit, or gateway_refused."""
     with engine.begin() as conn:
         amount = conn.execute(select(decisions.c.payout).where(decisions.c.claim_id == claim_id)).scalar_one()
         conn.execute(
             insert_or_ignore(conn, payments),
-            {"payment_id": f"PAY-{claim_id}", "claim_id": claim_id, "amount": amount, "status": "held"},
+            {"payment_id": f"PAY-{claim_id}", "claim_id": claim_id, "amount": amount, "status": "held", "hold_reason": reason},
         )
         status = conn.execute(select(payments.c.status).where(payments.c.claim_id == claim_id)).scalar_one()
         if status == "held":
@@ -110,6 +111,23 @@ def hold_for_sign_off(engine: Engine, ref: Reference, claim_id: str) -> dict:
                 .values(status="awaiting_approval")
             )
     return get_claim(engine, claim_id)
+
+
+def hold_after_gateway_refusal(engine: Engine, ref: Reference, claim_id: str) -> bool:
+    """The Gateway refused this claim's payment: wait for a handler's sign-off, as an approval over the limit does.
+    Only an approved claim in progress, or one already waiting this way, with no payment made. Returns whether this
+    call put it on hold; anything else is a ValueError."""
+    from app.payments import get_payment  # payments imports this module
+
+    state = get_claim(engine, claim_id)
+    decision, payment = state["decision"], get_payment(engine, claim_id)
+    if (decision or {}).get("decision") != "approve" or state["status"] not in ("in_progress", "awaiting_approval"):
+        raise ValueError(f"{claim_id} is not an approved claim waiting for its payment")
+    if payment is not None and payment.status != "held":
+        raise ValueError(f"{claim_id} is already paid")
+    first_time = payment is None
+    hold_for_sign_off(engine, ref, claim_id, "gateway_refused")
+    return first_time
 
 
 # --- what the agent's worker did to the claim itself, now the backend's -------------------------------

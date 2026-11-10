@@ -244,11 +244,9 @@ class ScreenStub:
 
 
 @contextmanager
-def agent_env(db_path: str, data_dir: str, model, improver_model=None, screen_model=None, **settings):
-    """A real AgentEnv, with its checkpoints on disk, around a stub model, and the backend it records through, in
-    this process. `env.engine` looks at the records the backend keeps: the agent has no engine of its own."""
+def running_backend(db_path: str, data_dir: str, **settings):
+    """The backend on a fresh database, in this process, with the agent's connection pointed at it."""
     from agent import connection
-    from agent.worker import open_env
     from app.api import create_app
 
     config = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir, **settings)
@@ -257,13 +255,85 @@ def agent_env(db_path: str, data_dir: str, model, improver_model=None, screen_mo
     seed_claims(engine, Reference(data_dir))
     engine.dispose()
     with api_client(create_app(config, jwks=MINT)) as backend, connection.use(backend):
+        yield config
+
+
+def context_answer(tool: str, args: dict) -> str:
+    """What the context layer answers, in this process, from the real files: the JSON of a tool's answer. Something it
+    cannot find is a ToolRefused, as the server's refusal is."""
+    import json
+
+    from agent.mcp_bridge import ToolRefused
+    from context import tools
+
+    try:
+        return json.dumps(getattr(tools, tool)(**args))
+    except ValueError as exc:
+        raise ToolRefused(str(exc)) from exc
+
+
+def in_process_context(url, name, args, auth=None) -> str:
+    """The `call` of a DirectRoute whose context layer is in this process."""
+    return context_answer(name, args)
+
+
+def direct_route():
+    """The direct route with the context layer answering in this process: tests never reach a server."""
+    from agent.direct import DirectRoute
+
+    return DirectRoute(call=in_process_context)
+
+
+@contextmanager
+def agent_env(db_path: str, data_dir: str, model, improver_model=None, screen_model=None, route=None, **settings):
+    """A real AgentEnv, with its checkpoints on disk, around a stub model, and the backend it records through, in
+    this process. `env.engine` looks at the records the backend keeps: the agent has no engine of its own."""
+    from agent.worker import open_env
+
+    with running_backend(db_path, data_dir, **settings) as config:
         with open_env(config, model=model, model_id="stub/model", improver_model=improver_model,
-                      screen_model=screen_model or ScreenStub()) as env:
+                      screen_model=screen_model or ScreenStub(), route=route or direct_route()) as env:
             env.engine = make_engine(config, max_connections=2)
             try:
                 yield env
             finally:
                 env.engine.dispose()
+
+
+class StandInGateway:
+    """The Gateway with no network: the `call` a GatewayRoute is given. It names its tools `<target>___<operation>`,
+    sends the app's to the test backend with the key as the real Gateway does, and refuses what its Policy refuses:
+    any payment over $1,000, and the names in `deny`, once each (as an MCP error, as the real one does).
+    `context` answers the context layer's tools."""
+
+    def __init__(self, deny=(), context=None):
+        self.names, self.deny, self.context = [], list(deny), context or context_answer
+
+    def __call__(self, url, name, args, auth=None) -> str:
+        import json
+
+        from mcp.shared.exceptions import McpError
+        from mcp.types import ErrorData
+
+        from agent import connection
+        from agent.mcp_bridge import ToolRefused
+        from agent.route import APP_REQUESTS, request_parts
+
+        self.names.append(name)
+        denied = name in self.deny or (name.endswith("___pay_claim") and args.get("amount", 0) > 1000)
+        if denied:
+            if name in self.deny:
+                self.deny.remove(name)
+            raise McpError(ErrorData(code=-32002, message=f"Tool Execution Denied: the Policy does not permit {name}"))
+        target, _, operation = name.partition("___")
+        if target == "undercover-context":
+            return self.context(operation, args)
+        assert target == "undercover-app" and operation in APP_REQUESTS, name
+        method, path, body = request_parts(operation, args)
+        try:
+            return json.dumps(connection.call(method, path, json=body))
+        except (LookupError, connection.Refused) as exc:
+            raise ToolRefused(str(exc)) from exc
 
 
 def stopped_claims(engine) -> list[str]:

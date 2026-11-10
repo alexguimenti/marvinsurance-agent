@@ -27,6 +27,10 @@ def operations(doc):
     return {op["operationId"]: (path, method, op) for path, ops in doc["paths"].items() for method, op in ops.items()}
 
 
+def test_the_gateway_refusal_bookkeeping_stays_off_the_gateway(client):
+    assert "hold_after_gateway_refusal" not in set(operations(document(client)))
+
+
 def test_the_document_has_exactly_the_eight_operations_and_no_servers(client):
     doc = document(client)
     assert set(operations(doc)) == EIGHT == set(GATEWAY_OPERATIONS)

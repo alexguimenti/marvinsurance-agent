@@ -12,6 +12,7 @@ const held = {
   customer_name: 'Tom Becker',
   claim_type: 'emergency_medical',
   rationale: 'Covered by section 7.',
+  hold_reason: 'over_limit',
 }
 
 describe('Approvals', () => {
@@ -54,5 +55,13 @@ describe('Approvals', () => {
     expect(await screen.findByText('CLM-1003')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /approve payment/i })).not.toBeInTheDocument()
     expect(screen.getByText(/can't sign off payouts over the limit/i)).toBeInTheDocument()
+  })
+
+  it('says why a payment waits: over the approval limit, or refused by the Gateway', async () => {
+    mockApi({ '/api/approvals': [held, { ...held, payment_id: 'PAY-CLM-1004', claim_id: 'CLM-1004', hold_reason: 'gateway_refused' }] })
+    renderAt(<Approvals />, '/approvals')
+    expect(await screen.findByText('CLM-1004')).toBeInTheDocument()
+    expect(screen.getByText('Over the approval limit')).toBeInTheDocument()
+    expect(screen.getByText('The Gateway refused this payment')).toBeInTheDocument()
   })
 })

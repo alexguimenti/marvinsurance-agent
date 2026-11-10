@@ -9,10 +9,11 @@ from app.config import Settings
 from tests.fakes import MINT, api_client, connect
 from app.reference import Reference
 from app.seed import seed_claims
+from agent.direct import DirectRoute
 from agent.tools import build_tools
 
 EXPECTED = {
-    "get_claim", "get_policy", "get_customer_history", "get_plan",
+    "get_claim", "get_policy", "get_claim_history", "get_plan",
     "list_sections", "read_section", "search_documents",
     "lookup_knowledge", "calculate_payout", "save_decision",
 }
@@ -50,7 +51,7 @@ class Bound:
 
 
 def tools_for(conn, ref, claim_id="CLM-1001"):
-    return {t.name: Bound(t, claim_id) for t in build_tools()}
+    return {t.name: Bound(t, claim_id) for t in build_tools(DirectRoute())}
 
 
 def test_tools_offer_lookups_not_whole_wording(conn, ref):
@@ -58,7 +59,7 @@ def test_tools_offer_lookups_not_whole_wording(conn, ref):
 
 
 def test_tools_expose_no_file_or_eval_access(conn, ref):
-    for t in build_tools():
+    for t in build_tools(DirectRoute()):
         offered_to_the_model = set(t.tool_call_schema.model_fields)
         assert not offered_to_the_model & {"path", "file", "filename", "claim_id", "messages", "proposal"}, t.name
 
@@ -69,7 +70,7 @@ def test_get_claim_returns_only_bound_claim(conn, ref):
 
 
 def test_customer_history_has_no_contact_or_birth_data(conn, ref):
-    raw = tools_for(conn, ref)["get_customer_history"].invoke({})
+    raw = tools_for(conn, ref)["get_claim_history"].invoke({})
     data = json.loads(raw)
     assert data["name"] == "Maya Patel"
     assert "previous_claims" in data and "customer_since" in data

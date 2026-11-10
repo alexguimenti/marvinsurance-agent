@@ -84,6 +84,7 @@ payments = Table(
     Column("amount", Float, nullable=False),
     Column("status", Text, nullable=False),
     Column("approved_by", Text),
+    Column("hold_reason", Text),  # why it waits for a sign-off: over_limit, or gateway_refused
     _timestamp("approved_at", default=False),
     _timestamp("paid_at", default=False),
     _timestamp("created_at"),

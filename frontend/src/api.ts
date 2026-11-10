@@ -17,15 +17,38 @@ export interface CalcStep {
   amount: number
 }
 
+/** How an approval's payout was worked out, line by line, as the payout rules gave it. None for a decline or a referral. */
+export interface Calculation {
+  lines: CalcStep[]
+  payout: number
+}
+
 export interface Decision {
   decision: 'approve' | 'decline' | 'refer'
   payout: number
-  calculation: CalcStep[]
+  calculation: Calculation | null
   rationale: string
   citations: string[]
   model: string
+  decided_by?: string
+  decided_at?: string
   manual_version?: string | null
   wording_version?: string | null
+  signed_off_by?: string | null
+  signed_off_at?: string | null
+}
+
+/** A context file's source: its system, owner and when it was last reviewed. */
+export interface Source {
+  file: string
+  system: string
+  owner: string
+  reviewed: string
+}
+
+/** What the agent looked up in one file of the context layer, each lookup once. */
+export interface ContextUsed extends Source {
+  lookups: { tool: string; args: Record<string, unknown> }[]
 }
 
 export interface Payment {
@@ -37,6 +60,8 @@ export interface Payment {
   approved_by_name?: string | null
   approved_at?: string | null
   paid_at?: string | null
+  /** Why a held payment waits: it is over the approval limit, or the Gateway refused it. */
+  hold_reason?: 'over_limit' | 'gateway_refused' | null
 }
 
 export interface ClaimDetailData {
@@ -60,15 +85,9 @@ export interface ClaimDetailData {
   usage: Usage | null
   attempts: number
   last_error: string | null
-  read: ReadSection[]
+  context_used: ContextUsed[]
   copy_of?: string | null // set on an evaluation's copy: the claim it copies
   evaluation_id?: number | null
-}
-
-export interface ReadSection {
-  document: 'policy_wording' | 'claims_manual'
-  section: number
-  title: string
 }
 
 export interface Run {
@@ -140,6 +159,7 @@ export interface Approval {
   customer_name: string
   claim_type: string
   rationale: string | null
+  hold_reason: 'over_limit' | 'gateway_refused' | null
 }
 
 /** The signed-in handler, as the backend names them from the sign-in's email. */

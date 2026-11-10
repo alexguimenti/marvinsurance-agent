@@ -21,8 +21,11 @@ from pydantic import BaseModel, Field
 
 from agent import api
 from agent.connection import Refused
-from agent.events import Usage, call_usage, emit_message, rationale_warnings
+from agent.events import GATEWAY_REFUSAL, Usage, call_usage, emit_message, rationale_warnings
+from agent.gateway import GatewayRefused
+from agent.mcp_bridge import ToolRefused
 from agent.prompts import claim_prompt
+from agent.route import Route
 from agent.screening import screen_claim
 from agent.tools import NOT_OFFERED, PREFETCHED, build_tools, claim_data
 from app.reference import Reference
@@ -42,12 +45,20 @@ class ClaimState(BaseModel):
 
 
 def _tool_refused(error: Exception) -> str:
-    return f"Error: {error}"
+    """What the model is shown when a tool is refused: the reason, and whose refusal it was when it is the Gateway's."""
+    return f"{GATEWAY_REFUSAL}{error}" if isinstance(error, GatewayRefused) else f"Error: {error}"
+
+
+def _needs_a_handler(exc: Exception) -> bool:
+    """The app refused a payment over the limit as the limit stands now, or one that needs a sign-off."""
+    if isinstance(exc, Refused):
+        return exc.status_code == 403
+    return isinstance(exc, ToolRefused) and ("approval limit" in str(exc) or "sign-off" in str(exc))
 
 
 def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int, checkpointer, instructions: str,
-                      screen_model, screen_model_id: str):
-    tools = build_tools()
+                      screen_model, screen_model_id: str, route: Route):
+    tools = build_tools(route)
     by_name = {t.name: t for t in tools}
     offered = [t for t in tools if t.name not in NOT_OFFERED]
     # One tool call per turn: two save_decision calls in the same step would both write the proposal
@@ -80,7 +91,7 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         def fetch(name: str) -> str:
             try:
                 return by_name[name].invoke({"claim_id": state.claim_id})
-            except LookupError as exc:  # a fact that is missing is reported, as a tool call would report it
+            except (LookupError, ToolRefused, GatewayRefused) as exc:  # a fact that is missing is reported, as a tool call would
                 return f"Error: {exc}"
 
         call = AIMessage(content="", tool_calls=[{"name": n, "args": {}, "id": f"prefetch-{n}"} for n in PREFETCHED])
@@ -113,7 +124,7 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
                 break
             turn.insert(0, message)
         for message in turn:
-            emit_message(message, recorder(state.claim_id), calls)
+            emit_message(message, recorder(state.claim_id), calls, route.shown_name)
         return {}
 
     def decide(state: ClaimState) -> dict:
@@ -134,23 +145,27 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         resume, so an early resume finds the claim still unsigned and waits again. Waiting and paying are one step on
         purpose: saving a step in between would be several more trips to the backend for a handler to wait through."""
         claim_id = state.claim_id
+        trace = recorder(claim_id)
         current = api.claim_state(claim_id)
         if (current["payment"] or {}).get("status") == "paid":
             return {}
         if not current["needs_sign_off"]:
             try:
-                paid_now = api.pay_claim(claim_id, state.decision["payout"])["paid_now"]
-            except Refused as exc:
-                if exc.status_code != 403:  # over the limit, as the limit stands now: a handler decides
+                paid_now = route.app("pay_claim", {"claim_id": claim_id, "amount": state.decision["payout"]})["paid_now"]
+            except GatewayRefused as exc:  # the Policy refused it, which can happen only when the limit was raised above it
+                trace("refusal", {"by": "gateway", "tool": route.shown_name("pay_claim"), "reason": str(exc)})
+                if api.gateway_refused(claim_id):
+                    trace("status", {"status": "awaiting_approval"})
+            except (Refused, ToolRefused) as exc:
+                if not _needs_a_handler(exc):  # over the limit, as the limit stands now: a handler decides
                     raise
             else:
                 if paid_now:
                     payment = api.claim_state(claim_id)["payment"]
-                    recorder(claim_id)("status", {"status": "paid", "amount": payment["amount"],
-                                                   "approved_by": payment["approved_by"]})
+                    trace("status", {"status": "paid", "amount": payment["amount"], "approved_by": payment["approved_by"]})
                 return {}
         if api.hold(claim_id):
-            recorder(claim_id)("status", {"status": "awaiting_approval"})
+            trace("status", {"status": "awaiting_approval"})
         while (api.claim_state(claim_id)["payment"] or {}).get("status") != "paid":
             interrupt({"claim_id": claim_id, "payout": state.decision["payout"], "waiting_for": "sign-off"})
         return {}

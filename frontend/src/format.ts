@@ -29,6 +29,35 @@ export const DOCUMENT_LABEL: Record<string, string> = {
   claims_manual: 'Claims manual',
 }
 
+/** A tool's own name: the Gateway names a tool `<target>___<operation>`. */
+export const baseTool = (name: string) => name.split('___').pop() ?? name
+
+/** What a lookup in the context layer was for, in words. */
+export function describeLookup(tool: string, args: Record<string, unknown>): string {
+  switch (baseTool(tool)) {
+    case 'lookup_term':
+      return `the term "${args.term}"`
+    case 'describe_fields':
+      return `the fields of a ${humanize(String(args.record))}`
+    case 'get_plan':
+      return `the ${args.plan} plan`
+    case 'get_claim_rules':
+      return 'the claim rules'
+    case 'search_reference_data':
+      return `the reference data for "${args.query}"`
+    case 'search_documents':
+      return `the documents for "${args.query}"`
+    case 'read_section': {
+      const document = String(args.document)
+      return `${(DOCUMENT_LABEL[document] ?? document).toLowerCase()}, section ${args.number ?? args.section}`
+    }
+    default:
+      return `${tool} ${JSON.stringify(args)}`
+  }
+}
+
+export const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
 export const DECISION_LABEL: Record<string, string> = {
   approve: 'Approve',
   decline: 'Decline',

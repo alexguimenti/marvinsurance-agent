@@ -59,6 +59,7 @@ export default function Approvals() {
                 <th>Claim</th>
                 <th>Customer</th>
                 <th>Type</th>
+                <th>Why it waits</th>
                 <th>Rationale</th>
                 <th className="num">Amount</th>
                 <th />
@@ -74,6 +75,7 @@ export default function Approvals() {
                   </td>
                   <td>{a.customer_name}</td>
                   <td>{humanize(a.claim_type)}</td>
+                  <td className="small">{a.hold_reason === 'gateway_refused' ? 'The Gateway refused this payment' : 'Over the approval limit'}</td>
                   <td className="small">{a.rationale}</td>
                   <td className="num mono amount">{formatUsd(a.amount)}</td>
                   <td className="num">

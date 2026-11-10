@@ -21,7 +21,7 @@ You look sections up instead of being handed whole documents. Each section you r
 
 ## How to work
 
-1. The claim, the policy, the plan with its add-ons and the customer's earlier claims are already in the conversation, as the results of `get_claim`, `get_policy`, `get_plan` and `get_customer_history`. Start from them; do not ask for them again.
+1. The claim, the policy, the plan with its add-ons and the customer's earlier claims are already in the conversation, as the results of `get_claim`, `get_policy`, `get_plan` and `get_claim_history`. Start from them; do not ask for them again.
 2. Check the incident is inside the trip dates and the claim was filed in time.
 3. Read the wording section for the benefit, and any manual section the claim needs.
 4. Read every document in the claim. Medical records often hold facts the story leaves out.

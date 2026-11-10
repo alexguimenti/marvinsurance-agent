@@ -137,3 +137,62 @@ def test_a_review_is_recorded_for_the_handler_with_the_key(db_path, data_dir, mo
         assert decided["decided_by"] == "HND-01" and decided["version"] == 2
         with pytest.raises(LookupError):  # the name must be a handler's
             improver_api.start_round("HND-99")
+
+
+# --- the Gateway refused a payment: the app's bookkeeping for it ---------------------------------
+
+@pytest.fixture
+def backend(db_path, data_dir):
+    from app.api import create_app
+    from app.config import Settings
+    from tests.fakes import MINT, api_client
+
+    settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
+    with api_client(create_app(settings, jwks=MINT)) as client:
+        yield client
+
+
+KEY = {"X-API-Key": TEST_KEY}
+
+
+def decided(client, claim_id: str, decision: str, payout: float):
+    client.post(f"/agent/claims/{claim_id}/take", json={"run_id": None}, headers=KEY)
+    body = {"decision": decision, "payout": payout, "calculation": [], "rationale": "Because. Section 9.",
+            "citations": ["x"], "model": "m"}
+    assert client.post(f"/claims/{claim_id}/decision", json=body, headers=KEY).status_code == 200
+
+
+def test_gateway_refused_puts_an_approved_claim_in_progress_on_hold_with_its_reason(backend):
+    decided(backend, CLAIM, "approve", 2000.0)
+    first = backend.post(f"/agent/claims/{CLAIM}/gateway-refused", headers=KEY)
+    again = backend.post(f"/agent/claims/{CLAIM}/gateway-refused", headers=KEY)
+    assert first.json() == {"first_time": True} and again.json() == {"first_time": False}
+    detail = backend.get(f"/claims/{CLAIM}", headers=KEY).json()
+    assert detail["status"] == "awaiting_approval" and detail["payment"]["hold_reason"] == "gateway_refused"
+
+
+def test_gateway_refused_moves_nothing_else(backend):
+    decided(backend, "CLM-1001", "decline", 0.0)
+    assert backend.post("/agent/claims/CLM-1001/gateway-refused", headers=KEY).status_code == 409  # no approval to pay
+    assert backend.post("/agent/claims/CLM-1002/gateway-refused", headers=KEY).status_code == 409  # a waiting claim
+    assert backend.post("/agent/claims/CLM-0000/gateway-refused", headers=KEY).status_code == 404
+    decided(backend, CLAIM, "approve", 420.0)
+    assert backend.post(f"/claims/{CLAIM}/pay", json={"amount": 420.0}, headers=KEY).status_code == 200
+    assert backend.post(f"/agent/claims/{CLAIM}/gateway-refused", headers=KEY).status_code == 409  # already paid
+
+
+def test_only_the_agents_key_can_ask_for_it(backend):
+    assert backend.post(f"/agent/claims/{CLAIM}/gateway-refused").status_code == 401
+    assert backend.post(f"/agent/claims/{CLAIM}/gateway-refused", headers=MINT_HEADER()).status_code in (401, 403)
+
+
+def MINT_HEADER():
+    from tests.fakes import MINT
+
+    return MINT.header()
+
+
+def test_an_approval_over_the_limit_is_held_for_that_reason(backend):
+    decided(backend, CLAIM, "approve", 2000.0)
+    backend.post(f"/agent/claims/{CLAIM}/hold", headers=KEY)
+    assert backend.get(f"/claims/{CLAIM}", headers=KEY).json()["payment"]["hold_reason"] == "over_limit"

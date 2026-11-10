@@ -1,5 +1,5 @@
-// Start everything: `npm run dev` from the repo root. The backend, the agent's service and the dashboard, with .env
-// in their environment. Ctrl-C stops all three, and if one dies the others stop too.
+// Start everything: `npm run dev` from the repo root. The backend, the context layer, the agent's service and the dashboard,
+// with .env in their environment. Ctrl-C stops all of them, and if one dies the others stop too.
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -19,6 +19,8 @@ const parts = [
     args: [...uvicorn, 'app.main:app', '--port', '8000', '--reload', '--reload-dir', 'app'],
   },
   // no --reload: a reload would stop the claim it is working on
+  // the context layer: definitions, plans, rules, reference data and documents, for the claim agent's tools
+  { name: 'context', cwd: 'backend', command: python, args: ['-m', 'context'] },
   { name: 'agent', cwd: 'backend', command: python, args: [...uvicorn, 'agent.service:app', '--port', '8002'] },
   { name: 'dashboard', cwd: 'frontend', command: 'npm', args: ['run', 'dev', '--', '--host', '127.0.0.1', '--strictPort'], shell: windows },
 ]

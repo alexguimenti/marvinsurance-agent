@@ -156,6 +156,15 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
         claim_records.hold_for_sign_off(engine, ref, claim_id)
         return {"first_time": first_time}
 
+    @router.post("/claims/{claim_id}/gateway-refused", operation_id="hold_after_gateway_refusal")
+    def gateway_refused(claim_id: str):
+        """Hold an approved claim's payout for a handler's sign-off, because the Gateway refused the payment."""
+        known(claim_id)
+        try:
+            return {"first_time": claim_records.hold_after_gateway_refusal(engine, ref, claim_id)}
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+
     @router.post("/claims/{claim_id}/take", operation_id="take_claim")
     def take(claim_id: str, body: Take):
         """Take a waiting claim for a new attempt."""

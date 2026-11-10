@@ -462,3 +462,12 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 .pill-tone-neutral { background: var(--bg-muted); color: var(--text-body); }
 .state { padding: 16px 0; }
 .state-error { display: flex; align-items: center; gap: 12px; }
+
+/* the context layer's steps: what was looked up and where it came from, and the refusals that stand out */
+.trace .source { display: block; margin-top: 2px; font-family: var(--font-mono); }
+.context-file { margin-bottom: 14px; }
+.context-file p { margin: 0 0 4px; }
+.trace-refusal::before { border-color: var(--no) !important; background: var(--no) !important; }
+.trace .trace-refusal { margin: 6px 0 6px -12px; padding: 10px 16px 10px 12px; background: var(--no-tint); border-radius: var(--radius-md); }
+.trace .trace-refusal .kind, .trace .trace-refusal .body { color: var(--no); }
+.trace .trace-refusal::before { left: -14px; top: 17px; }

@@ -9,6 +9,7 @@ from langgraph.types import Command
 from pydantic import BaseModel
 
 from agent import api
+from agent.route import Route
 from app.documents import DOCUMENTS
 
 # Each section read goes back to the model on every later step, so reading costs grow fast.
@@ -17,7 +18,7 @@ DECISIONS = ("approve", "decline", "refer")
 
 # Facts every claim needs. They are handed to the agent as the results of tool calls it did not have to
 # make, which saves a model round trip each and keeps customer text inside tool results.
-PREFETCHED = ("get_claim", "get_policy", "get_plan", "get_customer_history")
+PREFETCHED = ("get_claim", "get_policy", "get_plan", "get_claim_history")
 NOT_OFFERED = (*PREFETCHED, "list_sections")
 
 ClaimId = Annotated[str, InjectedState("claim_id")]
@@ -51,24 +52,24 @@ def sections_read(messages: list) -> set[tuple[str, int]]:
     }
 
 
-def build_tools() -> list[BaseTool]:
-    """Tools over the backend's operations. None of them takes a path, and none pays."""
+def build_tools(route: Route) -> list[BaseTool]:
+    """Tools over the app's operations, on whichever route is in use. None of them takes a path, and none pays."""
     unknown = f"Documents: {', '.join(DOCUMENTS)}."
 
     @tool
     def get_claim(claim_id: ClaimId) -> str:
         """Get the claim: the customer's story, the items claimed and the supporting documents."""
-        return claim_data(api.get_claim(claim_id))
+        return claim_data(route.app("get_claim", {"claim_id": claim_id})["claim"])
 
     @tool
     def get_policy(claim_id: ClaimId) -> str:
         """Get the policy for the trip: plan, add-ons, purchase date, trip dates and travelers."""
-        return json.dumps(api.get_policy(claim_id))
+        return json.dumps(route.app("get_policy", {"claim_id": claim_id}))
 
     @tool
-    def get_customer_history(claim_id: ClaimId) -> str:
+    def get_claim_history(claim_id: ClaimId) -> str:
         """Get the customer's name, customer-since date and earlier claims."""
-        return json.dumps(api.get_claim_history(claim_id))
+        return json.dumps(route.app("get_claim_history", {"claim_id": claim_id}))
 
     @tool
     def get_plan(claim_id: ClaimId) -> str:
@@ -118,7 +119,7 @@ def build_tools() -> list[BaseTool]:
         """Work out the payout (wording section 10). Give every input: each item with the per-item limit
         that applies to it (null when none), 0 where nothing was paid or no deductible applies, and the
         benefit maximum (null when none)."""
-        return json.dumps(api.calculate_payout({
+        return json.dumps(route.app("calculate_payout", {
             "items": [i.model_dump() if isinstance(i, BaseModel) else dict(i) for i in items],
             "third_party_paid": third_party_paid, "deductible": deductible, "benefit_max": benefit_max,
         }))
@@ -141,7 +142,7 @@ def build_tools() -> list[BaseTool]:
         naming the section of the wording relied on. citations are the places you relied on."""
         if decision not in DECISIONS:
             return f"Error: decision must be one of {', '.join(DECISIONS)}."
-        amount_claimed = api.get_claim(claim_id)["amount_claimed"]
+        amount_claimed = route.app("get_claim", {"claim_id": claim_id})["claim"]["amount_claimed"]
         if decision == "approve" and not 0 < payout <= amount_claimed:
             return f"Error: an approval needs a payout above 0 and at most the amount claimed ({amount_claimed})."
         if decision != "approve" and payout != 0:
@@ -163,6 +164,6 @@ def build_tools() -> list[BaseTool]:
         })
 
     return [
-        get_claim, get_policy, get_customer_history, get_plan,
+        get_claim, get_policy, get_claim_history, get_plan,
         list_sections, read_section, search_documents, lookup_knowledge, calculate_payout, save_decision,
     ]

@@ -142,7 +142,7 @@ def test_every_step_is_recorded_on_the_claim(run):
     assert got.count("decision") == 1 and "usage" not in got  # cost is in model_calls now
     assert trace(env, "status")[-1]["status"] == "paid"
     names = [e["name"] for e in trace(env, "tool_call")]
-    assert names[:4] == ["get_claim", "get_policy", "get_plan", "get_customer_history"] and "read_section" in names
+    assert names[:4] == ["get_claim", "get_policy", "get_plan", "get_claim_history"] and "read_section" in names
 
 
 def test_usage_totals_every_model_call(run):
@@ -195,7 +195,7 @@ def test_claim_facts_arrive_as_tool_results_before_the_first_model_call(run):
     first = model.shown[0]
     assert model.calls == 1
     results = {m.name: m.content for m in first if m.type == "tool"}
-    assert set(results) == {"get_claim", "get_policy", "get_plan", "get_customer_history"}
+    assert set(results) == {"get_claim", "get_policy", "get_plan", "get_claim_history"}
     assert results["get_claim"].startswith("<claim_data>")
     assert '"policy_id": "POL-2003"' in results["get_policy"]
     assert not any('"claim_id": "CLM-1003"' in str(m.content) for m in first if m.type in ("human", "system"))

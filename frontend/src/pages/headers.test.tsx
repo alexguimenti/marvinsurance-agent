@@ -60,7 +60,7 @@ describe('every page starts with a header that says what it is for', () => {
 
   it('a claim', async () => {
     mockApi({ '/api/claims/CLM-1': { status: 'waiting', claim: { claim_id: 'CLM-1', claim_type: 'baggage', story: 's', amount_claimed: 1, items: [], documents: [], incident_date: '', incident_location: '', summary: '', submitted_on: '' },
-      policy: { policy_id: 'P', plan: 'Premium', add_ons: [], travelers: [] }, customer: { name: 'A', previous_claims: [] }, decision: null, payment: null, usage: null, attempts: 0, last_error: null, read: [] },
+      policy: { policy_id: 'P', plan: 'Premium', add_ons: [], travelers: [] }, customer: { name: 'A', previous_claims: [] }, decision: null, payment: null, usage: null, attempts: 0, last_error: null, context_used: [] },
       '/api/claims/CLM-1/trace': [] })
     const { container } = renderAt(<ClaimDetail />, '/claims/CLM-1', '/claims/:id')
     expect(await screen.findByRole('heading', { level: 1, name: 'CLM-1' })).toBeInTheDocument()

@@ -462,6 +462,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
                 "customer_name": ref.customer(claim["customer_id"])["name"],
                 "claim_type": claim["claim_type"],
                 "rationale": r["rationale"],
+                "hold_reason": r["hold_reason"],
             })
         return out
 
