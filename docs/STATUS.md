@@ -62,6 +62,14 @@ Partly done. The owner stopped it to start `docs/PLAN_SECURE.md`. On Supabase an
 
 **Finding:** the spending estimate follows the brief (an evaluation's claims times the highest cost per claim seen for its model). Here the highest claim cost $0.011 against a mean of $0.0017, so a whole new version is estimated at $0.84. With the starting limit of $0.50 and the first evaluations already spent, no new version can be afforded on this model, and every round rolls back. A limit of about $1.00 lets it through; the real cost of version 3's three evaluations was about $0.13.
 
+## Security changes before AWS (2026-11-10)
+
+Built, from `docs/PLAN_SECURE.md`: every route under `/api` with the agent's API key (`X-API-Key`, constant-time compare) on everything the agent's side calls; the agent reaches the backend only over HTTP (`agent/connection.py`, `api.py`, `improver_api.py`), keeping one database link, LangGraph's checkpoints; a second model (GPT-6 Luna at `none`, or `MODEL_NAME`) screens each claim before the claim agent's first model call, outside the versioned configuration, with CLM-1901 seeded into the queue (26 claims); `GET /api/agent/openapi.json` with the eight operations; a payment limit checked first (403 naming it); a sign-off that pays in the backend; `npm run build`, `backend.main` (`app` and a Mangum `handler`), the dashboard served at `/`, `NullPool` and schema-qualified statements on Lambda, and the `server` dependency group with its check.
+
+`npm run check` passed in pieces on 2026-11-10: backend 480 passed and 1 skipped, the server-group import, the front end (131 tests, types, lint) and the 14 end-to-end tests. The one-command run stopped at the server-group step on a quoting error in `scripts/check.mjs`, since fixed and run by hand.
+
+**Not done:** the live checks of Phase 5 (they reseed Supabase, spend on OpenRouter and need `UNDERCOVER_API_KEY` in `.env`, which the agent working the plan may not read or write), the clean-worktree run of `npm run check`, the packaging size check, and the final whole-branch review by a fresh reviewer.
+
 ## Known limits
 
 - Supabase is far from where this runs: about 220 ms a trip and 6.5 s for a new connection, so connections open at startup. With many claim agents sharing a process's 4 connections, they queue for them: each claim took about three times as long at N=25 as at N=3 (see above).

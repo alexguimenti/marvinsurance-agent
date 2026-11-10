@@ -101,10 +101,10 @@ scripts/check.mjs, dev.mjs, package.json, e2e/*, frontend/vite.config.ts, fronte
 
 **Interfaces:** Produces `GET /api/health` (`operation_id="get_health"`) returning `{"status": "ok"}`. Tests reach the prefix with `TestClient(app, base_url="http://testserver/api")`, so their relative paths don't change.
 
-- [ ] **Step 1: Write the failing test** `test_health_is_open_and_routes_live_under_api`: `/api/health` is 200 with no credentials and `/claims` is 404.
-- [ ] **Step 2: Run it.** `cd backend; uv run pytest tests/test_api.py -k health -q`. Expected: FAIL, 404 on `/api/health`.
-- [ ] **Step 3: Implement.** In `create_app`, `router = APIRouter(prefix="/api")`, replace every `@app.` route decorator with `@router.`, end with `app.include_router(router)`. `FastAPI(..., docs_url=None, redoc_url=None, openapi_url=None)`: a public address publishes no schema. Remove the Vite `rewrite`. Point Playwright's backend `url` at `/api/health`. Add `base_url` to each test client.
-- [ ] **Step 4: Run.** `uv run pytest -q` and `npx vitest run` in `frontend`. Expected: all pass.
+- [x] **Step 1: Write the failing test** `test_health_is_open_and_routes_live_under_api`: `/api/health` is 200 with no credentials and `/claims` is 404.
+- [x] **Step 2: Run it.** `cd backend; uv run pytest tests/test_api.py -k health -q`. Expected: FAIL, 404 on `/api/health`.
+- [x] **Step 3: Implement.** In `create_app`, `router = APIRouter(prefix="/api")`, replace every `@app.` route decorator with `@router.`, end with `app.include_router(router)`. `FastAPI(..., docs_url=None, redoc_url=None, openapi_url=None)`: a public address publishes no schema. Remove the Vite `rewrite`. Point Playwright's backend `url` at `/api/health`. Add `base_url` to each test client.
+- [x] **Step 4: Run.** `uv run pytest -q` and `npx vitest run` in `frontend`. Expected: all pass.
 
 ### Task 2: The key and the guards
 
@@ -121,7 +121,7 @@ Which guard each route uses:
 | `agent_key` | `record_decision`, `pay_claim`, everything else under `/api/agent/` |
 | `signed_in` or `senior` | Every other route, reads included |
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
 
 ```python
 def test_an_agent_route_refuses_no_key_and_a_wrong_key_and_takes_the_right_one(client): ...  # POST /agent/claims/CLM-1001/steps: 401, 401, 201
@@ -136,9 +136,9 @@ def test_the_service_refuses_a_call_without_the_key(service): ...  # 401, /healt
 def test_the_service_refuses_to_start_without_the_key(settings, monkeypatch): ...  # raises, message names UNDERCOVER_API_KEY
 ```
 
-- [ ] **Step 2: Run.** `uv run pytest tests/test_api_key.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Guards read `request.headers` directly, never `Header()` or a security class, so operations gain no input. Compare UTF-8 bytes with `secrets.compare_digest`, after refusing a missing or empty configured key or header. `conftest.py` sets a fixed key with an autouse fixture and adds the name to `OUTSIDE_WORLD`; `check.mjs` deletes it from the environment. Replace `test_reads_stay_open`. Give each test its credentials.
-- [ ] **Step 4: Run.** `uv run pytest -q`. Expected: all pass.
+- [x] **Step 2: Run.** `uv run pytest tests/test_api_key.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement.** Guards read `request.headers` directly, never `Header()` or a security class, so operations gain no input. Compare UTF-8 bytes with `secrets.compare_digest`, after refusing a missing or empty configured key or header. `conftest.py` sets a fixed key with an autouse fixture and adds the name to `OUTSIDE_WORLD`; `check.mjs` deletes it from the environment. Replace `test_reads_stay_open`. Give each test its credentials.
+- [x] **Step 4: Run.** `uv run pytest -q`. Expected: all pass.
 
 ### Task 3: The claim agent over HTTP
 
@@ -164,10 +164,10 @@ def test_the_service_refuses_to_start_without_the_key(settings, monkeypatch): ..
 - `app.claims.take_claim(engine, claim_id, run_id) -> dict`, `fail_claim(engine, claim_id, attempt, max_attempts, message) -> str`, `set_claim_run(engine, claim_id, run_id) -> None`: the statements now in `worker.py`, moved as they are.
 - `agent_env(...)` wraps a `TestClient(create_app(settings, jwks=MINT), base_url=".../api")` in `connection.use`, and sets `env.engine`.
 
-- [ ] **Step 1: Write the failing tests:** `test_the_client_sends_the_key_read_as_each_request_goes` (set the variable after importing the module), `test_a_404_is_a_lookup_error`, `test_the_tools_reach_the_records_only_through_the_client` (no `sqlalchemy` or `app.claims` import in `tools.py`, `graph.py`, `worker.py`), `test_a_decision_goes_through_the_backend_and_a_repeat_counts_as_done`.
-- [ ] **Step 2: Run.** `uv run pytest tests/test_agent_api.py -q`. Expected: FAIL, no module `agent.connection`.
-- [ ] **Step 3: Implement** the routes, then swap each direct call in `tools.py`, `graph.py` and `worker.py` for `agent/api.py`. `build_claim_graph` drops its `engine` argument. `prompts.py` keeps `Reference` for the section index.
-- [ ] **Step 4: Run.** `uv run pytest tests/test_graph.py tests/test_tools.py tests/test_worker.py tests/test_agent_api.py -q`. Expected: all pass. Thread-safety of a shared `TestClient` under `CountingStub` is checked here; a problem gets a client per thread in `connection.use`.
+- [x] **Step 1: Write the failing tests:** `test_the_client_sends_the_key_read_as_each_request_goes` (set the variable after importing the module), `test_a_404_is_a_lookup_error`, `test_the_tools_reach_the_records_only_through_the_client` (no `sqlalchemy` or `app.claims` import in `tools.py`, `graph.py`, `worker.py`), `test_a_decision_goes_through_the_backend_and_a_repeat_counts_as_done`.
+- [x] **Step 2: Run.** `uv run pytest tests/test_agent_api.py -q`. Expected: FAIL, no module `agent.connection`.
+- [x] **Step 3: Implement** the routes, then swap each direct call in `tools.py`, `graph.py` and `worker.py` for `agent/api.py`. `build_claim_graph` drops its `engine` argument. `prompts.py` keeps `Reference` for the section index.
+- [x] **Step 4: Run.** `uv run pytest tests/test_graph.py tests/test_tools.py tests/test_worker.py tests/test_agent_api.py -q`. Expected: all pass. Thread-safety of a shared `TestClient` under `CountingStub` is checked here; a problem gets a client per thread in `connection.use`.
 
 ### Task 4: The dispatcher, the improver and the service over HTTP
 
@@ -180,20 +180,20 @@ def test_the_service_refuses_to_start_without_the_key(settings, monkeypatch): ..
 - `improver_api.py` keeps those function names, without `engine` and `ref`, so `improver.py` changes only in its calls. `RoundOpen`, `RoundStopped` and `AlreadyDecided` are raised from 409s by a `code` field in the detail.
 - `RETRYABLE` gains `httpx.TransportError`.
 
-- [ ] **Step 1: Write the failing tests:** `test_only_the_improvers_client_reaches_the_scores` (import walk: claim-agent modules never import `agent.improver_api`, and no `agent/` module imports anything from `app` but `app.config`, `app.documents`, `app.reference`, `app.db`'s checkpoint constants and `app.auth.Handler`), `test_a_backend_restart_uses_up_no_attempt_and_the_claim_carries_on`, `test_a_review_is_recorded_for_the_handler_with_the_key`.
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** The service's `lifespan` waits for `/api/health` (decision 5) and no longer seeds. `__main__.py` loads `.env`, then works the claim over HTTP. `open_env` opens only the checkpoints.
-- [ ] **Step 4: Run.** `uv run pytest -q`. Expected: all pass.
+- [x] **Step 1: Write the failing tests:** `test_only_the_improvers_client_reaches_the_scores` (import walk: claim-agent modules never import `agent.improver_api`, and no `agent/` module imports anything from `app` but `app.config`, `app.documents`, `app.reference`, `app.db`'s checkpoint constants and `app.auth.Handler`), `test_a_backend_restart_uses_up_no_attempt_and_the_claim_carries_on`, `test_a_review_is_recorded_for_the_handler_with_the_key`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** The service's `lifespan` waits for `/api/health` (decision 5) and no longer seeds. `__main__.py` loads `.env`, then works the claim over HTTP. `open_env` opens only the checkpoints.
+- [x] **Step 4: Run.** `uv run pytest -q`. Expected: all pass.
 
 ### Task 5: End-to-end tests, docs and the phase's commit
 
 **Files:** Modify `e2e/playwright.config.ts`, `e2e/stand_in_agent.py`, `e2e/tests/fixtures.ts`, `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/CODE_STANDARDS.md`.
 
-- [ ] **Step 1:** Give the test backend and service the same fixed key, the service `UNDERCOVER_BACKEND`, and the backend the judge's stand-in. Start the backend first.
-- [ ] **Step 2:** Run `npm run check`. Expected: "All checks passed."
+- [x] **Step 1:** Give the test backend and service the same fixed key, the service `UNDERCOVER_BACKEND`, and the backend the judge's stand-in. Start the backend first.
+- [x] **Step 2:** Run `npm run check`. Expected: "All checks passed."
 - [ ] **Step 3:** Add the key if its name is absent, printing nothing, from the repo root: `python -c "import secrets,re,pathlib as p;f=p.Path('.env');t=f.read_text(encoding='utf-8');None if re.search(r'^UNDERCOVER_API_KEY=',t,re.M) else f.open('a',encoding='utf-8').write('\nUNDERCOVER_API_KEY='+secrets.token_urlsafe(32)+'\n')"`. If the deny rule blocks it, ask the owner to run it with `!`.
-- [ ] **Step 4:** Update SPEC.md and the "agent calls `app` in Python" lines in CODE_STANDARDS.md and TECH_STACK.md.
-- [ ] **Step 5: Commit.** `git commit -m "feat(security): the agent reaches the backend over HTTP with an API key"`
+- [x] **Step 4:** Update SPEC.md and the "agent calls `app` in Python" lines in CODE_STANDARDS.md and TECH_STACK.md.
+- [x] **Step 5: Commit.** `git commit -m "feat(security): the agent reaches the backend over HTTP with an API key"`
 
 ---
 
@@ -212,7 +212,7 @@ def test_the_service_refuses_to_start_without_the_key(settings, monkeypatch): ..
 - `AgentEnv.screen_model`: a test's stub, `ScriptedScreenModel` when scripted (flags text with `PROCESSING NOTE`), or `chat_model(settings, *screening_model, max_retries=0)`. `agent_env(..., screen_model=None)` defaults to a stub that passes everything.
 - Graph: `START -> screen -> (prepare | END)`. A flagged claim: trace kind `screening`, `record_decision` with `refer`, payout 0, `rationale=reason`, `citations=["Security check"]`, no rationale warning.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
 
 ```python
 def test_a_flagged_claim_is_referred_with_the_reason_and_the_claim_model_is_never_called(...): ...  # model.calls == 0; refer; 0; reason; ["Security check"]
@@ -228,10 +228,10 @@ def test_the_check_uses_luna_at_none_and_model_name_with_no_effort(monkeypatch):
 def test_clm_1901_is_in_the_queue_and_in_neither_evaluation_set(...): ...                           # its policy and customer resolve; no answer_key row
 ```
 
-- [ ] **Step 2: Run.** `uv run pytest tests/test_screening.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.** The claim's page shows a `screening` step in the work list and the rationale as for any referral.
-- [ ] **Step 4: Run.** `npm run check`. Expected: "All checks passed."
-- [ ] **Step 5: Commit.** `git commit -m "feat(security): a second model checks each claim for hidden instructions"`
+- [x] **Step 2: Run.** `uv run pytest tests/test_screening.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement.** The claim's page shows a `screening` step in the work list and the rationale as for any referral.
+- [x] **Step 4: Run.** `npm run check`. Expected: "All checks passed."
+- [x] **Step 5: Commit.** `git commit -m "feat(security): a second model checks each claim for hidden instructions"`
 
 ---
 
@@ -248,7 +248,7 @@ def test_clm_1901_is_in_the_queue_and_in_neither_evaluation_set(...): ...       
 - `payments.sign_off(...)` returns a `paid` `Payment`; a repeat changes nothing.
 - `pay_node`: after a wait, a payment with `approved_by` ends the node with no call. An `OverLimit` from a payment with no hold calls `hold`, then waits.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
 
 ```python
 def test_the_document_has_exactly_the_eight_operations_and_no_servers(client): ...
@@ -262,10 +262,10 @@ def test_an_agent_resumed_after_a_sign_off_makes_no_payment_call(spy): ...
 def test_a_limit_lowered_after_the_decision_holds_the_payout_for_a_handler(...): ...
 ```
 
-- [ ] **Step 2: Run.** `uv run pytest tests/test_agent_openapi.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Delete what decision 3 lists. `02-approval.spec.ts` expects the claim paid after the sign-off.
-- [ ] **Step 4: Run.** `npm run check`. Expected: "All checks passed."
-- [ ] **Step 5: Commit.** `git commit -m "feat(security): the agent's own API document, a limit before the claim, and a sign-off that pays"`
+- [x] **Step 2: Run.** `uv run pytest tests/test_agent_openapi.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement.** Delete what decision 3 lists. `02-approval.spec.ts` expects the claim paid after the sign-off.
+- [x] **Step 4: Run.** `npm run check`. Expected: "All checks passed."
+- [x] **Step 5: Commit.** `git commit -m "feat(security): the agent's own API document, a limit before the claim, and a sign-off that pays"`
 
 ---
 
@@ -277,10 +277,10 @@ def test_a_limit_lowered_after_the_decision_holds_the_payout_for_a_handler(...):
 
 **Interfaces:** `npm run build` loads `.env` if it exists, requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from the environment, and runs `vite build --outDir ../dashboard/dist --emptyOutDir`. `Settings.dashboard_dir: str` defaults to `ROOT/dashboard/dist`. When the folder exists at `create_app`, a `GET /{path:path}` route with `include_in_schema=False` is added after the router.
 
-- [ ] **Step 1: Write the failing tests:** `test_root_and_a_page_get_index_html`, `test_a_file_is_served_at_its_own_path`, `test_an_unknown_api_path_is_a_json_404`, `test_with_no_build_the_backend_runs_as_today`, and, parametrized on `/..%2F..%2F.env` and `/assets/../../data/claims.json`, `test_a_path_outside_the_build_gets_index_html_never_the_file`.
-- [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Resolve the path and require `is_relative_to(dist)` and `is_file()`. If the build prints a chunk-size warning, split the Supabase client with `manualChunks`.
-- [ ] **Step 4: Run** the tests and `npm run build`. Expected: pass, and no line with "warning" in the output.
+- [x] **Step 1: Write the failing tests:** `test_root_and_a_page_get_index_html`, `test_a_file_is_served_at_its_own_path`, `test_an_unknown_api_path_is_a_json_404`, `test_with_no_build_the_backend_runs_as_today`, and, parametrized on `/..%2F..%2F.env` and `/assets/../../data/claims.json`, `test_a_path_outside_the_build_gets_index_html_never_the_file`.
+- [x] **Step 2: Run.** Expected: FAIL.
+- [x] **Step 3: Implement.** Resolve the path and require `is_relative_to(dist)` and `is_file()`. If the build prints a chunk-size warning, split the Supabase client with `manualChunks`.
+- [x] **Step 4: Run** the tests and `npm run build`. Expected: pass, and no line with "warning" in the output.
 
 ### Task 9: Lambda: the handler, connections and the server group
 
@@ -294,7 +294,7 @@ def test_a_limit_lowered_after_the_decision_holds_the_payout_for_a_handler(...):
 - `server` group: `fastapi`, `uvicorn`, `mangum`, `pydantic-settings`, `sqlalchemy`, `psycopg[binary]`, `httpx`, `pyjwt[crypto]`, `openrouter`, plus anything the check below finds.
 - `load_instructions` and `load_recipe` move to `app/configs.py`, reading `backend/agent/*.md`, which are in the package. `agent/prompts.py` no longer has them.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
 
 ```python
 def test_the_handler_answers_a_function_url_event_for_health(): ...
@@ -306,10 +306,10 @@ def test_the_app_starts_with_only_the_three_variables(monkeypatch): ...
 def test_the_app_writes_no_files(tmp_path, monkeypatch): ...                                           # read-only stand-in for open(..., "w") during requests
 ```
 
-- [ ] **Step 2: Run.** `uv run pytest tests/test_lambda.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Add a step to `check.mjs`, from the repo root: `uv run --project backend --isolated --only-group server python -c "import backend.main"`. Add the Deployment section to TECH_STACK.md: `npm run build`, `dashboard/dist`, what's in the package, `backend.main.handler`, `backend.main:app`, the three variables.
-- [ ] **Step 4: Run.** Clean worktree: `git worktree add ..\secure-check HEAD`, install, `npm run check`, remove the worktree. Expected: "All checks passed", with no `.env` there, and `git status` in the project shows `.venv` untouched.
-- [ ] **Step 5: Commit.** `git commit -m "feat(deploy): a Lambda handler, the dashboard served by the backend and a server dependency group"`
+- [x] **Step 2: Run.** `uv run pytest tests/test_lambda.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement.** Add a step to `check.mjs`, from the repo root: `uv run --project backend --isolated --only-group server python -c "import backend.main"`. Add the Deployment section to TECH_STACK.md: `npm run build`, `dashboard/dist`, what's in the package, `backend.main.handler`, `backend.main:app`, the three variables.
+- [x] **Step 4: Run.** Clean worktree: `git worktree add ..\secure-check HEAD`, install, `npm run check`, remove the worktree. Expected: "All checks passed", with no `.env` there, and `git status` in the project shows `.venv` untouched.
+- [x] **Step 5: Commit.** `git commit -m "feat(deploy): a Lambda handler, the dashboard served by the backend and a server dependency group"`
 
 ---
 
