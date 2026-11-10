@@ -191,7 +191,7 @@ def test_the_service_refuses_to_start_without_the_key(settings, monkeypatch): ..
 
 - [x] **Step 1:** Give the test backend and service the same fixed key, the service `UNDERCOVER_BACKEND`, and the backend the judge's stand-in. Start the backend first.
 - [x] **Step 2:** Run `npm run check`. Expected: "All checks passed."
-- [ ] **Step 3:** Add the key if its name is absent, printing nothing, from the repo root: `python -c "import secrets,re,pathlib as p;f=p.Path('.env');t=f.read_text(encoding='utf-8');None if re.search(r'^UNDERCOVER_API_KEY=',t,re.M) else f.open('a',encoding='utf-8').write('\nUNDERCOVER_API_KEY='+secrets.token_urlsafe(32)+'\n')"`. If the deny rule blocks it, ask the owner to run it with `!`.
+- [x] **Step 3:** Add the key if its name is absent, printing nothing, from the repo root: `python -c "import secrets,re,pathlib as p;f=p.Path('.env');t=f.read_text(encoding='utf-8');None if re.search(r'^UNDERCOVER_API_KEY=',t,re.M) else f.open('a',encoding='utf-8').write('\nUNDERCOVER_API_KEY='+secrets.token_urlsafe(32)+'\n')"`. If the deny rule blocks it, ask the owner to run it with `!`.
 - [x] **Step 4:** Update SPEC.md and the "agent calls `app` in Python" lines in CODE_STANDARDS.md and TECH_STACK.md.
 - [x] **Step 5: Commit.** `git commit -m "feat(security): the agent reaches the backend over HTTP with an API key"`
 
@@ -319,21 +319,21 @@ Do these last, after one `npm run seed`, on the default model. Record every resu
 
 ### Task 10: Steps 1 to 3
 
-- [ ] **Step 1:** `npm run seed`, then `npm run dev`. Check the OpenRouter key's credit first.
-- [ ] **Step 2:** Signed in as Dana, the dashboard works. `curl -i -X POST http://127.0.0.1:8000/api/claims/CLM-1001/pay -H "content-type: application/json" -d "{\"amount\":1}"`. Expected: 401.
-- [ ] **Step 3:** `cd backend; uv run -m agent CLM-1001`. Expected: one line with its outcome.
-- [ ] **Step 4:** A dispatch works the rest of the queue. Expected: CLM-1901 referred with the check's reason, shown on the claim; the others decided as before.
-- [ ] **Step 5:** An evaluation of the evaluation set's tiny five. Expected: none flagged.
-- [ ] **Step 6:** Dana signs off a held payout. Expected: paid once.
+- [x] **Step 1:** `npm run seed`, then `npm run dev`. Check the OpenRouter key's credit first.
+- [x] **Step 2:** Signed in as Dana, the dashboard works. `curl -i -X POST http://127.0.0.1:8000/api/claims/CLM-1001/pay -H "content-type: application/json" -d "{\"amount\":1}"`. Expected: 401.
+- [x] **Step 3:** `cd backend; uv run -m agent CLM-1001`. Expected: one line with its outcome.
+- [x] **Step 4:** A dispatch works the rest of the queue. Expected: CLM-1901 referred with the check's reason, shown on the claim; the others decided as before.
+- [x] **Step 5:** An evaluation of the evaluation set's tiny five. Expected: none flagged.
+- [x] **Step 6:** Dana signs off a held payout. Expected: paid once.
 
 ### Task 11: The built app on its own
 
-- [ ] **Step 1:** `npm run build`. Stop `npm run dev`. From the repo root, start `uvicorn backend.main:app --port 8000` with `.env` in its environment.
-- [ ] **Step 2:** Through the Playwright MCP server, Dana signs in at `http://127.0.0.1:8000` and sees the claims. The password goes through the established script route if the MCP would have to receive it in a tool call; ledger that as a ruling.
+- [x] **Step 1:** `npm run build`. Stop `npm run dev`. From the repo root, start `uvicorn backend.main:app --port 8000` with `.env` in its environment.
+- [x] **Step 2:** Through the Playwright MCP server, Dana signs in at `http://127.0.0.1:8000` and sees the claims. The password goes through the established script route if the MCP would have to receive it in a tool call; ledger that as a ruling.
 
 ### Task 12: Lambda's conditions and the package
 
-- [ ] **Step 1:** Start the backend with `AWS_LAMBDA_FUNCTION_NAME=local` and `DATABASE_URL` on port 6543. Expected: a signed-in handler gets the claims, with several requests in a row.
-- [ ] **Step 2:** In a temp folder, following `labs/week3day2_lab2.ipynb`'s packaging cells with `--python-platform x86_64-manylinux2014 --python-version 3.12`, pack `backend/` (without tests and `__pycache__`), `data/` and `dashboard/dist/`. Expected: under 50 MB zipped. Report the size.
-- [ ] **Step 3:** Record every result and the spending in `docs/STATUS.md`. Move this plan to `docs/plans/` when review is done.
-- [ ] **Step 4: Commit.** `git commit -m "docs: record the live checks of the security changes"`
+- [x] **Step 1:** Start the backend with `AWS_LAMBDA_FUNCTION_NAME=local` and `DATABASE_URL` on port 6543. Expected: a signed-in handler gets the claims, with several requests in a row.
+- [x] **Step 2:** In a temp folder, following `labs/week3day2_lab2.ipynb`'s packaging cells with `--python-platform x86_64-manylinux2014 --python-version 3.12`, pack `backend/` (without tests and `__pycache__`), `data/` and `dashboard/dist/`. Expected: under 50 MB zipped. Report the size.
+- [x] **Step 3:** Record every result and the spending in `docs/STATUS.md`. Move this plan to `docs/plans/` when review is done.
+- [x] **Step 4: Commit.** `git commit -m "docs: record the live checks of the security changes"`
