@@ -9,7 +9,10 @@ from typing import Any, Iterator
 import httpx
 
 DEFAULT_BACKEND = "http://127.0.0.1:8000"
-TIMEOUT_S = 30  # the backend grades an evaluation before it answers that the run is over
+# A request waits as long as the backend's own wait for a database connection (600 s) allows, less a margin: up to 25 claim agents
+# share the backend's 4 connections, and a claim agent waits for one rather than fail. The backend also grades an evaluation
+# before it answers that the run is over.
+TIMEOUT_S = 300
 
 _lock = threading.Lock()
 _client: httpx.Client | None = None

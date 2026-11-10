@@ -68,6 +68,9 @@ def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dic
     docs = Documents(engine)
     limit = approval_limit(engine, ref)
     lines = calculation_on_file(engine, claim_id, decision["payout"]) if decision["decision"] == "approve" else []
+    # asked for before the connection below is taken: a request that holds one connection while it waits for another
+    # stalls the whole pool when enough of them do (up to 25 claim agents share 4 connections)
+    manual_version, wording_version = docs.version("claims_manual"), docs.version("policy_wording")
     with engine.begin() as conn:
         conn.execute(
             insert_or_ignore(conn, decisions),
@@ -80,8 +83,8 @@ def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dic
                 "citations": json.dumps(decision["citations"]),
                 "model": model,
                 "decided_by": decision["decided_by"],
-                "manual_version": docs.version("claims_manual"),
-                "wording_version": docs.version("policy_wording"),
+                "manual_version": manual_version,
+                "wording_version": wording_version,
                 "approval_limit": limit,
             },
         )

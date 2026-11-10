@@ -130,3 +130,28 @@ def test_a_sign_off_adds_who_signed_off_and_when(client):
 def test_a_repeat_after_a_restart_counts_as_done(client):
     assert record_approval(client, CLAIM, 420.0).status_code == 200
     assert record(client).status_code == 200  # the same record again: the calculation on file still matches
+
+
+def test_an_operation_never_holds_a_connection_while_it_asks_for_another(db_path, data_dir):
+    """Up to 25 claim agents share the backend's 4 connections. A request that holds one while it waits for a second would
+    stall them all once enough did: so the whole recording runs on a pool of one, which refuses a second connection."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import QueuePool
+
+    from app import claims as claim_records
+    from app.db import init_schema
+    from app.reference import Reference
+    from app.seed import seed_claims
+    from tests.fakes import record_decision, write_calculation
+
+    ref = Reference(data_dir)
+    first = create_engine(f"sqlite:///{db_path}")
+    init_schema(first)
+    seed_claims(first, ref)
+    first.dispose()
+    one = create_engine(f"sqlite:///{db_path}", poolclass=QueuePool, pool_size=1, max_overflow=0, pool_timeout=1)
+    write_calculation(one, CLAIM, 420.0)
+    approve = {"decision": "approve", "payout": 420.0, "rationale": "Covered. Section 10.", "citations": ["x"], "decided_by": "Test"}
+    claim_records.record_decision(one, ref, CLAIM, approve, "m")  # raises a pool timeout if it asks for a second connection
+    claim_records.hold_for_sign_off(one, ref, CLAIM)
+    one.dispose()
