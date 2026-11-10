@@ -19,28 +19,9 @@ def get_claim_history(claim_id: str) -> dict:
     return call("GET", f"/api/claims/{claim_id}/history")
 
 
-def get_plan(claim_id: str) -> dict:
-    return call("GET", f"/api/agent/claims/{claim_id}/plan")
-
-
-def search_documents(query: str) -> list[dict]:
-    return call("GET", "/api/documents/search", params={"query": query})
-
-
-def read_section(document: str, section: int) -> str:
-    return call("GET", f"/api/documents/{document}/sections/{section}")["text"]
-
-
 def list_sections(document: str) -> list[dict]:
+    """The numbered sections of a document, for the claim prompt's index."""
     return call("GET", f"/api/agent/documents/{document}")
-
-
-def knowledge() -> list[dict]:
-    return call("GET", "/api/agent/knowledge")
-
-
-def calculate_payout(body: dict) -> dict:
-    return call("POST", "/api/payouts/calculate", json=body)
 
 
 def record_decision(claim_id: str, decision: dict, model: str) -> dict:

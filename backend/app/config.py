@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     agent_provider: Literal["openrouter", "scripted"] = "openrouter"
     db_path: str = str(ROOT / "marvin.db")
     data_dir: str = str(ROOT / "data")
+    context_dir: str = str(ROOT / "backend" / "context")  # data governance's files: the app reads them only to seed
     database_url: str | None = None  # from the process environment only: see model_post_init
     agent_url: str = DEFAULT_AGENT_URL
     supabase_url: str | None = None  # from the process environment only: see model_post_init

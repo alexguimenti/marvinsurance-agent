@@ -27,7 +27,7 @@ from app.db import (
     trace_events,
     warm_up,
 )
-from app.documents import documents_for
+from app.documents import Documents
 from app.payments import OverLimit, SignOffRequired, pay_claim as pay_the_claim, sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
@@ -40,14 +40,8 @@ from app.usage import claim_totals, run_totals
 # The operations the claim agent's tools are made of. The Gateway makes a tool of every operation in the document it is
 # given, so the document holds these and nothing else: not the dashboard's routes, the evaluations or the sign-off.
 GATEWAY_OPERATIONS = frozenset({
-    "get_claim", "get_policy", "get_claim_history", "search_documents", "read_section", "calculate_payout",
-    "record_decision", "pay_claim",
+    "get_claim", "get_policy", "get_claim_history", "calculate_payout", "record_decision", "pay_claim",
 })
-
-# How the claim agent traces a section it read: "[claims_manual section 7: Interpretation notes, 5000 characters]".
-# Refused reads (errors, rereads, past the cap) are traced as plain text and do not match.
-_SECTION_READ = re.compile(r"^\[(\w+) section (\d+): .+, \d+ characters\]$")
-
 
 class PayoutBody(BaseModel):
     items: list[LineItem]
@@ -94,13 +88,19 @@ class EvaluationBody(BaseModel):
     workers: int = Field(ge=1, le=25)
 
 
+def _calculation(row: Mapping) -> dict | None:
+    """How an approval's payout was worked out, line by line. None for a decline or a referral."""
+    lines = json.loads(row["calculation"])
+    return {"lines": lines, "payout": row["payout"]} if row["decision"] == "approve" and lines else None
+
+
 def _decision(row: Mapping | None) -> dict | None:
     if row is None:
         return None
     return {
         "decision": row["decision"],
         "payout": row["payout"],
-        "calculation": json.loads(row["calculation"]),
+        "calculation": _calculation(row),
         "rationale": row["rationale"],
         "citations": json.loads(row["citations"]),
         "model": row["model"],
@@ -118,8 +118,8 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     ref = Reference(settings.data_dir)
     guards = make_guards(ref, jwks if jwks is not None else make_jwks(settings), settings.api_key)
     signed_in, senior = guards.signed_in, guards.senior
-    docs = documents_for(ref)
     engine = make_engine(settings, max_connections=4)
+    docs = Documents(engine)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -160,25 +160,17 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         with engine.connect() as conn:
             return conn.execute(query).mappings().all()
 
-    def read_sections(rows: list[Mapping]) -> list[dict]:
-        """The sections the agent actually read for a claim, in order, each once."""
-        read, seen = [], set()
+    def context_used(rows: list[Mapping]) -> list[dict]:
+        """What the agent looked up in the context layer, once each, grouped by the file it came from."""
+        files: dict[str, dict] = {}
         for r in rows:
-            if r["kind"] != "tool_result":
-                continue
-            result = json.loads(r["content"])
-            match = _SECTION_READ.match(str(result.get("content", ""))) if result.get("name") == "read_section" else None
-            if not match:
-                continue
-            key = (match[1], int(match[2]))
-            if key in seen:
-                continue
-            seen.add(key)
-            try:
-                read.append({"document": key[0], "section": key[1], "title": docs.section(*key).title})
-            except KeyError:
-                continue
-        return read
+            step = json.loads(r["content"])
+            lookup = {"tool": str(step["tool"]).split("___")[-1], "args": step.get("args", {})}
+            for source in step.get("sources", []):
+                entry = files.setdefault(source["file"], {**source, "lookups": []})
+                if lookup not in entry["lookups"]:
+                    entry["lookups"].append(lookup)
+        return list(files.values())
 
     def payment_view(payment: Mapping | None) -> dict | None:
         if payment is None:
@@ -242,7 +234,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             payment = conn.execute(select(payments).where(payments.c.claim_id == claim_id)).mappings().first()
             steps = conn.execute(
                 select(trace_events.c.kind, trace_events.c.content)
-                .where(trace_events.c.claim_id == claim_id, trace_events.c.kind == "tool_result")
+                .where(trace_events.c.claim_id == claim_id, trace_events.c.kind == "lookup")
                 .order_by(trace_events.c.seq)
             ).mappings().all()
         usage = claim_totals(engine, claim_id)
@@ -259,7 +251,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             "decision": _decision(decision),
             "payment": payment_view(payment),
             "usage": usage,
-            "read": read_sections(steps),
+            "context_used": context_used(steps),
         }
 
     @shared.get("/claims/{claim_id}/policy", operation_id="get_policy")
@@ -273,19 +265,6 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         customer = ref.customer(claim_row_payload(claim_id)["customer_id"])
         return {"name": customer["name"], "customer_since": customer["customer_since"],
                 "previous_claims": customer["previous_claims"]}
-
-    @shared.get("/documents/search", operation_id="search_documents")
-    def search_documents(query: str):
-        """Find the sections of the policy wording and the claims manual that mention a word or phrase."""
-        return docs.search(query)
-
-    @shared.get("/documents/{document}/sections/{section}", operation_id="read_section")
-    def read_section(document: str, section: int):
-        """Read one numbered section of the policy wording or the claims manual."""
-        try:
-            return {"text": docs.section(document, section).text}
-        except KeyError as exc:
-            raise HTTPException(404, exc.args[0])
 
     @agent_only.post("/claims/{claim_id}/decision", operation_id="record_decision")
     def record_decision(claim_id: str, body: DecisionIn):
@@ -310,7 +289,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
 
     @shared.get("/agent/openapi.json", operation_id="get_agent_openapi")
     def agent_openapi():
-        """Get the OpenAPI document of the claim agent's eight operations."""
+        """Get the OpenAPI document of the claim agent's six operations."""
         wanted = [r for each in (shared, agent_only) for r in each.routes if getattr(r, "operation_id", None) in GATEWAY_OPERATIONS]
         document = get_openapi(title="Marvin Agent: the claim agent's operations", version="1.0.0", routes=wanted)
         document.pop("servers", None)  # the deployment adds the app's address

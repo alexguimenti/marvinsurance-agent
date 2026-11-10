@@ -36,10 +36,12 @@ test('the security check refers CLM-1901 with its reason, and the claim shows it
   await expect(page.getByText('Security check', { exact: true })).toBeVisible()
 })
 
-test('a decided claim shows what the agent read', async ({ page }) => {
+test('a decided claim shows what the agent looked up and where it came from', async ({ page }) => {
   await page.goto('/claims/CLM-1001')
-  await expect(page.getByRole('heading', { name: 'What the agent read' })).toBeVisible()
-  await expect(page.getByText('Policy wording, section 10: How we work out your payment')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Context used' })).toBeVisible()
+  await expect(page.getByText('policy_wording.md', { exact: true })).toBeVisible()
+  await expect(page.getByRole('listitem').filter({ hasText: /^Policy wording, section 10$/ })).toBeVisible()
   await expect(page.getByText(/Claims manual 2026\.2 · policy wording 2026\.1/)).toBeVisible()
-  await expect(page.getByText('Read policy wording, section 10')).toBeVisible()
+  await expect(page.getByText('Looked up policy wording, section 10')).toBeVisible()
+  await expect(page.getByText('plans.yaml · Policy administration · Product · 2026-09-01').first()).toBeVisible()
 })

@@ -162,18 +162,21 @@ def test_rationale_warning_goes_to_the_trace(run):
 
 def test_section_text_is_not_copied_to_the_trace(run):
     env, _, _ = run([tool_call("read_section", {"document": "claims_manual", "section": 7}, "c1"), decline()])
-    read = [e for e in trace(env, "tool_result") if e["name"] == "read_section"]
-    assert len(read) == 1
-    assert re.fullmatch(r"\[claims_manual section 7: Interpretation notes, \d+ characters\]", read[0]["content"])
+    read = [e for e in trace(env, "lookup") if e["tool"] == "read_section"]
+    assert len(read) == 1 and read[0]["found"] == "Interpretation notes" and read[0]["args"] == {"document": "claims_manual", "section": 7}
+    assert read[0]["sources"][0]["file"] == "claims_manual.md"
+    assert not [e for e in trace(env, "tool_result") if e["name"] == "read_section"]  # a lookup is a step of its own
+    assert "## 7." not in json.dumps(trace(env, "lookup"))  # what was read, not a copy of it
 
 
 def test_rereads_and_the_cap_hold_on_the_conversation(run):
     reads = [tool_call("read_section", {"document": "policy_wording", "section": n}, f"c{n}") for n in range(1, 10)]
     again = tool_call("read_section", {"document": "policy_wording", "section": 1}, "again")
     env, _, _ = run([*reads, again, decline()])
+    assert len([e for e in trace(env, "lookup") if e["tool"] == "read_section"]) == 8
     contents = [e["content"] for e in trace(env, "tool_result") if e["name"] == "read_section"]
-    assert contents[8].startswith("Error: you have read 8 sections")
-    assert contents[9].startswith("You already read policy_wording section 1")
+    assert contents[0].startswith("Error: you have read 8 sections")
+    assert contents[1].startswith("You already read policy_wording section 1")
 
 
 def test_thirty_model_calls_is_the_most(db_path, data_dir):
@@ -187,7 +190,30 @@ def test_thirty_model_calls_is_the_most(db_path, data_dir):
 
 def test_model_is_not_offered_a_payment_tool(run):
     _, model, _ = run(decline())
-    assert set(model.bound_tools) == {"read_section", "search_documents", "lookup_knowledge", "calculate_payout", "save_decision"}
+    assert set(model.bound_tools) == {"lookup_term", "describe_fields", "get_claim_rules", "search_reference_data", "search_documents",
+                                      "read_section", "calculate_payout", "save_decision"}
+
+
+def test_a_lookup_step_names_the_file_and_its_source(run):
+    env, _, _ = run([tool_call("lookup_term", {"term": "Carrier"}, "c1"), decline()])
+    looked = [e for e in trace(env, "lookup") if e["tool"] == "lookup_term"]
+    assert len(looked) == 1 and looked[0]["args"] == {"term": "Carrier"} and looked[0]["found"].startswith("An airline")
+    assert looked[0]["sources"][0] == {"file": "glossary.yaml", "system": "The policy wording, version 2026.1",
+                                       "owner": "Legal", "reviewed": "2026-09-01"}
+
+
+def test_the_plan_is_prefetched_from_the_context_layer_for_the_policys_plan(run):
+    env, _, _ = run(decline())
+    plan = [e for e in trace(env, "lookup") if e["tool"] == "get_plan"]
+    assert plan and plan[0]["args"] == {"plan": "premium"} and plan[0]["sources"][0]["file"] == "plans.yaml"
+
+
+def test_an_unknown_section_is_a_refusal_the_model_sees_and_the_claim_goes_on(run):
+    env, model, _ = run([tool_call("read_section", {"document": "claims_manual", "section": 99}, "c1"), decline()])
+    assert status(env) == "decided"
+    refusals = trace(env, "refusal")
+    assert [(r["by"], "no section 99" in r["reason"]) for r in refusals] == [("context", True)]
+    assert any(m.type == "tool" and str(m.content).startswith("Error:") for m in model.shown[-1])
 
 
 def test_claim_facts_arrive_as_tool_results_before_the_first_model_call(run):

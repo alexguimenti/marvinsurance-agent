@@ -6,6 +6,7 @@ const DB = 'e2e.db'
 const API_PORT = 8100
 const WEB_PORT = 5273
 const AGENT_PORT = 8003 // a stand-in for the agent's service: never the one `npm run dev` starts
+const CONTEXT_PORT = 8016 // the context layer, the real server: it only reads files
 const AUTH_PORT = 8004 // a stand-in for Supabase Auth: the tests never reach the real project
 const AUTH_URL = `http://127.0.0.1:${AUTH_PORT}`
 const JUDGE_PORT = 8005 // a stand-in for the judge's endpoint: the tests never call the real one
@@ -30,6 +31,15 @@ export default defineConfig({
       command: `"${PYTHON}" -m uvicorn stand_in_auth:app --app-dir ../e2e --port ${AUTH_PORT}`,
       cwd: '../backend',
       url: `${AUTH_URL}/auth/v1/health`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      // the context layer the agent's tools read: the real server, since it reads nothing but its own files
+      command: `"${PYTHON}" -m context`,
+      cwd: '../backend',
+      env: { UNDERCOVER_CONTEXT_PORT: String(CONTEXT_PORT) },
+      port: CONTEXT_PORT,
       reuseExistingServer: false,
       timeout: 60_000,
     },
@@ -60,6 +70,7 @@ export default defineConfig({
       cwd: '../backend',
       env: {
         AGENT_PROVIDER: 'scripted', DB_PATH, PYTHONPATH: '.', UNDERCOVER_API_KEY: API_KEY, UNDERCOVER_BACKEND: API_URL,
+        UNDERCOVER_CONTEXT: `http://127.0.0.1:${CONTEXT_PORT}/mcp`,
       },
       url: `http://127.0.0.1:${AGENT_PORT}/health`,
       reuseExistingServer: false,

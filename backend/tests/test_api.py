@@ -114,24 +114,25 @@ def test_needs_handler_claim_after_a_dispatch(client):
 
 
 def read_with(db_path, data_dir, *reads):
-    """Work a claim on a stub model that reads these sections, and ask the backend what it read."""
+    """Work a claim on a stub model that reads these sections, and ask the backend what it looked up."""
     steps = [tool_call("read_section", {"document": d, "section": n}, f"r{i}") for i, (d, n) in enumerate(reads)]
     with agent_env(db_path, data_dir, stub({"CLM-1001": [[*steps, decline()]]})) as env:
         work_claim(env, "CLM-1001")
     with api_client(create_app(make_settings(db_path, data_dir), jwks=MINT), headers=MINT.header()) as client:
-        return client.get("/claims/CLM-1001").json()["read"]
+        return client.get("/claims/CLM-1001").json()["context_used"]
 
 
-def test_claim_detail_lists_what_was_read(db_path, data_dir):
-    read = read_with(db_path, data_dir, ("claims_manual", 7), ("policy_wording", 5), ("claims_manual", 7))
-    assert read == [
-        {"document": "claims_manual", "section": 7, "title": "Interpretation notes"},
-        {"document": "policy_wording", "section": 5, "title": "Baggage and Personal Effects"},
-    ]
+def test_claim_detail_lists_what_was_looked_up_once_each_grouped_by_file(db_path, data_dir):
+    used = read_with(db_path, data_dir, ("claims_manual", 7), ("policy_wording", 5), ("claims_manual", 7))
+    assert [f["file"] for f in used] == ["plans.yaml", "claims_manual.md", "policy_wording.md"]  # the plan is looked up first
+    manual = used[1]
+    assert (manual["system"], manual["owner"], manual["reviewed"]) == ("Claims operations", "Head of claims operations", "2026-09-01")
+    assert manual["lookups"] == [{"tool": "read_section", "args": {"document": "claims_manual", "section": 7}}]
+    assert used[0]["lookups"] == [{"tool": "get_plan", "args": {"plan": "premium"}}]
 
 
 def test_a_refused_read_is_not_listed(db_path, data_dir):
-    assert read_with(db_path, data_dir, ("claims_manual", 99)) == []
+    assert [f["file"] for f in read_with(db_path, data_dir, ("claims_manual", 99))] == ["plans.yaml"]
 
 
 def test_claim_usage_sums_every_attempt_and_its_time(client, db_path):

@@ -9,7 +9,7 @@ from botocore.awsrequest import AWSRequest
 from mcp.shared.exceptions import McpError
 
 from agent.mcp_bridge import ToolRefused, call_tool
-from agent.operations import APP_TARGET, CONTEXT_TARGET, CONTEXT_TOOLS
+from agent.operations import APP_TARGET, APP_TOOLS, CONTEXT_TARGET, CONTEXT_TOOLS
 
 
 class GatewayRefused(Exception):
@@ -66,4 +66,6 @@ class GatewayRoute:
         return self._tool(CONTEXT_TARGET, tool, args)
 
     def shown_name(self, tool: str) -> str:
-        return f"{CONTEXT_TARGET if tool in CONTEXT_TOOLS else APP_TARGET}___{tool}"
+        if tool in CONTEXT_TOOLS:
+            return f"{CONTEXT_TARGET}___{tool}"
+        return f"{APP_TARGET}___{tool}" if tool in APP_TOOLS else tool  # the agent's own tools keep their names

@@ -78,6 +78,7 @@ def test_make_route_reads_the_environment_when_it_is_called(monkeypatch):
 
 
 def test_the_direct_context_url_defaults_and_follows_the_environment(monkeypatch):
+    monkeypatch.delenv("UNDERCOVER_CONTEXT")
     assert make_route().context_url == "http://127.0.0.1:8006/mcp"
     monkeypatch.setenv("UNDERCOVER_CONTEXT", "http://elsewhere.example/mcp")
     assert make_route().context_url == "http://elsewhere.example/mcp"

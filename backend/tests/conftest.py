@@ -1,6 +1,10 @@
+import socket
+import threading
+import time
 from pathlib import Path
 
 import pytest
+import uvicorn
 
 from tests.fakes import TEST_KEY
 
@@ -19,6 +23,30 @@ def no_outside_world(request, monkeypatch):
     monkeypatch.setenv("UNDERCOVER_API_KEY", TEST_KEY)  # a test that wants no key deletes it
     if "test_openrouter_smoke" not in request.node.nodeid:  # the live smoke test needs the key; nothing else does
         monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+
+@pytest.fixture(scope="session")
+def context_server_url():
+    """The context layer, served on this computer for the whole run: what the agent reaches at UNDERCOVER_CONTEXT."""
+    from context.server import build_server
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(build_server().streamable_http_app(), host="127.0.0.1", port=port, log_level="error"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.02)
+    yield f"http://127.0.0.1:{port}/mcp"
+    server.should_exit = True
+    thread.join(5)
+
+
+@pytest.fixture(autouse=True)
+def context_layer(monkeypatch, context_server_url, no_outside_world):
+    """Every test that reaches the context layer reaches this one, never a server of the developer's."""
+    monkeypatch.setenv("UNDERCOVER_CONTEXT", context_server_url)
 
 
 @pytest.fixture(autouse=True)

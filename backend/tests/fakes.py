@@ -425,3 +425,68 @@ class ServiceClient:
 def service_client(app, **kwargs):
     """A client for the agent's service, with the key every call to it needs."""
     return ServiceClient(app, **kwargs)
+
+
+# --- the decision record: a calculation on file first, and who made the decision --------------------------------------
+
+def write_calculation(engine, claim_id: str, payout: float, attempt: int | None = None) -> None:
+    """The latest payout calculation of the claim's current attempt, written straight to the table: the one line the
+    payout rules would give. `attempt` says which attempt it was made in; the current one by default."""
+    import json
+
+    from sqlalchemy import select
+
+    from app.db import claims, insert_or_ignore, payout_calculations
+
+    with engine.begin() as conn:
+        if attempt is None:
+            attempt = conn.execute(select(claims.c.attempts).where(claims.c.claim_id == claim_id)).scalar_one() + 1
+        conn.execute(payout_calculations.delete().where(payout_calculations.c.claim_id == claim_id))
+        conn.execute(insert_or_ignore(conn, payout_calculations).values(
+            claim_id=claim_id, attempt=attempt, payout=payout, steps=json.dumps([{"step": "Payout", "amount": payout}])))
+
+
+def record_decision(engine, ref, claim_id: str, decision: dict, model: str = "m", decided_by: str = "Test") -> dict:
+    """`app.claims.record_decision` for a test: an approval gets a matching calculation first, and every record gets a
+    maker. Tests that record approvals with payouts of their own keep their payouts."""
+    from app import claims as claim_records
+
+    if decision["decision"] == "approve":
+        write_calculation(engine, claim_id, decision["payout"])
+    return claim_records.record_decision(engine, ref, claim_id, {**decision, "decided_by": decided_by}, model)
+
+
+def record_approval(client, claim_id: str, payout: float, decided_by: str = "Test"):
+    """The same, over HTTP: calculate, then record. The calculation is one `expense` line for the payout, so it comes
+    to the payout whatever the claim: `client` is a backend client, and the agent's key is sent."""
+    key = {"X-API-Key": TEST_KEY}
+    body = {"items": [{"description": "Payout", "amount": payout, "item_limit": None}], "third_party_paid": 0,
+            "deductible": 0, "benefit_max": None}
+    assert client.post(f"/claims/{claim_id}/payout", json=body, headers=key).status_code == 200
+    decision = {"decision": "approve", "payout": payout, "rationale": "Covered. Section 10 sets the payment.",
+                "citations": ["Policy wording, section 10"], "decided_by": decided_by, "model": "m"}
+    return client.post(f"/claims/{claim_id}/decision", json=decision, headers=key)
+
+
+# --- memory: AgentCore Memory with no network ------------------------------------------------------------------
+
+class FakeMemoryStore:
+    """AgentCoreMemoryStore with no network. `put` records the events it is given, as ((actor, session), key, value);
+    `search` answers from `memories`, each `(namespace tuple, text)`, for the namespace asked for. `fail` makes both raise."""
+
+    def __init__(self, memories=(), fail: Exception | None = None):
+        self.puts, self.searches, self.memories, self.fail = [], [], list(memories), fail
+
+    def put(self, namespace, key, value, *args, **kwargs):
+        if self.fail:
+            raise self.fail
+        self.puts.append((tuple(namespace), key, value))
+
+    def search(self, namespace_prefix, *, query=None, limit=10, **kwargs):
+        from types import SimpleNamespace
+
+        if self.fail:
+            raise self.fail
+        self.searches.append((tuple(namespace_prefix), query, limit))
+        prefix = tuple(namespace_prefix)
+        return [SimpleNamespace(namespace=ns, value={"content": text}) for ns, text in self.memories if ns[:len(prefix)] == prefix][:limit]

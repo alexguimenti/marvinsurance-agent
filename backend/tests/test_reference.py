@@ -21,22 +21,19 @@ def test_whitelist_excludes_evals_and_security():
     assert not any("evals" in f or "security" in f for f in ALLOWED_FILES)
 
 
-def test_manual_is_allowed(data_dir):
-    assert Reference(data_dir).manual.startswith("# MarvInsurance Claims Handling Manual")
+@pytest.mark.parametrize("name", ["plans.json", "policy_wording.md", "claims_manual.md", "knowledge.json"])
+def test_the_product_no_longer_reads_what_the_context_layer_serves(data_dir, name):
+    assert name not in ALLOWED_FILES
+    with pytest.raises(ValueError):
+        Reference(data_dir).read(name)
 
 
 def test_reference_lookups(data_dir):
     ref = Reference(data_dir)
     assert ref.policy("POL-2001")["plan"] == "premium"
     assert ref.customer("CUS-3001")["name"] == "Maya Patel"
-    assert ref.plan("premium")["deductible"] == 50.0
     assert ref.company["payout_approval_limit"] == 1000.0
     assert {h["handler_id"] for h in ref.handlers} >= {"HND-01"}
-    assert "## 10. How we work out your payment" in ref.read("policy_wording.md")
-    assert len(ref.knowledge) == 33
-    assert {a["add_on"] for a in ref.add_ons} == {
-        "adventure_sports", "pre_existing_waiver", "electronics_plus"
-    }
 
 
 def test_unknown_policy_or_customer_is_a_clear_lookup_error(data_dir):

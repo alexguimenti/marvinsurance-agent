@@ -8,6 +8,7 @@ asks the backend whether a sign-off is needed: it never applies the limit itself
 The security check comes first, outside the versioned configuration: a claim it flags is referred and never reaches the
 claim agent's model.
 """
+import json
 import time
 from typing import Annotated
 
@@ -24,7 +25,7 @@ from agent.connection import Refused
 from agent.events import GATEWAY_REFUSAL, Usage, call_usage, emit_message, rationale_warnings
 from agent.gateway import GatewayRefused
 from agent.mcp_bridge import ToolRefused
-from agent.prompts import claim_prompt
+from agent.prompts import LABELS, claim_prompt, section_index
 from agent.route import Route
 from agent.screening import screen_claim
 from agent.tools import NOT_OFFERED, PREFETCHED, build_tools, claim_data
@@ -64,6 +65,13 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
     # One tool call per turn: two save_decision calls in the same step would both write the proposal
     bound = model.bind_tools(offered, parallel_tool_calls=False)
 
+    sections: list[str] = []  # the documents' index, asked for once for this graph
+
+    def index() -> str:
+        if not sections:
+            sections.append(section_index({document: api.list_sections(document) for document in LABELS}))
+        return sections[0]
+
     def recorder(claim_id: str):
         return lambda kind, content: api.add_step(claim_id, kind, content)
 
@@ -86,18 +94,27 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         return {"decision": referral}
 
     def prepare(state: ClaimState) -> dict:
-        """Open the conversation with the facts every claim needs, as tool results it did not have to ask for."""
-
-        def fetch(name: str) -> str:
+        """Open the conversation with the facts every claim needs, as tool results it did not have to ask for: the claim,
+        its policy, the policy's plan from the context layer, and the customer's history."""
+        calls, results, plan = [], [], None
+        for name in PREFETCHED:
+            args = {"plan": plan} if name == "get_plan" else {}
+            call_id = f"prefetch-{name}"
+            calls.append({"name": name, "args": args, "id": call_id})
+            if name == "get_plan" and plan is None:
+                results.append(ToolMessage("Error: the policy has no plan to look up", name=name, tool_call_id=call_id, status="error"))
+                continue
             try:
-                return by_name[name].invoke({"claim_id": state.claim_id})
-            except (LookupError, ToolRefused, GatewayRefused) as exc:  # a fact that is missing is reported, as a tool call would
-                return f"Error: {exc}"
-
-        call = AIMessage(content="", tool_calls=[{"name": n, "args": {}, "id": f"prefetch-{n}"} for n in PREFETCHED])
-        results = [ToolMessage(fetch(n), name=n, tool_call_id=f"prefetch-{n}") for n in PREFETCHED]
+                answer = by_name[name].invoke({"type": "tool_call", "name": name, "id": call_id, "args": {**args, "claim_id": state.claim_id}
+                                               if name != "get_plan" else args})
+            except (LookupError, ToolRefused, GatewayRefused, Refused) as exc:  # a fact that is missing is reported as a refusal
+                answer = ToolMessage(_tool_refused(exc), name=name, tool_call_id=call_id, status="error")
+            if name == "get_policy" and answer.status != "error":
+                plan = json.loads(str(answer.content))["plan"]
+            results.append(answer)
+        call = AIMessage(content="", tool_calls=calls)
         for message in (call, *results):
-            emit_message(message, recorder(state.claim_id), {})
+            emit_message(message, recorder(state.claim_id), {c["id"]: c["args"] for c in calls}, route.shown_name)
         return {"messages": [HumanMessage(f"Decide claim {state.claim_id}."), call, *results]}
 
     def model_node(state: ClaimState, config: RunnableConfig) -> dict:
@@ -107,7 +124,7 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         deadline = config.get("configurable", {}).get("deadline")
         if deadline is not None and time.monotonic() > deadline:
             raise TimeoutError("the agent took too long on this claim")
-        reply = bound.invoke([SystemMessage(claim_prompt(ref, instructions)), *state.messages])
+        reply = bound.invoke([SystemMessage(claim_prompt(instructions, index())), *state.messages])
         run_id = config.get("configurable", {}).get("run_id")
         api.record_model_call(state.claim_id, run_id, model_id, call_usage(reply))
         usage = Usage(state.usage)

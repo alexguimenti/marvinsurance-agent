@@ -193,7 +193,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
   - **The Lambda handler:** `server.handler(event, context)`, which runs `Mangum(build_server(True).streamable_http_app(), lifespan="auto")(event, context)` with a new server for each event.
   - **On the laptop:** `python -m context` serves uvicorn at `127.0.0.1:8006`, path `/mcp`.
 
-- [ ] **Step 1: Write the failing tests** against the real files. Call the tools in process with `await build_server().call_tool(...)` through a small sync helper, or through `mcp_bridge.call_tool` against a server in a thread.
+- [x] **Step 1: Write the failing tests** against the real files. Call the tools in process with `await build_server().call_tool(...)` through a small sync helper, or through `mcp_bridge.call_tool` against a server in a thread.
   - `test_lookup_term_matches_any_case_and_names_its_file`: `lookup_term("CARRIER")` gives `answer.sections == [12]`, and `sources[0]` has `file == "glossary.yaml"` and `system == "The policy wording, version 2026.1"`.
   - `test_an_unknown_term_gets_the_glossarys_terms`
   - `test_describe_fields_for_each_record`: parametrize `claim`, `policy`, `previous_claim`; an unknown record is refused.
@@ -208,11 +208,11 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
 
   In `test_context_lambda.py`:
   - `test_the_handler_lists_then_calls_twice_in_one_process`. Use two Function URL events (payload 2.0, `host: abc.lambda-url.us-east-1.on.aws`, POST `/mcp`, `Accept: application/json, text/event-stream`): `tools/list`, then `tools/call lookup_term`. Both answer 200 with JSON-RPC results.
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
   - Run: `.venv\Scripts\python -m pytest tests/test_context_server.py tests/test_context_lambda.py -q`
   - Expected: FAIL (no module `context`).
-- [ ] **Step 3: Implement.** Copy the files with `cp ../../undercover/context/* context/`, check them with `git diff --no-index`, and write the modules.
-- [ ] **Step 4: Run them again.**
+- [x] **Step 3: Implement.** Copy the files with `cp ../../undercover/context/* context/`, check them with `git diff --no-index`, and write the modules.
+- [x] **Step 4: Run them again.**
   - Expected: PASS. Then run `node scripts/check.mjs` up to the new step, or that step alone.
   - Expected: "Context layer imports on a server" passes.
 
@@ -248,7 +248,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
   - **The `lookup` step:** `{"tool": <shown name>, "args": dict, "sources": [source...], "found": str}`, with at most 200 characters in `found`. It is recorded for every successful context tool result, including prefetched ones, and takes the place of today's section-summary `tool_result`.
   - **`agent.tools.claim_context`:** each context tool's answer goes to the model as the JSON text of `answer` plus `sources`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_seed_loads_both_documents_with_their_front_matter_version`: `version(engine, "claims_manual") == "2026.2"`, and no section text starts with `---`.
   - `test_the_app_never_reads_plans_or_the_documents_from_data`: build the app on a copy of `data/` without `plans.json`, `policy_wording.md` and `claims_manual.md`; then seed, `GET /api/claims/CLM-1001`, and `POST` a decision; all succeed.
   - `test_the_agent_openapi_has_the_six_operations`: update the existing test to exactly the six names.
@@ -259,19 +259,19 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
     - `test_an_unknown_section_is_a_refusal_the_model_sees`
     - `test_a_lookup_step_names_the_file_and_its_source`
   - `test_the_claim_prompt_ends_with_the_section_index_from_the_table`
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
   - Run: the files above.
   - Expected: FAIL.
-- [ ] **Step 3: Implement** to the interfaces. Then:
+- [x] **Step 3: Implement** to the interfaces. Then:
   - Update `instructions_claim.md`'s tool names (no other wording yet; Task 7 rewrites the goals).
   - Change the scripted model to read `read_section` from the context layer, unchanged in name.
   - Leave `data/plans.json`, `data/policy_wording.md` and `data/claims_manual.md` where they are.
-- [ ] **Step 4: Run the whole backend suite and the e2e.**
+- [x] **Step 4: Run the whole backend suite and the e2e.**
   - Run: `.venv\Scripts\python -m pytest -q > ..\.superpowers\phase2.log`, then `cd ../e2e; npm test`.
   - Expected: all pass.
-- [ ] **Step 5: Check by hand.** With `npm run dev` running (now four parts), call `lookup_term("carrier")` and `read_section("claims_manual", 14)` through `DirectRoute().context(...)` from a one-off python line.
+- [x] **Step 5: Check by hand.** With `npm run dev` running (now four parts), call `lookup_term("carrier")` and `read_section("claims_manual", 14)` through `DirectRoute().context(...)` from a one-off python line.
   - Expected: both answer, with sources.
-- [ ] **Step 6: Commit the phase:** `git commit -m "feat: the context layer as its own MCP server; the app's documents from its table"`
+- [x] **Step 6: Commit the phase:** `git commit -m "feat: the context layer as its own MCP server; the app's documents from its table"`
 
 ---
 

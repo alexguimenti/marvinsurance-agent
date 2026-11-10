@@ -66,6 +66,14 @@ decisions = Table(
     _timestamp("created_at"),
 )
 
+documents = Table(
+    "documents", metadata,
+    Column("document", Text, primary_key=True),  # policy_wording or claims_manual
+    Column("version", Text, nullable=False),  # from the document's front matter
+    Column("source", Text, nullable=False),  # JSON: the system it comes from, its owner and when it was reviewed
+    Column("text", Text, nullable=False),  # the document without its front matter
+)
+
 trace_events = Table(
     "trace_events", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),

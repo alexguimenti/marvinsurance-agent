@@ -1,4 +1,9 @@
-"""The claim agent's tools. The claim comes from the graph's state: the model never sees or chooses it."""
+"""The claim agent's tools. The claim comes from the graph's state: the model never sees or chooses it.
+
+The app's tools (the claim, its policy, its customer's history, the payout calculation and the decision) and the context
+layer's tools (definitions, plans, rules, reference data and the documents) are thin layers over `route`, which is either
+direct or the Gateway's. A context tool's answer names the file it came from: that goes back to the model in the answer and
+into the claim's steps as the tool's artifact."""
 import json
 from typing import Annotated
 
@@ -8,18 +13,17 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from pydantic import BaseModel
 
-from agent import api
 from agent.route import Route
-from app.documents import DOCUMENTS
 
 # Each section read goes back to the model on every later step, so reading costs grow fast.
 MAX_SECTIONS = 8
 DECISIONS = ("approve", "decline", "refer")
+FOUND_CHARS = 200  # how much of what a lookup found its step keeps
 
 # Facts every claim needs. They are handed to the agent as the results of tool calls it did not have to
 # make, which saves a model round trip each and keeps customer text inside tool results.
 PREFETCHED = ("get_claim", "get_policy", "get_plan", "get_claim_history")
-NOT_OFFERED = (*PREFETCHED, "list_sections")
+NOT_OFFERED = (*PREFETCHED,)
 
 ClaimId = Annotated[str, InjectedState("claim_id")]
 Messages = Annotated[list, InjectedState("messages")]
@@ -52,9 +56,19 @@ def sections_read(messages: list) -> set[tuple[str, int]]:
     }
 
 
+def _short(text: str) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= FOUND_CHARS else text[: FOUND_CHARS - 1] + "…"
+
+
 def build_tools(route: Route) -> list[BaseTool]:
-    """Tools over the app's operations, on whichever route is in use. None of them takes a path, and none pays."""
-    unknown = f"Documents: {', '.join(DOCUMENTS)}."
+    """Tools over the app's operations and the context layer's tools, on whichever route is in use. None of them takes a
+    path, and none pays."""
+
+    def lookup(name: str, args: dict, found) -> tuple[str, dict]:
+        """A context tool's answer for the model, and what the claim's steps keep of it."""
+        result = route.context(name, args)
+        return json.dumps(result), {"sources": result["sources"], "found": _short(found(result["answer"]))}
 
     @tool
     def get_claim(claim_id: ClaimId) -> str:
@@ -71,43 +85,48 @@ def build_tools(route: Route) -> list[BaseTool]:
         """Get the customer's name, customer-since date and earlier claims."""
         return json.dumps(route.app("get_claim_history", {"claim_id": claim_id}))
 
-    @tool
-    def get_plan(claim_id: ClaimId) -> str:
-        """Get the limits, waiting periods and deductible of the policy's plan, and its add-ons."""
-        return json.dumps(api.get_plan(claim_id))
+    @tool(response_format="content_and_artifact")
+    def lookup_term(term: str) -> tuple[str, dict]:
+        """Look up a term the policy wording defines, with the sections it comes from."""
+        return lookup("lookup_term", {"term": term}, lambda a: a.get("definition") or f"not defined; {len(a['terms'])} terms listed")
 
-    @tool
-    def list_sections(document: str) -> str:
-        """List the numbered sections of a document: 'policy_wording' (the contract) or 'claims_manual'."""
-        try:
-            return json.dumps(api.list_sections(document))
-        except LookupError as exc:
-            return f"Error: {exc}. {unknown}"
+    @tool(response_format="content_and_artifact")
+    def describe_fields(record: str) -> tuple[str, dict]:
+        """Describe the fields of a claim, a policy or a previous_claim, as the data dictionary defines them."""
+        return lookup("describe_fields", {"record": record}, lambda a: f"{len(a['fields'])} fields of a {record}")
 
-    @tool
-    def read_section(document: str, section: int, messages: Messages) -> str:
+    @tool(response_format="content_and_artifact")
+    def get_plan(plan: str) -> tuple[str, dict]:
+        """Get one plan's limits, waiting periods, deductible and add-ons: economy, premium or first."""
+        return lookup("get_plan", {"plan": plan}, lambda a: f"{a['plan']['name']}: deductible ${a['plan']['deductible']:,.2f}")
+
+    @tool(response_format="content_and_artifact")
+    def get_claim_rules() -> tuple[str, dict]:
+        """Get the rules claims operations applies to every claim."""
+        return lookup("get_claim_rules", {}, lambda a: ", ".join(r["name"] for r in a["rules"]))
+
+    @tool(response_format="content_and_artifact")
+    def search_reference_data(query: str) -> tuple[str, dict]:
+        """Find the outside facts (events, places, products) that contain every word of the query."""
+        return lookup("search_reference_data", {"query": query}, lambda a: f"{len(a)} facts")
+
+    @tool(response_format="content_and_artifact")
+    def search_documents(query: str) -> tuple[str, dict]:
+        """Find the sections of the policy wording and the claims manual that mention a word or phrase."""
+        return lookup("search_documents", {"query": query}, lambda a: f"{len(a)} sections")
+
+    @tool(response_format="content_and_artifact")
+    def read_section(document: str, section: int, messages: Messages) -> tuple[str, dict | None]:
         """Read one numbered section of 'policy_wording' or 'claims_manual'."""
         read = sections_read(messages)
         if (document, section) in read:
-            return f"You already read {document} section {section} above. Use that text."
+            return f"You already read {document} section {section} above. Use that text.", None
         if len(read) >= MAX_SECTIONS:
-            return f"Error: you have read {MAX_SECTIONS} sections, the most for one claim. Decide with what you have."
-        try:
-            return api.read_section(document, section)
-        except LookupError as exc:
-            return f"Error: {exc}. {unknown}"
-
-    @tool
-    def search_documents(query: str) -> str:
-        """Find the sections of the policy wording and the claims manual that mention a word or phrase."""
-        return json.dumps(api.search_documents(query))
-
-    @tool
-    def lookup_knowledge(topic: str) -> str:
-        """Look up public facts (events, products, places). Give a topic such as 'events' or a search word."""
-        term = topic.lower()
-        facts = [f for f in api.knowledge() if f["topic"].lower() == term or term in f["fact"].lower()]
-        return json.dumps(facts)
+            return f"Error: you have read {MAX_SECTIONS} sections, the most for one claim. Decide with what you have.", None
+        result = route.context("read_section", {"document": document, "number": section})
+        source = result["sources"][0]
+        text = f"{result['answer']['text']}\n\n[From {source['file']}: {source['system']}, {source['owner']}, reviewed {source['reviewed']}]"
+        return text, {"sources": result["sources"], "found": result["answer"]["title"]}
 
     @tool
     def calculate_payout(
@@ -164,6 +183,6 @@ def build_tools(route: Route) -> list[BaseTool]:
         })
 
     return [
-        get_claim, get_policy, get_claim_history, get_plan,
-        list_sections, read_section, search_documents, lookup_knowledge, calculate_payout, save_decision,
+        get_claim, get_policy, get_claim_history, get_plan, lookup_term, describe_fields, get_claim_rules,
+        search_reference_data, search_documents, read_section, calculate_payout, save_decision,
     ]

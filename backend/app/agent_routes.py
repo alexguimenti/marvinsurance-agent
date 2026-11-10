@@ -126,13 +126,6 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
         except LookupError as exc:
             raise HTTPException(404, str(exc))
 
-    @router.get("/claims/{claim_id}/plan", operation_id="get_claim_plan")
-    def plan(claim_id: str):
-        """Get the plan and add-ons of the claim's policy."""
-        known(claim_id)
-        policy = ref.policy(claim_records.get_claim_payload(engine, claim_id)["policy_id"])
-        return {"plan": ref.plan(policy["plan"]), "add_ons": [a for a in ref.add_ons if a["add_on"] in policy["add_ons"]]}
-
     @router.get("/claims/{claim_id}/state", operation_id="get_claim_state")
     def state(claim_id: str):
         """Get where a claim stands, with its decision, payment and whether it needs a sign-off."""
@@ -193,11 +186,6 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
             return [{"section": s.number, "title": s.title} for s in docs.sections(document)]
         except KeyError as exc:
             raise HTTPException(404, exc.args[0])
-
-    @router.get("/knowledge", operation_id="get_agent_knowledge")
-    def knowledge():
-        """List the public facts the agent may look up."""
-        return ref.knowledge
 
     @router.post("/model-calls", status_code=201, operation_id="add_model_call")
     def model_call(body: ModelCall):

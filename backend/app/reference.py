@@ -6,14 +6,10 @@ ALLOWED_FILES = frozenset(
         "claims.json",
         "policies.json",
         "customers.json",
-        "plans.json",
         "handlers.json",
         "company.json",
-        "knowledge.json",
         "improvement.json",
         "models.json",
-        "policy_wording.md",
-        "claims_manual.md",
     }
 )
 
@@ -57,13 +53,6 @@ class Reference:
                 return row
         raise LookupError(f"no {key} {value} in {name}")
 
-    def plan(self, name: str) -> dict:
-        return next(p for p in self.read("plans.json")["plans"] if p["plan"] == name)
-
-    @property
-    def add_ons(self) -> list[dict]:
-        return self.read("plans.json")["add_ons"]
-
     @property
     def company(self) -> dict:
         return self.read("company.json")
@@ -71,14 +60,6 @@ class Reference:
     @property
     def handlers(self) -> list[dict]:
         return self.read("handlers.json")
-
-    @property
-    def manual(self) -> str:
-        return self.read("claims_manual.md")
-
-    @property
-    def knowledge(self) -> list[dict]:
-        return self.read("knowledge.json")
 
     @property
     def claims(self) -> list[dict]:

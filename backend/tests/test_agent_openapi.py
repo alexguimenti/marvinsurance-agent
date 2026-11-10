@@ -1,4 +1,4 @@
-"""The agent's own API document: exactly the claim agent's eight operations, for the Gateway to make tools of."""
+"""The agent's own API document: exactly the claim agent's six operations, for the Gateway to make tools of."""
 import pytest
 
 from app.api import GATEWAY_OPERATIONS, create_app
@@ -6,8 +6,7 @@ from app.config import Settings
 from tests.fakes import MINT, TEST_KEY, api_client
 
 KEY = {"X-API-Key": TEST_KEY}
-EIGHT = {"get_claim", "get_policy", "get_claim_history", "search_documents", "read_section", "calculate_payout",
-         "record_decision", "pay_claim"}
+SIX = {"get_claim", "get_policy", "get_claim_history", "calculate_payout", "record_decision", "pay_claim"}
 
 
 @pytest.fixture
@@ -31,9 +30,9 @@ def test_the_gateway_refusal_bookkeeping_stays_off_the_gateway(client):
     assert "hold_after_gateway_refusal" not in set(operations(document(client)))
 
 
-def test_the_document_has_exactly_the_eight_operations_and_no_servers(client):
+def test_the_document_has_exactly_the_six_operations_and_no_servers(client):
     doc = document(client)
-    assert set(operations(doc)) == EIGHT == set(GATEWAY_OPERATIONS)
+    assert set(operations(doc)) == SIX == set(GATEWAY_OPERATIONS)
     assert "servers" not in doc
 
 
@@ -48,7 +47,7 @@ def test_the_document_has_no_key_input_and_keeps_amount_and_docstrings(client):
     schema = pay["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[1]
     assert list(doc["components"]["schemas"][schema]["properties"]) == ["amount"]  # the name the Gateway's Policy reads
     paths = {name: path for name, (path, _, _) in operations(doc).items()}
-    assert paths["get_claim"] == "/api/claims/{claim_id}" and paths["search_documents"] == "/api/documents/search"
+    assert paths["get_claim"] == "/api/claims/{claim_id}" and paths["calculate_payout"] == "/api/payouts/calculate"
 
 
 def test_the_document_needs_the_key_or_a_sign_in(client):

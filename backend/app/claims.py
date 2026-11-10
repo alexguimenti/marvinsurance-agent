@@ -5,7 +5,7 @@ import json
 from sqlalchemy import Engine, select, update
 
 from app.db import claims, decisions, insert_or_ignore, iso, payments
-from app.documents import documents_for
+from app.documents import Documents
 from app.reference import Reference
 from app.settings_store import approval_limit
 
@@ -46,7 +46,7 @@ def _decision(row) -> dict | None:
 
 def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dict, model: str) -> dict:
     """Record the claim's one decision and return the claim. An approval stays in progress until it is paid."""
-    docs = documents_for(ref)
+    docs = Documents(engine)
     limit = approval_limit(engine, ref)
     with engine.begin() as conn:
         conn.execute(

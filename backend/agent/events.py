@@ -71,7 +71,7 @@ def emit_message(message, on_event: Emit, calls: dict[str, dict], shown: Callabl
         for call in message.tool_calls:
             calls[call["id"]] = call["args"]
             if call["name"] != "save_decision":  # the decision has an event of its own
-                on_event("tool_call", {"name": call["name"], "args": call["args"]})
+                on_event("tool_call", {"name": shown(call["name"]), "args": call["args"]})
         if message.content and not message.tool_calls:
             on_event("message", {"text": str(message.content)})
     elif isinstance(message, ToolMessage):
@@ -85,13 +85,9 @@ def emit_message(message, on_event: Emit, calls: dict[str, dict], shown: Callabl
             return
         if message.name == "save_decision" and not content.startswith("Error:"):
             return
-        if message.name == "read_section" and not content.startswith(("Error:", "You already read")):
-            content = _section_summary(calls.get(message.tool_call_id, {}), content)  # what was read, not a copy of it
-        on_event("tool_result", {"name": message.name, "content": content})
-
-
-def _section_summary(args: dict, content: str) -> str:
-    """'[claims_manual section 7: Interpretation notes, 3120 characters]' for a section the agent read."""
-    heading = content.splitlines()[0].lstrip("# ").strip()
-    title = heading.partition(". ")[2] or heading
-    return f"[{args.get('document')} section {args.get('section')}: {title}, {len(content)} characters]"
+        artifact = getattr(message, "artifact", None)
+        if isinstance(artifact, dict) and "sources" in artifact:  # a lookup in the context layer: what and where from
+            on_event("lookup", {"tool": shown(message.name), "args": calls.get(message.tool_call_id, {}),
+                                "sources": artifact["sources"], "found": artifact.get("found", "")})
+            return
+        on_event("tool_result", {"name": shown(message.name), "content": content})

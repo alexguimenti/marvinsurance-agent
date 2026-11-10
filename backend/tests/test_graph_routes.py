@@ -11,7 +11,7 @@ from app.auth import Handler
 from app.claims import get_claim
 from app.payments import get_payment, sign_off
 from app.settings_store import change_setting
-from tests.fakes import RawDb, StandInGateway, agent_env, approve, stub, tool_call
+from tests.fakes import RawDb, StandInGateway, agent_env, approve, direct_route, stub, tool_call
 
 CLAIM = "CLM-1001"
 BIG = "CLM-1003"  # a claim big enough for an approval over $1,000
@@ -25,7 +25,7 @@ def on_route(request, db_path, data_dir):
 
     def make(outcomes=None, deny=(), **settings):
         stand_in = StandInGateway(deny=deny)
-        route = DirectRoute() if request.param == "direct" else GatewayRoute("https://gateway.example/mcp", None, call=stand_in)
+        route = direct_route() if request.param == "direct" else GatewayRoute("https://gateway.example/mcp", None, call=stand_in)
         model = stub(outcomes)
         cm = agent_env(db_path, data_dir, model, route=route, **settings)
         env = cm.__enter__()
@@ -106,7 +106,7 @@ def test_a_payment_the_gateway_refused_waits_for_sign_off_and_a_sign_off_pays_it
 def test_get_claim_gives_the_same_text_on_both_routes(tmp_path, data_dir):
     texts = {}
     for kind in ("direct", "gateway"):
-        route = DirectRoute() if kind == "direct" else GatewayRoute("https://gateway.example/mcp", None, call=StandInGateway())
+        route = direct_route() if kind == "direct" else GatewayRoute("https://gateway.example/mcp", None, call=StandInGateway())
         model = stub({CLAIM: [approve(420.0)]})
         (tmp_path / kind).mkdir()
         with agent_env(str(tmp_path / kind / "test.db"), data_dir, model, route=route) as env:

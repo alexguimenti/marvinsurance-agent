@@ -119,7 +119,7 @@ def base_env() -> dict:
 
 def test_the_app_imports_nothing_from_the_agent():
     code = ("import sys, app.main\n"
-            "bad = sorted(m for m in sys.modules if m.split('.')[0] in ('agent', 'langchain', 'langgraph', 'langchain_core', 'langfuse'))\n"
+            "bad = sorted(m for m in sys.modules if m.split('.')[0] in ('agent', 'context', 'langchain', 'langgraph', 'langchain_core', 'langfuse', 'mcp', 'boto3'))\n"
             "assert not bad, bad")
     done = run_python(code, base_env(), REPO / "backend")
     assert done.returncode == 0, done.stderr
