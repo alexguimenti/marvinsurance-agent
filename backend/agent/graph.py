@@ -13,6 +13,8 @@ import logging
 import time
 from typing import Annotated
 
+import httpx
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
@@ -51,7 +53,11 @@ class ClaimState(BaseModel):
 
 
 def _tool_refused(error: Exception) -> str:
-    """What the model is shown when a tool is refused: the reason, and whose refusal it was when it is the Gateway's."""
+    """What the model is shown when a tool is refused: the reason, and whose refusal it was when it is the Gateway's. A
+    transport error is nobody's refusal (the backend, the Gateway or the context layer is out of reach): it goes up, and the
+    claim carries on from its last saved step."""
+    if isinstance(error, httpx.TransportError):
+        raise error
     return f"{GATEWAY_REFUSAL}{error}" if isinstance(error, GatewayRefused) else f"Error: {error}"
 
 

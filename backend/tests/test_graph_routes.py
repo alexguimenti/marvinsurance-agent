@@ -117,3 +117,25 @@ def test_get_claim_gives_the_same_text_on_both_routes(tmp_path, data_dir):
             work_claim(env, CLAIM)
             texts[kind] = next(str(m.content) for m in model.shown[0] if m.type == "tool" and m.name == "get_claim")
     assert texts["direct"] == texts["gateway"] and texts["direct"].startswith("<claim_data>")
+
+
+def test_a_timeout_in_a_tool_is_not_a_refusal_the_claim_waits_and_carries_on(on_route, monkeypatch):
+    """The backend out of reach is nobody's refusal: the model is not told "timed out" as if the app had said no. The error
+    goes up as any transport error does, and the claim carries on from its last saved step."""
+    import httpx
+
+    env, model, _ = on_route({CLAIM: [[tool_call("calculate_payout", CALCULATE, "c1"), approve(420.0)]]})
+    real = connection.call
+    slow = [True]
+
+    def timing_out(method, path, json=None, params=None):
+        if path.endswith("/payout") and slow:
+            slow.pop()
+            raise httpx.ReadTimeout("timed out")
+        return real(method, path, json=json, params=params)
+
+    monkeypatch.setattr(connection, "call", timing_out)
+    with pytest.raises(httpx.ReadTimeout):
+        work_claim(env, CLAIM)
+    assert not steps(env, "refusal") and get_claim(env.engine, CLAIM)["status"] == "in_progress"
+    assert carry_on(env, CLAIM) == "CLM-1001: approve $420.00, paid"  # the same attempt, from where it stopped
