@@ -103,3 +103,29 @@ Notes:
 ## Not built
 
 Real payments, messages to customers, rejecting a held payout.
+
+## The context layer, memory and the complete record (2026-11-10)
+
+Built in five phases (`docs/plans/PLAN_CONTEXT.md`). Checks: `npm run check`'s steps run piecewise with `.env` moved away: backend 579 passed and 1 skipped, the server and context imports on their own groups, front end 146 tests with the type check and lint clean, end to end 14 passed (one run, `.env` in place). Live checks on Supabase and the default model, direct route, memory off, signed in as Dana Whitfield by a script (`e2e/live_security.mjs`), so the password never passed through a tool call: **about $0.07 on OpenRouter in all**, from the `model_calls` table.
+
+| Check | Result |
+|---|---|
+| One `npm run seed`, then `npm run dev` with its four parts | 26 claims waiting; the context layer answers at 8006 |
+| `uv run -m agent CLM-1005`, then `CLM-1006` | Approve $243.00 and approve $425.00, both paid, each with its calculation, "UnderCover Agent, configuration version 1" and the manual's version 2026.2 |
+| A dispatch at N=25 on the rest of the queue | **Finished only on the fifth dispatch, after three defects found by the run (below).** In the end all 26 claims are decided or awaiting a sign-off (22 decided, 4 awaiting approval); CLM-1901 is referred by the security check |
+| An evaluation of the evaluation set's five tiny claims (run 6) | Finished: decision accuracy 100%, accuracy 80%, grade 1.33, mistakes $228, straight-through 80%, $0.0023 and 1 min 6 s per claim |
+| The claim pages of CLM-1005 and CLM-1006 | Each tool call, each lookup with its file and where it came from (`plans.yaml`, `policy_wording.md`, `claim_rules.yaml`, `claims_manual.md`), the Context used panel, and the decision with its calculation line by line, who decided and when, and the manual's version. Checked in a browser driven by a script, with screenshots, not through the Playwright MCP server, which would have needed the password in a tool call |
+| What the runs spent | The two claims $0.0025; the first dispatch $0.040 (94 calls); the later dispatches and the evaluation the rest. 169 model calls, $0.0726 |
+
+What the memory steps, the Gateway's names and the Gateway's refusals look like is covered by tests only: the live runs have no Gateway and memory off, as the brief says.
+
+### Three defects the N=25 dispatch found
+
+1. **A decision held two connections.** The manual's version was read inside the transaction that records a decision, so enough decisions at once held all of the backend's 4 connections and each waited for a fifth: requests hung until the pool's 600 s wait ran out, and the agent's 30 s timeout fired first. Fixed by reading the versions first; `test_an_operation_never_holds_a_connection_while_it_asks_for_another` fails without it (a pool of one).
+2. **A request waited 30 s at most.** Up to 25 claim agents share the backend's 4 connections and are meant to wait for one rather than fail. The agent's client now waits 300 s.
+3. **A timeout became a refusal.** A transport error in a tool call was shown to the model as "Error: timed out", as if the app had said no. It now goes up like any transport error and the claim carries on from its last saved step.
+
+And one found on the way: saved progress that had ended with no decision on record made carrying on crash with a `TypeError`, so a claim stayed in progress for ever. It now fails the attempt, and the next one starts afresh.
+
+The dispatch's page shows the *previous* dispatch's summary until the new one finishes, so `e2e/live_security.mjs dispatch` returns at once when an earlier run exists; its runs are followed in the database instead.
+

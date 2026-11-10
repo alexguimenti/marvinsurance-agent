@@ -424,19 +424,19 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
 **Interfaces:**
 - Consumes: the step shapes from Tasks 2, 4 and 7, and the decision view from Task 5.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_context_used_groups_lookups_by_file_once_each`, which also checks that a refusal step adds nothing.
   - `test_tool_calls_on_the_gateway_route_carry_the_gateways_names`
   - Trace tests, one per kind: `lookup` shows what was looked up and "glossary.yaml · The policy wording, version 2026.1 · Legal · 2026-09-01"; `memory_search` shows the query and what it found; `memory_save` shows what was saved; `refusal` has class `trace-refusal` and its "Refused by …" label.
   - ClaimDetail tests: "Context used" lists the files and their sources; the decision panel shows each calculation line and the total, "UnderCover Agent, configuration version 1", and "Claims manual 2026.2".
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
   - Run: `pytest tests/test_api.py -q`; `npx vitest run src/pages`
   - Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run the full check from a clean worktree.**
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run the full check from a clean worktree.**
   - Run: `git worktree add ../context-check HEAD`, then `npm run check` there, in parts if memory runs short (backend, the two import checks, vitest, tsc, lint, e2e).
   - Expected: all green with no `.env`.
-- [ ] **Step 5: Commit the phase:** `git commit -m "feat: every step of the agent's work on the claim page"`
+- [x] **Step 5: Commit the phase:** `git commit -m "feat: every step of the agent's work on the claim page"`
 
 ---
 
@@ -456,19 +456,19 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
   - `docs/STATUS.md` and `data/README.md` (`plans.json` and the two `.md` files are kept but no longer read).
   - Move this plan to `docs/plans/` when it is ticked off.
 
-- [ ] **Step 1: Write the docs.** Commit them: `git commit -m "docs: the context layer, memory and the complete record"`.
-- [ ] **Step 2: Reseed once.** Run `npm run seed`. Start `npm run dev` on the default model, on the direct route, with memory off (no `UNDERCOVER_GATEWAY_URL` or `UNDERCOVER_MEMORY_ID`).
-- [ ] **Step 3: Work the two claims.** Run `cd backend; uv run -m agent CLM-1005`, then `uv run -m agent CLM-1006`.
+- [x] **Step 1: Write the docs.** Commit them: `git commit -m "docs: the context layer, memory and the complete record"`.
+- [x] **Step 2: Reseed once.** Run `npm run seed`. Start `npm run dev` on the default model, on the direct route, with memory off (no `UNDERCOVER_GATEWAY_URL` or `UNDERCOVER_MEMORY_ID`).
+- [x] **Step 3: Work the two claims.** Run `cd backend; uv run -m agent CLM-1005`, then `uv run -m agent CLM-1006`.
   - Expected: each prints a decision, and its record has a calculation if it is an approval, plus `decided_by` and `manual_version`.
-- [ ] **Step 4: Run a dispatch at N=25** from the dashboard (with `e2e/live_security.mjs`'s login pattern) on the rest of the queue.
+- [x] **Step 4: Run a dispatch at N=25** from the dashboard (with `e2e/live_security.mjs`'s login pattern) on the rest of the queue.
   - Expected: it works as before; CLM-1901 is referred by the security check.
-- [ ] **Step 5: Evaluate the evaluation set's five tiny claims.**
+- [x] **Step 5: Evaluate the evaluation set's five tiny claims.**
   - Expected: it finishes and shows its scores.
-- [ ] **Step 6: Check the claim pages as Dana Whitfield through the Playwright MCP server.** Open CLM-1005 and CLM-1006 and check that:
+- [x] **Step 6: Check the claim pages as Dana Whitfield through the Playwright MCP server.** Open CLM-1005 and CLM-1006 and check that:
   - each tool call is shown;
   - each lookup says where it came from;
   - the Context used panel lists the files;
   - the decision shows its calculation.
 
   Sign in through a script so the password never passes through a tool call (as `e2e/live_security.mjs`), or ask the owner to sign in.
-- [ ] **Step 7: Report what the runs spent,** from `model_calls`, in `docs/STATUS.md`. Commit it.
+- [x] **Step 7: Report what the runs spent,** from `model_calls`, in `docs/STATUS.md`. Commit it.
