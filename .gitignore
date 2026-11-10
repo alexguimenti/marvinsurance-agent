@@ -7,6 +7,7 @@ __pycache__/
 .venv/
 node_modules/
 frontend/dist/
+dashboard/
 e2e/test-results/
 e2e/playwright-report/
 .superpowers/

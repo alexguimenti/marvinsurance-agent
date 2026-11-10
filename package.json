@@ -3,6 +3,7 @@
   "private": true,
   "description": "MarvInsurance claims desk: one command runs every test suite.",
   "scripts": {
+    "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
     "dev": "node scripts/dev.mjs",
     "reseed": "node scripts/reseed.mjs",

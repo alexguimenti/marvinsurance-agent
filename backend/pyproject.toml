@@ -19,10 +19,25 @@ dependencies = [
   "httpx",
   "pyjwt[crypto]>=2.15.1",
   "openrouter>=1.3.142",
+  "mangum",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest", "watchfiles"]
+
+# What the backend imports on a server, and nothing of the agent's: the deployment installs exactly this group.
+[dependency-groups]
+server = [
+  "fastapi",
+  "uvicorn",
+  "mangum",
+  "pydantic-settings",
+  "sqlalchemy",
+  "psycopg[binary]",
+  "httpx",
+  "pyjwt[crypto]>=2.15.1",
+  "openrouter>=1.3.142",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

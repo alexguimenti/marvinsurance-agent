@@ -34,6 +34,18 @@ Ctrl-C stops all three. If one dies, the others stop too and the output says whi
 
 `cd backend; uv run -m agent CLM-1001` works one claim in its own process, with no run. Dispatches and evaluations start from the dashboard, through the service.
 
+## Building the dashboard
+
+```powershell
+npm run build
+```
+
+This writes the dashboard to `dashboard/dist` (see `TECH_STACK.md`, Deployment). With that folder in place the backend serves it at `http://127.0.0.1:8000`: `uvicorn backend.main:app --port 8000` from the repo root, with `.env` in its environment.
+
+## The agent's key
+
+`UNDERCOVER_API_KEY` in `.env` is the agent's key to the backend, at least 32 random characters (`python -c "import secrets; print(secrets.token_urlsafe(32))"`). `npm run dev` passes it to the backend and the service, and `uv run -m agent CLM-1001` loads it from `.env`; the backend must be running. `UNDERCOVER_BACKEND` says where the backend is (`http://127.0.0.1:8000` by default).
+
 ## Live runs
 
 A run with the real model spends money and writes to Supabase and Langfuse. Before any of them:

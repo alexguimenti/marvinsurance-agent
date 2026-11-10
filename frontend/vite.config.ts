@@ -4,11 +4,14 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // the Supabase client is most of the bundle: a chunk of its own keeps the build free of the size warning
+    rolldownOptions: { output: { codeSplitting: { groups: [{ name: 'supabase', test: /node_modules[\/]@supabase/ }] } } },
+  },
   server: {
     proxy: {
       '/api': {
         target: process.env.API_TARGET ?? 'http://127.0.0.1:8000',
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
