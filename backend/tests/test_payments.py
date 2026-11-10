@@ -1,13 +1,13 @@
 import pytest
 
 from app.api import create_app
-from app.claims import hold_for_sign_off, record_decision
+from app.claims import hold_for_sign_off
 from app.config import Settings
 from app.db import init_schema
 from app.payments import get_payment, pay, sign_off
 from app.reference import Reference
 from app.seed import seed_claims
-from tests.fakes import MINT, TEST_KEY, api_client, approve, connect
+from tests.fakes import record_decision, MINT, TEST_KEY, api_client, approve, connect
 
 
 @pytest.fixture

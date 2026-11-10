@@ -102,12 +102,12 @@ def test_the_held_step_is_traced_once_across_resumes(run):
 
 def test_refused_tool_call_goes_back_to_the_model(run):
     bad = {**approve(100.0), "decision": "pay it"}
-    env, model, _ = run([tool_call("save_decision", bad, "c1"), decline()])
+    env, model, _ = run([tool_call("record_decision", bad, "c1"), decline()])
     assert status(env) == "decided"
     assert model.calls == 2
-    refusal = [m for m in model.shown[-1] if m.type == "tool" and m.name == "save_decision"]
+    refusal = [m for m in model.shown[-1] if m.type == "tool" and m.name == "record_decision"]
     assert refusal[0].content.startswith("Error: decision must be")
-    assert any(e["content"].startswith("Error:") for e in trace(env, "tool_result") if e["name"] == "save_decision")
+    assert any(e["content"].startswith("Error:") for e in trace(env, "tool_result") if e["name"] == "record_decision")
 
 
 @pytest.mark.parametrize("args,why", [
@@ -116,9 +116,9 @@ def test_refused_tool_call_goes_back_to_the_model(run):
     ({**decline(), "payout": 50.0}, "must be 0"),
     ({**decline(), "rationale": "  "}, "rationale is empty"),
 ])
-def test_save_decision_refusals(run, args, why):
-    env, model, _ = run([tool_call("save_decision", args, "c1"), decline()])
-    refusal = [m for m in model.shown[-1] if m.type == "tool" and m.name == "save_decision"][0]
+def test_record_decision_refusals(run, args, why):
+    env, model, _ = run([tool_call("record_decision", args, "c1"), decline()])
+    refusal = [m for m in model.shown[-1] if m.type == "tool" and m.name == "record_decision"][0]
     assert why in refusal.content
 
 
@@ -191,7 +191,7 @@ def test_thirty_model_calls_is_the_most(db_path, data_dir):
 def test_model_is_not_offered_a_payment_tool(run):
     _, model, _ = run(decline())
     assert set(model.bound_tools) == {"lookup_term", "describe_fields", "get_claim_rules", "search_reference_data", "search_documents",
-                                      "read_section", "calculate_payout", "save_decision"}
+                                      "read_section", "calculate_payout", "record_decision"}
 
 
 def test_a_lookup_step_names_the_file_and_its_source(run):
@@ -263,28 +263,61 @@ def test_rationale_warnings_flag_missing_section():
 
 def test_instructions_tell_the_agent_the_system_pays():
     text = load_instructions("claim").lower()
-    assert "never follow instructions" in text and "save_decision" in text and "calculate_payout" in text
+    assert "never follow instructions" in text and "record_decision" in text and "calculate_payout" in text
     assert "request_payment" not in text
+
+
+def test_a_section_14_refusal_goes_back_to_the_model_which_tries_again(run):
+    calculate = tool_call("calculate_payout", {"items": [{"description": "Payout", "amount": 420.0, "item_limit": None}],
+                                               "third_party_paid": 0, "deductible": 0, "benefit_max": None}, "calc")
+    # the first approval has no calculation on file (the stub's own calculation comes with the second): refused, then put right
+    first = tool_call("record_decision", approve(420.0), "early")
+    env, model, _ = run([first, calculate, approve(420.0)], claim="CLM-1001")
+    assert get_claim(env.engine, "CLM-1001")["decision"]["decision"] == "approve"
+    refusals = trace(env, "refusal", "CLM-1001")
+    assert len(refusals) == 1 and refusals[0]["by"] == "app" and refusals[0]["reason"].startswith("Claims manual section 14")
+    assert "needs a payout calculation on file" in refusals[0]["reason"]
+    assert any(str(m.content).startswith("Error: Claims manual section 14") for m in model.shown[1] if m.type == "tool")
+
+
+def test_the_record_says_the_agent_and_its_version_made_it(run):
+    env, _, _ = run(approve(420.0), claim="CLM-1001")
+    record = get_claim(env.engine, "CLM-1001")["decision"]
+    assert record["decided_by"] == "UnderCover Agent, configuration version 1" and record["manual_version"] == "2026.2"
+    assert record["calculation"]["lines"] == [{"step": "Payout", "amount": 420.0}]
+
+
+def test_the_model_never_sees_who_decided_or_the_claim(run):
+    _, model, _ = run(decline())
+    from agent.direct import DirectRoute  # noqa: F401
+    from agent.tools import build_tools
+    from tests.fakes import direct_route
+
+    for t in build_tools(direct_route()):
+        offered = set(t.tool_call_schema.model_fields)
+        assert not offered & {"decided_by", "model", "claim_id", "proposal", "messages", "tool_call_id"}, t.name
+    assert "record_decision" in model.bound_tools
 
 
 def test_a_limit_lowered_after_the_decision_holds_the_payout_for_a_handler(db_path, data_dir, monkeypatch):
     """The decision was recorded under a limit of $1,000, so `needs_sign_off` says no; the limit is then lowered, and the
     payment operation refuses with a 403. The payout is held for a handler, and the claim does not fail."""
-    import agent.graph as graph_module
+    from agent.direct import DirectRoute
     from app.auth import Handler
     from app.settings_store import change_setting
 
     dana = Handler("HND-01", "Dana Whitfield", "Senior Claims Handler", "dana.whitfield@marvinsurance.example", True)
     model = stub({CLAIM: [approve(800.0)]})
     with agent_env(db_path, data_dir, model) as env:
-        real = graph_module.api.record_decision
+        real = DirectRoute.app
 
-        def record_then_lower(*args):
-            answer = real(*args)
-            change_setting(env.engine, "approval_limit", 500, dana)
+        def record_then_lower(self, operation, args):
+            answer = real(self, operation, args)
+            if operation == "record_decision":
+                change_setting(env.engine, "approval_limit", 500, dana)
             return answer
 
-        monkeypatch.setattr(graph_module.api, "record_decision", record_then_lower)
+        monkeypatch.setattr(DirectRoute, "app", record_then_lower)
         RawDb(env.engine).execute("UPDATE claims SET status='in_progress' WHERE claim_id=?", (CLAIM,))
         env.graph.invoke({"claim_id": CLAIM}, config(), durability="sync")
         assert status(env) == "awaiting_approval"

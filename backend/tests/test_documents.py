@@ -92,7 +92,7 @@ def test_the_app_never_reads_plans_or_the_documents_from_data(tmp_path, data_dir
         assert client.get("/claims/CLM-1001", headers=key).status_code == 200
         assert client.get("/agent/documents/claims_manual", headers=key).json()[0]["title"] == "Purpose and scope"
         client.post("/agent/claims/CLM-1001/take", json={"run_id": None}, headers=key)
-        body = {"decision": "decline", "payout": 0, "calculation": [], "rationale": "x. Section 9.", "citations": ["x"], "model": "m"}
+        body = {"decision": "decline", "payout": 0, "rationale": "x. Section 9.", "citations": ["x"], "decided_by": "Test", "model": "m"}
         done = client.post("/claims/CLM-1001/decision", json=body, headers=key)
         assert done.status_code == 200
         assert (done.json()["decision"]["manual_version"], done.json()["decision"]["wording_version"]) == ("2026.2", "2026.1")

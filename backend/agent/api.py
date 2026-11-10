@@ -24,8 +24,9 @@ def list_sections(document: str) -> list[dict]:
     return call("GET", f"/api/agent/documents/{document}")
 
 
-def record_decision(claim_id: str, decision: dict, model: str) -> dict:
-    return call("POST", f"/api/claims/{claim_id}/decision", json={**decision, "model": model})
+def record_decision(claim_id: str, decision: dict, model: str, decided_by: str) -> dict:
+    """Record a decision the agent makes itself (the security check's referral): the model's own go through its tool."""
+    return call("POST", f"/api/claims/{claim_id}/decision", json={**decision, "model": model, "decided_by": decided_by})
 
 
 def gateway_refused(claim_id: str) -> bool:

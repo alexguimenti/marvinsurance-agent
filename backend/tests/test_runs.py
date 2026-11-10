@@ -67,8 +67,8 @@ def test_the_summary_counts_what_the_records_say(engine):
     runs.add_run_claims(engine, run_id, ["CLM-1001", "CLM-1002", "CLM-1003", "CLM-1004", "CLM-1005"])
     for claim_id, decision, payout in (("CLM-1001", "approve", 100.0), ("CLM-1002", "decline", 0.0),
                                        ("CLM-1003", "approve", 3750.0)):
-        raw.execute("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model) "
-                    "VALUES (?, ?, ?, '[]', 'r', '[]', 'm')", (claim_id, decision, payout))
+        raw.execute("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model, decided_by) "
+                    "VALUES (?, ?, ?, '[]', 'r', '[]', 'm', 'Test')", (claim_id, decision, payout))
     raw.execute("INSERT INTO payments (payment_id, claim_id, amount, status) VALUES ('PAY-CLM-1003', 'CLM-1003', 3750, 'held')")
     raw.execute("UPDATE claims SET status='decided' WHERE claim_id IN ('CLM-1001', 'CLM-1002')")
     raw.execute("UPDATE claims SET status='awaiting_approval' WHERE claim_id='CLM-1003'")

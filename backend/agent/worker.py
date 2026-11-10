@@ -82,7 +82,8 @@ class AgentEnv:
         screen_model, screen_model_id = self.screen()
         return build_claim_graph(self.ref, self.model_for(config), self.effective(config)[0],
                                  self.settings.agent_max_model_calls, saver, config["instructions"],
-                                 screen_model, screen_model_id, self.route or make_route())
+                                 screen_model, screen_model_id, self.route or make_route(),
+                                 f"UnderCover Agent, configuration version {config['version']}")
 
     @contextmanager
     def claim_graph(self, run_id: int | None = None, config: dict | None = None) -> Iterator:

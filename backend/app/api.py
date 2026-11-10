@@ -30,6 +30,7 @@ from app.db import (
 from app.documents import Documents
 from app.payments import OverLimit, SignOffRequired, pay_claim as pay_the_claim, sign_off
 from app.payout import LineItem, calculate_payout
+from app.section14 import Section14Refused, request_problem
 from app.reference import Reference
 from app.scoring import evaluation_report, list_evaluations
 from app.improvement import get_round as get_round_row, list_rounds as list_round_rows, round_report, stop_round as stop_round_row, version_scores
@@ -50,17 +51,12 @@ class PayoutBody(BaseModel):
     benefit_max: float | None
 
 
-class CalcStep(BaseModel):
-    step: str
-    amount: float
-
-
 class DecisionIn(BaseModel):
-    decision: str
+    decision: Literal["approve", "decline", "refer"]
     payout: float
-    calculation: list[CalcStep]
     rationale: str
     citations: list[str]
+    decided_by: str  # who or what made the decision
     model: str
 
 
@@ -88,26 +84,31 @@ class EvaluationBody(BaseModel):
     workers: int = Field(ge=1, le=25)
 
 
-def _calculation(row: Mapping) -> dict | None:
-    """How an approval's payout was worked out, line by line. None for a decline or a referral."""
-    lines = json.loads(row["calculation"])
-    return {"lines": lines, "payout": row["payout"]} if row["decision"] == "approve" and lines else None
-
-
 def _decision(row: Mapping | None) -> dict | None:
     if row is None:
         return None
     return {
         "decision": row["decision"],
         "payout": row["payout"],
-        "calculation": _calculation(row),
+        "calculation": claim_records.calculation_of(row),
         "rationale": row["rationale"],
         "citations": json.loads(row["citations"]),
         "model": row["model"],
+        "decided_by": row["decided_by"],
+        "decided_at": iso(row["created_at"]),
         "manual_version": row["manual_version"],
         "wording_version": row["wording_version"],
         "created_at": iso(row["created_at"]),
     }
+
+
+def _signed_off(decision: dict | None, payment: dict | None) -> dict | None:
+    """A payout a handler signed off carries who signed it off and when, on its decision record."""
+    if decision is None:
+        return None
+    signed = payment is not None and payment["status"] == "paid" and payment.get("approved_by")
+    return {**decision, "signed_off_by": (payment["approved_by_name"] or payment["approved_by"]) if signed else None,
+            "signed_off_at": payment["approved_at"] if signed else None}
 
 
 def _run(row: Mapping | None) -> dict | None:
@@ -248,7 +249,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             "evaluation_id": row["evaluation_id"],
             "policy": ref.policy(claim["policy_id"]),
             "customer": ref.customer(claim["customer_id"]),
-            "decision": _decision(decision),
+            "decision": _signed_off(_decision(decision), payment_view(payment)),
             "payment": payment_view(payment),
             "usage": usage,
             "context_used": context_used(steps),
@@ -268,10 +269,15 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
 
     @agent_only.post("/claims/{claim_id}/decision", operation_id="record_decision")
     def record_decision(claim_id: str, body: DecisionIn):
-        """Record the claim's decision, once: approve, decline or refer, with the payout and the rationale."""
+        """Record the claim's decision, once: approve, decline or refer, with the payout, the section and the reason."""
+        problem = request_problem(body)  # the same answer on any claim
+        if problem:
+            raise HTTPException(422, problem)
         claim_row(claim_id)
         try:
             return claim_records.record_decision(engine, ref, claim_id, body.model_dump(exclude={"model"}), body.model)
+        except Section14Refused as exc:
+            raise HTTPException(422, str(exc))
         except claim_records.DecisionConflict as exc:
             raise HTTPException(409, str(exc))
 
@@ -410,11 +416,14 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             out["reasoning_effort"] = {"before": before_cfg["reasoning_effort"], "after": row["reasoning_effort"]}
         return out
 
-    @shared.post("/payouts/calculate", operation_id="calculate_payout")
-    def payout(body: PayoutBody):
-        """Work out a payout under wording section 10, and say whether it needs a sign-off."""
-        return calculate_payout(body.items, body.third_party_paid, body.deductible, body.benefit_max,
-                                approval_limit(engine, ref))
+    @shared.post("/claims/{claim_id}/payout", operation_id="calculate_payout")
+    def payout(claim_id: str, body: PayoutBody):
+        """Work out the claim's payout under wording section 10, and say whether it needs a sign-off."""
+        claim_row(claim_id)
+        result = calculate_payout(body.items, body.third_party_paid, body.deductible, body.benefit_max,
+                                  approval_limit(engine, ref))
+        claim_records.record_calculation(engine, claim_id, result["payout"], result["steps"])  # an approval must match it
+        return result
 
     @router.get("/approvals", operation_id="list_approvals")
     def approvals():

@@ -60,6 +60,7 @@ decisions = Table(
     Column("rationale", Text, nullable=False),
     Column("citations", Text, nullable=False),
     Column("model", Text, nullable=False),
+    Column("decided_by", Text, nullable=False),  # who or what made the decision (claims manual section 14)
     Column("manual_version", Text),
     Column("wording_version", Text),
     Column("approval_limit", Float),  # the limit in force when it was recorded: a new limit applies to later decisions
@@ -72,6 +73,15 @@ documents = Table(
     Column("version", Text, nullable=False),  # from the document's front matter
     Column("source", Text, nullable=False),  # JSON: the system it comes from, its owner and when it was reviewed
     Column("text", Text, nullable=False),  # the document without its front matter
+)
+
+payout_calculations = Table(
+    "payout_calculations", metadata,
+    Column("claim_id", Text, primary_key=True),  # the latest calculation of the claim's current attempt
+    Column("attempt", Integer, nullable=False),
+    Column("payout", Float, nullable=False),
+    Column("steps", Text, nullable=False),  # JSON: the lines calculate_payout gave
+    _timestamp("created_at"),
 )
 
 trace_events = Table(

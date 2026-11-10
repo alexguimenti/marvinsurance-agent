@@ -1,11 +1,11 @@
 import pytest
 
-from app.claims import DecisionConflict, get_claim, hold_for_sign_off, needs_sign_off, record_decision
+from app.claims import DecisionConflict, get_claim, hold_for_sign_off, needs_sign_off
 from app.db import init_schema
 from app.payments import SignOffRequired, get_payment, pay, sign_off
 from app.reference import Reference
 from app.seed import seed_claims
-from tests.fakes import connect
+from tests.fakes import record_decision, connect
 
 CLAIM = "CLM-1001"
 

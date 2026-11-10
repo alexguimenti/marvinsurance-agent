@@ -86,7 +86,7 @@ function describeCall(name: string, args: Record<string, any>): ReactNode {
   )
 }
 
-const REFUSER: Record<string, string> = { gateway: 'the Gateway', app: 'the app', context: 'the context layer' }
+const REFUSER: Record<string, string> = { gateway: 'the Gateway', app: 'the app', context: 'the context layer', memory: 'memory' }
 
 function Row({ event }: { event: TraceEvent }) {
   const c = event.content as Record<string, any>

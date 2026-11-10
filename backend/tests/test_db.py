@@ -77,8 +77,8 @@ def test_reseed_leaves_every_claim_waiting_and_nothing_else(db_path, data_dir):
                  "VALUES ('CLM-1001', 1, 'm', 1, 1, 0)")
     conn.execute("CREATE TABLE todo_items (item_id INTEGER PRIMARY KEY)")  # the queue agent's, from an older database
     conn.execute("INSERT INTO payments (payment_id, claim_id, amount, status) VALUES ('P', 'CLM-1001', 1, 'paid')")
-    conn.execute("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model) "
-                 "VALUES ('CLM-1001', 'decline', 0, '[]', 'r', '[]', 'm')")
+    conn.execute("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model, decided_by) "
+                 "VALUES ('CLM-1001', 'decline', 0, '[]', 'r', '[]', 'm', 'Test')")
 
     assert reseed(conn.engine, Reference(data_dir)) == 26
 
@@ -101,8 +101,8 @@ def test_reseed_brings_an_older_database_up_to_date(db_path, data_dir):
 def test_decision_cannot_be_written_twice(db_path):
     conn = connect(db_path)
     init_schema(conn.engine)
-    sql = ("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model) "
-           "VALUES ('CLM-1001', 'decline', 0, '[]', 'r', '[]', 'm')")
+    sql = ("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model, decided_by) "
+           "VALUES ('CLM-1001', 'decline', 0, '[]', 'r', '[]', 'm', 'Test')")
     conn.execute(sql)
     with pytest.raises(IntegrityError):
         conn.execute(sql)

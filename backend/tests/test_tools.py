@@ -15,7 +15,7 @@ from agent.tools import build_tools
 
 EXPECTED = {
     "get_claim", "get_policy", "get_claim_history", "get_plan", "lookup_term", "describe_fields", "get_claim_rules",
-    "search_reference_data", "search_documents", "read_section", "calculate_payout", "save_decision",
+    "search_reference_data", "search_documents", "read_section", "calculate_payout", "record_decision",
 }
 
 

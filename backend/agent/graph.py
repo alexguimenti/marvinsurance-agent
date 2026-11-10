@@ -58,8 +58,8 @@ def _needs_a_handler(exc: Exception) -> bool:
 
 
 def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int, checkpointer, instructions: str,
-                      screen_model, screen_model_id: str, route: Route):
-    tools = build_tools(route)
+                      screen_model, screen_model_id: str, route: Route, decided_by: str):
+    tools = build_tools(route, decided_by, model_id)
     by_name = {t.name: t for t in tools}
     offered = [t for t in tools if t.name not in NOT_OFFERED]
     # One tool call per turn: two save_decision calls in the same step would both write the proposal
@@ -87,9 +87,8 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
                             "model": screen_model_id})
         if not screening.instructions_found:
             return {}
-        referral = {"decision": "refer", "payout": 0, "calculation": [], "rationale": screening.reason,
-                    "citations": ["Security check"]}
-        api.record_decision(claim_id, referral, screen_model_id)
+        referral = {"decision": "refer", "payout": 0, "rationale": screening.reason, "citations": ["Security check"]}
+        api.record_decision(claim_id, referral, screen_model_id, "Security check")
         trace("decision", referral)
         return {"decision": referral}
 
@@ -145,11 +144,10 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         return {}
 
     def decide(state: ClaimState) -> dict:
-        """Have the backend record the decision. A repeat after a restart counts as done."""
+        """Trace the decision the record_decision tool made. The app already holds it, checked against claims manual section 14."""
         if state.proposal is None:
             raise ValueError("the agent finished without a decision")
         trace = recorder(state.claim_id)
-        api.record_decision(state.claim_id, state.proposal, model_id)
         for warning in rationale_warnings(state.proposal["rationale"]):
             trace("warning", {"message": warning})
         trace("decision", state.proposal)

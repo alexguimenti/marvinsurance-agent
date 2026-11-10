@@ -35,11 +35,11 @@ def test_each_model_call_is_recorded_with_its_run(env_for):
     env, model = env_for({"CLM-1001": [[SEARCH, approve(100.0)]]})
     work_claim(env, "CLM-1001", run_id=7)
     calls = model_calls(env, "CLM-1001")
-    assert len(calls) == model.calls + 1 == 3  # the security check, then the two replies
+    assert len(calls) == model.calls + 1 == 4  # the security check, then the three replies: the search, the calculation, the decision
     assert {c["run_id"] for c in calls} == {7} and {c["model"] for c in calls} == {"stub/model", "screen/stub"}
     assert (calls[1]["input_tokens"], calls[1]["output_tokens"], calls[1]["reasoning_tokens"]) == (50, 5, 2)
     totals = run_totals(env.engine, 7)
-    assert totals["calls"] == 3 and totals["cost_usd"] == pytest.approx(0.0011)
+    assert totals["calls"] == 4 and totals["cost_usd"] == pytest.approx(0.0016)
 
 
 def test_a_failed_attempt_counts_in_its_runs_cost(env_for):
@@ -77,7 +77,7 @@ def test_per_claim_totals_of_a_run(env_for):
     work_claim(env, "CLM-1001", run_id=7)
     work_claim(env, "CLM-1002", run_id=7)
     totals = per_claim(env.engine, 7)
-    assert (totals["CLM-1001"]["calls"], totals["CLM-1002"]["calls"]) == (2, 3)
+    assert (totals["CLM-1001"]["calls"], totals["CLM-1002"]["calls"]) == (3, 4)
     assert totals["CLM-1001"]["seconds"] == 1.0
 
 

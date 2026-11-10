@@ -134,7 +134,7 @@ def test_stopped_claim_carries_on_from_its_last_step(db_path, data_dir):
         row = claim(fresh)
         assert (row["status"], row["thread_id"], row["attempts"]) == ("decided", "CLM-1003-1", 0)
         assert count(fresh, "decisions") == 1 and count(fresh, "payments") == 1
-    assert model.calls == 4  # the two completed searches were not made again
+    assert model.calls == 5  # the two completed searches were not made again: the calculation and the decision follow
     tool_runs = [m for m in model.shown[-1] if m.type == "tool" and m.name == "search_documents"]
     assert len(tool_runs) == 2
 
@@ -291,7 +291,7 @@ def test_each_attempt_records_its_usage(env_for):
     work_claim(env, CLAIM)
     work_claim(env, CLAIM)
     calls = raw(env).execute("SELECT COUNT(*) FROM model_calls WHERE claim_id = ?", (CLAIM,)).fetchone()[0]
-    assert calls == 4  # the check and the reply of the failed attempt, the check and the reply of the decision
+    assert calls == 5  # the check and the reply of the failed attempt; the check, the calculation and the decision
 
 
 def test_the_error_event_says_which_attempt_failed(env_for):

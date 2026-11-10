@@ -70,7 +70,7 @@ def emit_message(message, on_event: Emit, calls: dict[str, dict], shown: Callabl
     if isinstance(message, AIMessage):
         for call in message.tool_calls:
             calls[call["id"]] = call["args"]
-            if call["name"] != "save_decision":  # the decision has an event of its own
+            if call["name"] != "record_decision":  # the decision has an event of its own
                 on_event("tool_call", {"name": shown(call["name"]), "args": call["args"]})
         if message.content and not message.tool_calls:
             on_event("message", {"text": str(message.content)})
@@ -83,7 +83,7 @@ def emit_message(message, on_event: Emit, calls: dict[str, dict], shown: Callabl
             reason = content.removeprefix(GATEWAY_REFUSAL).removeprefix("Error: ")
             on_event("refusal", {"by": by, "tool": shown(message.name), "reason": reason})
             return
-        if message.name == "save_decision" and not content.startswith("Error:"):
+        if message.name == "record_decision" and not content.startswith("Error:"):
             return
         artifact = getattr(message, "artifact", None)
         if isinstance(artifact, dict) and "sources" in artifact:  # a lookup in the context layer: what and where from

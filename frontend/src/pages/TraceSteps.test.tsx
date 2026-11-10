@@ -50,6 +50,7 @@ describe("Trace: the steps of the agent's work", () => {
     ['gateway', 'Refused by the Gateway'],
     ['app', 'Refused by the app'],
     ['context', 'Refused by the context layer'],
+    ['memory', 'Refused by memory'],
   ])('a refusal by %s stands out, with its reason and the tool', async (by, label) => {
     const view = await show({ by, tool: 'undercover-app___pay_claim', reason: 'Tool Execution Denied' }, 'refusal')
     expect(screen.getByText(label)).toBeInTheDocument()

@@ -5,13 +5,13 @@ from fastapi.testclient import TestClient
 from agent.service import create_service
 from app.api import create_app
 from app.auth import Handler
-from app.claims import needs_sign_off, record_decision
+from app.claims import needs_sign_off
 from app.config import Settings
 from app.db import init_schema, make_engine
 from app.reference import Reference
 from app.seed import seed_claims
 from app.settings_store import change_setting, get_settings, models_allowed, setting_history
-from tests.fakes import service_client, api_client, MINT, approve
+from tests.fakes import record_decision, service_client, api_client, MINT, approve
 
 DANA = Handler("HND-01", "Dana Whitfield", "Senior Claims Handler", "dana.whitfield@marvinsurance.example", True)
 

@@ -4,9 +4,10 @@ import json
 
 from sqlalchemy import Engine, select, update
 
-from app.db import claims, decisions, insert_or_ignore, iso, payments
+from app.db import claims, decisions, insert_or_ignore, iso, payments, payout_calculations
 from app.documents import Documents
 from app.reference import Reference
+from app.section14 import Section14Refused, calculation_on_file  # noqa: F401
 from app.settings_store import approval_limit
 
 
@@ -33,21 +34,40 @@ def get_claim_payload(engine: Engine, claim_id: str) -> dict:
     return json.loads(payload)
 
 
+def calculation_of(row) -> dict | None:
+    """How an approval's payout was worked out, line by line, as calculate_payout gave it. None for a decline or a referral."""
+    lines = json.loads(row["calculation"])
+    return {"lines": lines, "payout": row["payout"]} if row["decision"] == "approve" and lines else None
+
+
 def _decision(row) -> dict | None:
     if row is None:
         return None
     return {
-        **{k: row[k] for k in ("decision", "payout", "rationale", "model", "manual_version", "wording_version")},
-        "calculation": json.loads(row["calculation"]),
+        **{k: row[k] for k in ("decision", "payout", "rationale", "model", "decided_by", "manual_version", "wording_version")},
+        "calculation": calculation_of(row),
         "citations": json.loads(row["citations"]),
+        "decided_at": iso(row["created_at"]),
         "created_at": iso(row["created_at"]),
     }
 
 
+def record_calculation(engine: Engine, claim_id: str, payout: float, steps: list[dict]) -> None:
+    """Keep the latest payout calculation of the claim's current attempt: the one an approval is checked against."""
+    with engine.begin() as conn:
+        attempts = conn.execute(select(claims.c.attempts).where(claims.c.claim_id == claim_id)).scalar_one()
+        conn.execute(payout_calculations.delete().where(payout_calculations.c.claim_id == claim_id))
+        conn.execute(insert_or_ignore(conn, payout_calculations).values(
+            claim_id=claim_id, attempt=attempts + 1, payout=payout, steps=json.dumps(steps)))
+
+
 def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dict, model: str) -> dict:
-    """Record the claim's one decision and return the claim. An approval stays in progress until it is paid."""
+    """Record the claim's one decision and return the claim. An approval stays in progress until it is paid. It holds the
+    calculation on file for this attempt, who made the decision and the manual's version (claims manual section 14): an
+    approval with no calculation on file, or with a payout of its own, is refused (Section14Refused)."""
     docs = Documents(engine)
     limit = approval_limit(engine, ref)
+    lines = calculation_on_file(engine, claim_id, decision["payout"]) if decision["decision"] == "approve" else []
     with engine.begin() as conn:
         conn.execute(
             insert_or_ignore(conn, decisions),
@@ -55,10 +75,11 @@ def record_decision(engine: Engine, ref: Reference, claim_id: str, decision: dic
                 "claim_id": claim_id,
                 "decision": decision["decision"],
                 "payout": decision["payout"],
-                "calculation": json.dumps(decision["calculation"]),
+                "calculation": json.dumps(lines),
                 "rationale": decision["rationale"],
                 "citations": json.dumps(decision["citations"]),
                 "model": model,
+                "decided_by": decision["decided_by"],
                 "manual_version": docs.version("claims_manual"),
                 "wording_version": docs.version("policy_wording"),
                 "approval_limit": limit,

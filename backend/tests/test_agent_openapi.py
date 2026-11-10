@@ -47,7 +47,7 @@ def test_the_document_has_no_key_input_and_keeps_amount_and_docstrings(client):
     schema = pay["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[1]
     assert list(doc["components"]["schemas"][schema]["properties"]) == ["amount"]  # the name the Gateway's Policy reads
     paths = {name: path for name, (path, _, _) in operations(doc).items()}
-    assert paths["get_claim"] == "/api/claims/{claim_id}" and paths["calculate_payout"] == "/api/payouts/calculate"
+    assert paths["get_claim"] == "/api/claims/{claim_id}" and paths["calculate_payout"] == "/api/claims/{claim_id}/payout"
 
 
 def test_the_document_needs_the_key_or_a_sign_in(client):

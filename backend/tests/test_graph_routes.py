@@ -50,16 +50,19 @@ def test_a_claim_is_decided_on_either_route(on_route):
         assert "undercover-app___pay_claim" in stand_in.names and "undercover-app___get_claim" in stand_in.names
 
 
-CALCULATE = {"items": [{"description": "x", "amount": 5.0, "item_limit": None}], "third_party_paid": 0, "deductible": 0,
+CALCULATE = {"items": [{"description": "x", "amount": 420.0, "item_limit": None}], "third_party_paid": 0, "deductible": 0,
              "benefit_max": None}
 
 
 def test_an_app_refusal_reaches_the_model_and_is_a_refusal_step(on_route, monkeypatch):
-    env, model, _ = on_route({CLAIM: [[tool_call("calculate_payout", CALCULATE, "c1"), approve(420.0)]]})
+    env, model, _ = on_route({CLAIM: [[tool_call("calculate_payout", CALCULATE, "c1"), tool_call("calculate_payout", CALCULATE, "c2"),
+                                       approve(420.0)]]})
     real = connection.call
+    refused = []
 
     def refusing(method, path, json=None, params=None):
-        if path.endswith("/payouts/calculate"):
+        if path.endswith("/payout") and not refused:  # the first calculation only
+            refused.append(path)
             raise connection.Refused(422, "the calculator is closed")
         return real(method, path, json=json, params=params)
 
@@ -69,14 +72,15 @@ def test_an_app_refusal_reaches_the_model_and_is_a_refusal_step(on_route, monkey
     assert [r["by"] for r in refusals] == ["app"] and "the calculator is closed" in refusals[0]["reason"]
     shown = [str(m.content) for m in model.shown[-1] if m.type == "tool"]
     assert any(text.startswith("Error:") and "the calculator is closed" in text for text in shown)
-    assert not any(r["name"] == "calculate_payout" for r in steps(env, "tool_result"))  # a refusal is not a result
+    results = [r for r in steps(env, "tool_result") if r["name"].endswith("calculate_payout")]
+    assert len(results) == 1  # the second calculation only: a refusal is not a result
 
 
 def test_a_gateway_refusal_of_a_tool_is_recorded_as_the_gateways_and_work_goes_on(db_path, data_dir):
     stand_in = StandInGateway(deny=["undercover-app___calculate_payout"])
     route = GatewayRoute("https://gateway.example/mcp", None, call=stand_in)
     calculate = tool_call("calculate_payout", CALCULATE, "c1")
-    model = stub({CLAIM: [[calculate, approve(420.0)]]})
+    model = stub({CLAIM: [[calculate, tool_call("calculate_payout", CALCULATE, "c2"), approve(420.0)]]})
     with agent_env(db_path, data_dir, model, route=route) as env:
         assert work_claim(env, CLAIM) == "CLM-1001: approve $420.00, paid"
         refusals = steps(env, "refusal")

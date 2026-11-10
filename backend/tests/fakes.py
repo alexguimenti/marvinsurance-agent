@@ -86,16 +86,15 @@ GOOD = "The loss is covered. Section 10 of the wording sets the payment."
 
 
 def approve(payout: float, rationale: str = GOOD) -> dict:
-    return {"decision": "approve", "payout": payout, "calculation": [{"step": "Eligible", "amount": payout}],
-            "rationale": rationale, "citations": ["Policy wording, section 10"]}
+    return {"decision": "approve", "payout": payout, "rationale": rationale, "citations": ["Policy wording, section 10"]}
 
 
 def decline(rationale: str = "The claim is excluded. Section 9 of the wording does not pay it.") -> dict:
-    return {"decision": "decline", "payout": 0, "calculation": [], "rationale": rationale, "citations": []}
+    return {"decision": "decline", "payout": 0, "rationale": rationale, "citations": ["Policy wording, section 9"]}
 
 
 def refer() -> dict:
-    return {"decision": "refer", "payout": 0, "calculation": [], "citations": [],
+    return {"decision": "refer", "payout": 0, "citations": ["Policy wording, section 11"],
             "rationale": "A document is missing. Section 11 of the wording says the claim waits."}
 
 
@@ -119,6 +118,19 @@ class Stopped(BaseException):
 
 
 _STUB_LOCK = threading.RLock()
+
+
+def _with_calculations(steps: list) -> list:
+    """An approval a stub plays calculates its payout first, as the section 14 check needs: one calculate_payout call
+    for the payout, unless the script already calls calculate_payout itself."""
+    calls_it = any(isinstance(s, AIMessage) and any(c["name"] == "calculate_payout" for c in s.tool_calls) for s in steps)
+    out = []
+    for step in steps:
+        if isinstance(step, dict) and step.get("decision") == "approve" and not calls_it:
+            out.append(tool_call("calculate_payout", {"items": [{"description": "Payout", "amount": step["payout"], "item_limit": None}],
+                                                      "third_party_paid": 0, "deductible": 0, "benefit_max": None}, f"calc-{id(step)}"))
+        out.append(step)
+    return out
 
 
 class StubModel(BaseChatModel):
@@ -156,7 +168,7 @@ class StubModel(BaseChatModel):
             self.asked.append(claim_id)
             queue = self.outcomes.get(claim_id) or []
             outcome = queue.pop(0) if queue else (self.default if self.default is not None else approve(100.0))
-            self.current[claim_id] = list(outcome) if isinstance(outcome, list) else [outcome]
+            self.current[claim_id] = _with_calculations(list(outcome) if isinstance(outcome, list) else [outcome])
         steps = self.current[claim_id]
         step = steps[min(turn, len(steps) - 1)]
         if isinstance(step, (Stopped, ModelRateLimitError, ModelTimeoutError)):  # goes off once; the claim carries on
@@ -167,7 +179,7 @@ class StubModel(BaseChatModel):
             raise step
         if isinstance(step, dict):
             del self.current[claim_id]
-            step = tool_call("save_decision", step, f"save-{self.calls}")
+            step = tool_call("record_decision", step, f"save-{self.calls}")
         step = step.model_copy(update={
             "usage_metadata": {"input_tokens": 50, "output_tokens": 5, "total_tokens": 55,
                                "output_token_details": {"reasoning": 2}},

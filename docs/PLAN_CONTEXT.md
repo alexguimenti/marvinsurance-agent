@@ -307,7 +307,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
     - `tests/fakes.py: record_approval(client, claim_id, payout, decided_by="Test") -> Response`. It posts the calculation `{"items": [{"description": "Payout", "amount": payout, "item_limit": None}], "third_party_paid": 0, "deductible": 0, "benefit_max": None}`, then the decision.
     - `tests/fakes.py: write_calculation(engine, claim_id, payout)` for direct writes.
 
-- [ ] **Step 1: Write the failing tests** in `test_section14.py`.
+- [x] **Step 1: Write the failing tests** in `test_section14.py`.
   - `test_each_request_check_is_a_422_naming_section_14`: parametrize the five request messages, each on an unknown claim `CLM-0000` as well as CLM-1001.
   - `test_an_approval_with_no_calculation_on_file_is_refused`
   - `test_an_approval_that_differs_from_the_calculation_is_refused`
@@ -316,11 +316,11 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
   - `test_a_complete_approval_holds_its_calculation_maker_time_and_manual_version`: `decision.calculation.lines == [{"step": "Payout", "amount": 420.0}]`, `decided_by == "Test"`, `manual_version == "2026.2"`, and `decided_at` is ISO.
   - `test_a_decline_has_no_calculation`
   - `test_the_latest_calculation_counts`
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
   - Run: `.venv\Scripts\python -m pytest tests/test_section14.py -q`
   - Expected: FAIL.
-- [ ] **Step 3: Implement.** Move every existing backend test that records an approval onto `record_approval`/`write_calculation`, leaving its expected payouts alone. These include `test_api.py`, `test_payments.py`, `test_claims.py` and `test_api_key.py`.
-- [ ] **Step 4: Run them again.**
+- [x] **Step 3: Implement.** Move every existing backend test that records an approval onto `record_approval`/`write_calculation`, leaving its expected payouts alone. These include `test_api.py`, `test_payments.py`, `test_claims.py` and `test_api_key.py`.
+- [x] **Step 4: Run them again.**
   - Expected: PASS for `test_section14.py`; the remaining failures are only the agent's (Task 6).
 
 ### Task 6: The agent fills in the maker; refusals go back to the model
@@ -341,17 +341,17 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
 - Consumes: Task 5's route, messages and helpers.
 - Produces: `build_claim_graph(..., route: Route, decided_by: str)`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_a_section_14_refusal_goes_back_to_the_model_which_tries_again`: the stub approves with no calculation, then calculates, then approves. The claim ends paid, and there is one `refusal` step with `by == "app"` whose reason starts "Claims manual section 14".
   - `test_the_record_says_the_agent_and_its_version_made_it`
   - `test_a_referral_by_the_check_says_security_check`: update `test_screening.py`'s first test to assert `decided_by == "Security check"`.
   - `test_the_model_never_sees_decided_by`: no bound tool's schema has `decided_by` or `claim_id`.
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
   - Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run the whole backend suite and the e2e.**
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run the whole backend suite and the e2e.**
   - Expected: all pass.
-- [ ] **Step 5: Commit the phase:** `git commit -m "feat: decision records meet claims manual section 14"`
+- [x] **Step 5: Commit the phase:** `git commit -m "feat: decision records meet claims manual section 14"`
 
 ---
 

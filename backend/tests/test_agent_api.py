@@ -90,14 +90,18 @@ def test_only_the_improvers_client_reaches_the_scores(path):
 
 
 def test_a_decision_goes_through_the_backend_and_a_repeat_counts_as_done(db_path, data_dir):
+    from tests.fakes import write_calculation
+
     with agent_env(db_path, data_dir, stub()) as env:
         decision = approve(420.0)
-        first = api.record_decision(CLAIM, decision, "m")
-        again = api.record_decision(CLAIM, decision, "m")
+        write_calculation(env.engine, CLAIM, 420.0)  # an approval needs a calculation on file (claims manual section 14)
+        first = api.record_decision(CLAIM, decision, "m", "Test")
+        again = api.record_decision(CLAIM, decision, "m", "Test")
         assert first["decision"]["payout"] == again["decision"]["payout"] == 420.0
         assert RawDb(env.engine).execute("SELECT COUNT(*) FROM decisions").fetchone()[0] == 1
+        write_calculation(env.engine, CLAIM, 100.0)
         with pytest.raises(connection.Refused) as caught:
-            api.record_decision(CLAIM, approve(100.0), "m")
+            api.record_decision(CLAIM, approve(100.0), "m", "Test")
         assert caught.value.status_code == 409
 
 
@@ -156,9 +160,14 @@ KEY = {"X-API-Key": TEST_KEY}
 
 
 def decided(client, claim_id: str, decision: str, payout: float):
+    from tests.fakes import record_approval
+
     client.post(f"/agent/claims/{claim_id}/take", json={"run_id": None}, headers=KEY)
-    body = {"decision": decision, "payout": payout, "calculation": [], "rationale": "Because. Section 9.",
-            "citations": ["x"], "model": "m"}
+    if decision == "approve":
+        assert record_approval(client, claim_id, payout).status_code == 200
+        return
+    body = {"decision": decision, "payout": payout, "rationale": "Because. Section 9.", "citations": ["x"],
+            "decided_by": "Test", "model": "m"}
     assert client.post(f"/claims/{claim_id}/decision", json=body, headers=KEY).status_code == 200
 
 

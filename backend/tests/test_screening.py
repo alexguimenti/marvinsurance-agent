@@ -21,12 +21,12 @@ def test_a_flagged_claim_is_referred_with_the_reason_and_the_claim_model_is_neve
     model, screen = stub(), ScreenStub([FOUND])
     with agent_env(db_path, data_dir, model, screen_model=screen) as env:
         assert work_claim(env, CLAIM) == "CLM-1001: refer"
-        decision = rows(env, "SELECT decision, payout, rationale, citations FROM decisions WHERE claim_id = ?", (CLAIM,))[0]
+        decision = rows(env, "SELECT decision, payout, rationale, citations, decided_by FROM decisions WHERE claim_id = ?", (CLAIM,))[0]
         status = rows(env, "SELECT status FROM claims WHERE claim_id = ?", (CLAIM,))[0]["status"]
         warnings = rows(env, "SELECT 1 FROM trace_events WHERE kind = 'warning'")
     assert model.calls == 0 and screen.calls == 1
     assert (decision["decision"], decision["payout"], decision["rationale"]) == ("refer", 0, FOUND.reason)
-    assert json.loads(decision["citations"]) == ["Security check"]
+    assert json.loads(decision["citations"]) == ["Security check"] and decision["decided_by"] == "Security check"
     assert status == "decided" and not warnings  # no rationale warning: the check names no section
 
 
@@ -34,7 +34,7 @@ def test_a_claim_that_passes_is_worked_as_before(db_path, data_dir):
     model, screen = stub({CLAIM: [approve(420.0)]}), ScreenStub()
     with agent_env(db_path, data_dir, model, screen_model=screen) as env:
         assert work_claim(env, CLAIM) == "CLM-1001: approve $420.00, paid"
-    assert screen.calls == 1 and model.calls == 1
+    assert screen.calls == 1 and model.calls == 2  # the calculation, then the decision
 
 
 def test_the_check_reads_every_field_the_customer_wrote(db_path, data_dir):

@@ -7,7 +7,7 @@ APP_REQUESTS = {
     "get_claim": ("GET", "/api/claims/{claim_id}"),
     "get_policy": ("GET", "/api/claims/{claim_id}/policy"),
     "get_claim_history": ("GET", "/api/claims/{claim_id}/history"),
-    "calculate_payout": ("POST", "/api/payouts/calculate"),
+    "calculate_payout": ("POST", "/api/claims/{claim_id}/payout"),
     "record_decision": ("POST", "/api/claims/{claim_id}/decision"),
     "pay_claim": ("POST", "/api/claims/{claim_id}/pay"),
 }

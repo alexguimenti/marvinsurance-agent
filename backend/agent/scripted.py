@@ -24,17 +24,16 @@ def _decision(claim_id: str, amount_claimed: float) -> dict:
     if claim_id in _OVER_LIMIT:
         return _approval(_OVER_LIMIT[claim_id])
     if claim_id.endswith("5"):
-        return {"decision": "decline", "payout": 0, "calculation": [], "rationale": _DECLINE,
+        return {"decision": "decline", "payout": 0, "rationale": _DECLINE,
                 "citations": ["Policy wording, section 9"]}
     if claim_id.endswith("9"):
-        return {"decision": "refer", "payout": 0, "calculation": [], "rationale": _REFER,
+        return {"decision": "refer", "payout": 0, "rationale": _REFER,
                 "citations": ["Policy wording, section 11"]}
     return _approval(round(min(amount_claimed * 0.5, 900.0), 2))
 
 
 def _approval(payout: float) -> dict:
-    return {"decision": "approve", "payout": payout, "calculation": [{"step": "Eligible amount", "amount": payout}],
-            "rationale": _APPROVE, "citations": ["Policy wording, section 10"]}
+    return {"decision": "approve", "payout": payout, "rationale": _APPROVE, "citations": ["Policy wording, section 10"]}
 
 
 class ScriptedChatModel(BaseChatModel):
@@ -60,7 +59,14 @@ class ScriptedChatModel(BaseChatModel):
         else:
             claim_text = next(m.content for m in messages if m.type == "tool" and m.name == "get_claim")
             claim = json.loads(claim_text.removeprefix("<claim_data>").rstrip().removesuffix("</claim_data>"))
-            call = {"name": "save_decision", "args": _decision(original, claim["amount_claimed"]), "id": f"save-{claim_id}"}
+            decision = _decision(original, claim["amount_claimed"])
+            if decision["decision"] == "approve" and not any(m.type == "tool" and m.name == "calculate_payout" for m in messages):
+                # an approval needs a payout calculation on file (claims manual section 14): one line for the payout
+                call = {"name": "calculate_payout", "id": f"calc-{claim_id}", "args": {
+                    "items": [{"description": "Eligible amount", "amount": decision["payout"], "item_limit": None}],
+                    "third_party_paid": 0, "deductible": 0, "benefit_max": None}}
+            else:
+                call = {"name": "record_decision", "args": decision, "id": f"save-{claim_id}"}
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])
 
 

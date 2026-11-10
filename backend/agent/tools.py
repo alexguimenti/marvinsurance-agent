@@ -35,11 +35,6 @@ class LineItem(BaseModel):
     item_limit: float | None
 
 
-class CalcStep(BaseModel):
-    step: str
-    amount: float
-
-
 def claim_data(claim: dict) -> str:
     """The claim as the model sees it, inside the tags that mark it as the customer's text."""
     return "<claim_data>\n" + json.dumps(claim) + "\n</claim_data>"
@@ -61,9 +56,9 @@ def _short(text: str) -> str:
     return text if len(text) <= FOUND_CHARS else text[: FOUND_CHARS - 1] + "…"
 
 
-def build_tools(route: Route) -> list[BaseTool]:
+def build_tools(route: Route, decided_by: str = "UnderCover Agent", model: str = "unknown") -> list[BaseTool]:
     """Tools over the app's operations and the context layer's tools, on whichever route is in use. None of them takes a
-    path, and none pays."""
+    path, and none pays. `decided_by` and `model` are what the agent fills into the decision record: the model never sees them."""
 
     def lookup(name: str, args: dict, found) -> tuple[str, dict]:
         """A context tool's answer for the model, and what the claim's steps keep of it."""
@@ -131,6 +126,7 @@ def build_tools(route: Route) -> list[BaseTool]:
     @tool
     def calculate_payout(
         items: list[LineItem],
+        claim_id: ClaimId,
         third_party_paid: float,
         deductible: float,
         benefit_max: float | None,
@@ -139,26 +135,26 @@ def build_tools(route: Route) -> list[BaseTool]:
         that applies to it (null when none), 0 where nothing was paid or no deductible applies, and the
         benefit maximum (null when none)."""
         return json.dumps(route.app("calculate_payout", {
+            "claim_id": claim_id,
             "items": [i.model_dump() if isinstance(i, BaseModel) else dict(i) for i in items],
             "third_party_paid": third_party_paid, "deductible": deductible, "benefit_max": benefit_max,
         }))
 
     @tool
-    def save_decision(
+    def record_decision(
         decision: str,
         payout: float,
-        calculation: list[CalcStep],
         rationale: str,
         citations: list[str],
         claim_id: ClaimId,
         proposal: Annotated[dict | None, InjectedState("proposal")],
         tool_call_id: Annotated[str, InjectedToolCallId],
     ) -> str | Command:
-        """Save your decision on this claim. Call it once, when you are done.
+        """Record your decision on this claim. Call it once, when you are done.
 
-        decision is approve, decline or refer. payout is in US dollars and must be 0 unless you approve.
-        calculation holds the steps calculate_payout returned. rationale is two or three short sentences
-        naming the section of the wording relied on. citations are the places you relied on."""
+        decision is approve, decline or refer. payout is in US dollars and must be 0 unless you approve; an approval
+        needs a calculate_payout result for this claim, and its payout must be that result's payout. rationale is two
+        or three short sentences naming the section of the wording relied on. citations are the sections you relied on."""
         if decision not in DECISIONS:
             return f"Error: decision must be one of {', '.join(DECISIONS)}."
         amount_claimed = route.app("get_claim", {"claim_id": claim_id})["claim"]["amount_claimed"]
@@ -173,16 +169,17 @@ def build_tools(route: Route) -> list[BaseTool]:
         saved = {
             "decision": decision,
             "payout": round(float(payout), 2),
-            "calculation": [s.model_dump() if isinstance(s, BaseModel) else dict(s) for s in calculation],
             "rationale": rationale.strip(),
             "citations": list(citations),
         }
+        # the app checks the record against claims manual section 14: a refusal goes back to the model, which can put it right
+        route.app("record_decision", {"claim_id": claim_id, **saved, "decided_by": decided_by, "model": model})
         return Command(update={
             "proposal": saved,
-            "messages": [ToolMessage(f"Decision saved for {claim_id}.", name="save_decision", tool_call_id=tool_call_id)],
+            "messages": [ToolMessage(f"Decision recorded for {claim_id}.", name="record_decision", tool_call_id=tool_call_id)],
         })
 
     return [
         get_claim, get_policy, get_claim_history, get_plan, lookup_term, describe_fields, get_claim_rules,
-        search_reference_data, search_documents, read_section, calculate_payout, save_decision,
+        search_reference_data, search_documents, read_section, calculate_payout, record_decision,
     ]
