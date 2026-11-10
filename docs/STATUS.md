@@ -66,9 +66,31 @@ Partly done. The owner stopped it to start `docs/PLAN_SECURE.md`. On Supabase an
 
 Built, from `docs/PLAN_SECURE.md`: every route under `/api` with the agent's API key (`X-API-Key`, constant-time compare) on everything the agent's side calls; the agent reaches the backend only over HTTP (`agent/connection.py`, `api.py`, `improver_api.py`), keeping one database link, LangGraph's checkpoints; a second model (GPT-6 Luna at `none`, or `MODEL_NAME`) screens each claim before the claim agent's first model call, outside the versioned configuration, with CLM-1901 seeded into the queue (26 claims); `GET /api/agent/openapi.json` with the eight operations; a payment limit checked first (403 naming it); a sign-off that pays in the backend; `npm run build`, `backend.main` (`app` and a Mangum `handler`), the dashboard served at `/`, `NullPool` and schema-qualified statements on Lambda, and the `server` dependency group with its check.
 
-`npm run check` passed in pieces on 2026-11-10: backend 480 passed and 1 skipped, the server-group import, the front end (131 tests, types, lint) and the 14 end-to-end tests. The one-command run stopped at the server-group step on a quoting error in `scripts/check.mjs`, since fixed and run by hand.
+`npm run check` passed on 2026-11-10 in a clean `git worktree` with no `.env`, in pieces because the system stopped the one-command run twice for memory: backend 480 passed and 1 skipped (16 minutes), the server-group import, the front end (131 tests, types, lint) and the 14 end-to-end tests. A quoting error in the server-group step of `scripts/check.mjs` was fixed on the way.
 
-**Not done:** the live checks of Phase 5 (they reseed Supabase, spend on OpenRouter and need `UNDERCOVER_API_KEY` in `.env`, which the agent working the plan may not read or write), the clean-worktree run of `npm run check`, the packaging size check, and the final whole-branch review by a fresh reviewer.
+**Not done:** the final whole-branch review by a fresh reviewer.
+
+## Live checks of the security changes (2026-11-10)
+
+On Supabase and the default model (`deepseek/deepseek-v4.1-flash` for the claim agent, `openai/gpt-6-luna` at `none` for the check, through our key), after one `npm run seed`. Model spend in all: about $0.08 on OpenRouter (the dispatch $0.07, the evaluation about $0.002 and the check's own calls $0.0001 a claim).
+
+| Check | Result |
+|---|---|
+| `curl -X POST /api/claims/CLM-1001/pay` with no key; `GET /api/claims` with no sign-in | 401 and 401 |
+| `uv run -m agent CLM-1001` | `CLM-1001: approve $420.00, paid` |
+| A dispatch (N=5) of the rest of the queue | Finished: 15 approved, 5 declined, 5 referred, 3 held for sign-off (CLM-1003, CLM-1008, CLM-1011) and CLM-1021 held too. **CLM-1901 referred** by the check, which the claim shows: decision REFER $0.00, the reason quoting the instruction, "Security check" as its section, decided by `openai/gpt-6-luna`, one model call at $0.0001 |
+| An evaluation of the evaluation set's tiny five (N=5) | Finished in 1 min 24 s: 100% decision accuracy, 80% accuracy, $0.0016 a claim. **None flagged** by the check: every rationale is the claim agent's own |
+| Dana signs off CLM-1003 on the dashboard | Paid once, in the one request: `approved_by` HND-01, `paid_at` set, claim decided, no agent service involved; the other held payouts stayed held |
+| The built dashboard, the backend alone (`uvicorn backend.main:app`, with the key and `.env` in its environment) | Dana signed in at http://127.0.0.1:8000 and saw the 26 claims |
+| The backend as Lambda sees it (`AWS_LAMBDA_FUNCTION_NAME` set, `DATABASE_URL` on port 6543, lifespan off) | A signed-in handler loaded the queue and two claim pages in a row, four requests in all, with no error in the log |
+| The deployment package (Linux wheels for Python 3.12, `uv pip install --python-platform x86_64-manylinux2014`) | **21.4 MB zipped**, 76 MB unzipped, with `backend/` (no tests, caches, `.venv` or egg-info), `data/` and `dashboard/dist/` |
+
+Notes:
+- Packaging by the lab's cells copies the whole `backend/` folder, which on a laptop holds `.venv` (and egg-info): leave those out, as the 21.4 MB figure does.
+- The first time the backend alone was started the sign-in worked only after its startup finished (it opens its connections to Supabase first, a few seconds).
+- The live checks were driven by `e2e/live_security.mjs`, which signs in as Dana through the dashboard with the password from `.env` in that process only. A `#` in `HANDLER_PASSWORD` needs the value in quotes in `.env`, or Node's `.env` reader cuts it.
+- The agent working the plan did not use the Playwright MCP server for the sign-in at 8000: the password would have had to pass through a tool call, so the script route stood in (a ruling).
+- The sign-off check is for CLM-1003 only; the three other held payouts and CLM-1021's were left held.
 
 ## Known limits
 
