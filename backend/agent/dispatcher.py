@@ -15,9 +15,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, RetryPolicy, Send
 from pydantic import BaseModel, Field
 
+from agent import api
 from agent.worker import CREDIT_OUT, RETRYABLE, AgentEnv, work
-from app import runs
-from app.claims import get_claim
 
 log = logging.getLogger(__name__)
 
@@ -37,16 +36,14 @@ class ClaimTask(TypedDict):
 
 
 def build_dispatcher(env: AgentEnv, retry: RetryPolicy, allowed=None, skipped: list | None = None):
-    engine = env.engine
-
     def list_claims(state: DispatchState) -> Command:
         """List the run's claims and send each to its own claim agent. An evaluation's copies were listed when it
         was created; a dispatch takes every claim in progress and every waiting one."""
-        if runs.get_run(engine, state.run_id)["kind"] == "evaluation":
-            claim_ids = runs.run_claim_ids(engine, state.run_id)
+        if api.get_run(state.run_id)["kind"] == "evaluation":
+            claim_ids = api.run_claim_ids(state.run_id)
         else:
-            claim_ids = [c for c in runs.claims_to_dispatch(engine) if not env.is_working(c)]  # a resume has those
-            runs.add_run_claims(engine, state.run_id, claim_ids)
+            claim_ids = [c for c in api.claims_to_dispatch() if not env.is_working(c)]  # a resume has those
+            api.add_run_claims(state.run_id, claim_ids)
         return Command(goto=[Send("work_claim", ClaimTask(claim_id=c, run_id=state.run_id)) for c in claim_ids])
 
     def work_claim(task: ClaimTask) -> dict:
@@ -59,11 +56,11 @@ def build_dispatcher(env: AgentEnv, retry: RetryPolicy, allowed=None, skipped: l
             if skipped is not None:
                 skipped.append(claim_id)
             return {"outcomes": [{"claim_id": claim_id, "line": f"{claim_id}: not started, the round's spending limit was reached."}]}
-        runs.claim_started(engine, run_id, claim_id)
+        api.claim_started(run_id, claim_id)
         line = work(env, claim_id, run_id)
-        if get_claim(engine, claim_id)["status"] == "waiting":
+        if api.claim_state(claim_id)["status"] == "waiting":
             line = work(env, claim_id, run_id)
-        runs.claim_finished(engine, run_id, claim_id)
+        api.claim_finished(run_id, claim_id)
         return {"outcomes": [{"claim_id": claim_id, "line": line}]}
 
     def on_claim_error(task: ClaimTask, error: NodeError) -> dict:
@@ -72,8 +69,8 @@ def build_dispatcher(env: AgentEnv, retry: RetryPolicy, allowed=None, skipped: l
         message = f"{type(error.error).__name__}: {error.error}"
         log.warning("%s: %s", claim_id, message)
         try:
-            runs.add_trace_event(engine, claim_id, "error", {"message": f"{message}. It stays as it is for the next dispatch."})
-            runs.claim_finished(engine, run_id, claim_id)
+            api.add_step(claim_id, "error", {"message": f"{message}. It stays as it is for the next dispatch."})
+            api.claim_finished(run_id, claim_id)
         except Exception:  # the records can wait; the dispatch must not stop
             log.exception("could not record what happened to %s", claim_id)
         return {"outcomes": [{"claim_id": claim_id, "line": f"{claim_id}: {message}. Left for the next dispatch."}]}
@@ -94,12 +91,12 @@ def dispatch(env: AgentEnv, run_id: int, workers: int, retry: RetryPolicy = CLAI
     try:
         build_dispatcher(env, retry, allowed, skipped).invoke(DispatchState(run_id=run_id), {"max_concurrency": workers})
     except Exception as exc:  # the dispatcher itself broke, not a claim: the run ends stopped, and says why
-        runs.finish_run(env.engine, run_id, error=f"{type(exc).__name__}: {exc}")
+        api.finish_run(run_id, error=f"{type(exc).__name__}: {exc}")
         raise
     if env.out_of_credit.is_set():
-        runs.finish_run(env.engine, run_id, error=CREDIT_OUT)
+        api.finish_run(run_id, error=CREDIT_OUT)
         return
     if skipped:
-        runs.finish_run(env.engine, run_id, error="the round's spending limit was reached")
+        api.finish_run(run_id, error="the round's spending limit was reached")
         return
-    runs.finish_run(env.engine, run_id, settings=env.settings)
+    api.finish_run(run_id)

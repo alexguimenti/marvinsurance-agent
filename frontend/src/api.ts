@@ -32,7 +32,7 @@ export interface Payment {
   payment_id: string
   claim_id: string
   amount: number
-  status: 'paid' | 'held' | 'signed_off'
+  status: 'paid' | 'held'
   approved_by: string | null
   approved_by_name?: string | null
   approved_at?: string | null

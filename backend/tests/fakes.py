@@ -216,18 +216,60 @@ def counting_stub(seconds: float = 0.05, outcomes: dict | None = None, default=N
                         seconds=seconds, lock=threading.Lock())
 
 
+class ScreenStub:
+    """The security check's model with no network. It passes every claim, or plays `outcomes` in order, one for each call:
+    a Screening, "unreadable" for an answer that cannot be read, or an exception to raise. It records what it was shown."""
+
+    def __init__(self, outcomes=()):
+        self.outcomes, self.calls, self.shown = list(outcomes), 0, []
+
+    def with_structured_output(self, schema, **kwargs):
+        from langchain_core.runnables import RunnableLambda
+
+        def answer(messages):
+            from agent.screening import Screening
+
+            self.calls += 1
+            self.shown.append(list(messages))
+            outcome = self.outcomes.pop(0) if self.outcomes else Screening(reason="Nothing to find.", instructions_found=False)
+            if isinstance(outcome, Exception):
+                raise outcome
+            raw = AIMessage(content="", usage_metadata={"input_tokens": 40, "output_tokens": 4, "total_tokens": 44},
+                            response_metadata={"token_usage": {"cost": 0.0001}})
+            if outcome == "unreadable":
+                return {"raw": raw, "parsed": None, "parsing_error": ValueError("not JSON")}
+            return {"raw": raw, "parsed": outcome, "parsing_error": None}
+
+        return RunnableLambda(answer)
+
+
 @contextmanager
-def agent_env(db_path: str, data_dir: str, model, improver_model=None, **settings):
-    """A real AgentEnv, with its checkpoints on disk, around a stub model."""
+def agent_env(db_path: str, data_dir: str, model, improver_model=None, screen_model=None, **settings):
+    """A real AgentEnv, with its checkpoints on disk, around a stub model, and the backend it records through, in
+    this process. `env.engine` looks at the records the backend keeps: the agent has no engine of its own."""
+    from agent import connection
     from agent.worker import open_env
+    from app.api import create_app
 
     config = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir, **settings)
     engine = make_engine(config, max_connections=1)
     init_schema(engine)
     seed_claims(engine, Reference(data_dir))
     engine.dispose()
-    with open_env(config, model=model, model_id="stub/model", improver_model=improver_model) as env:
-        yield env
+    with api_client(create_app(config, jwks=MINT)) as backend, connection.use(backend):
+        with open_env(config, model=model, model_id="stub/model", improver_model=improver_model,
+                      screen_model=screen_model or ScreenStub()) as env:
+            env.engine = make_engine(config, max_connections=2)
+            try:
+                yield env
+            finally:
+                env.engine.dispose()
+
+
+def stopped_claims(engine) -> list[str]:
+    """Claims left in progress with a thread: stopped partway."""
+    return [r["claim_id"] for r in RawDb(engine).execute(
+        "SELECT claim_id FROM claims WHERE status = 'in_progress' AND thread_id IS NOT NULL AND copy_of IS NULL ORDER BY claim_id")]
 
 
 # --- sign-in: tokens like Supabase's, signed with a key of our own ---------------------------------------------
@@ -266,3 +308,50 @@ class TokenMint:
 
 
 MINT = TokenMint()  # one key pair for the whole run: the backend under test checks tokens against it
+
+
+def api_client(app, **kwargs):
+    """A client for the backend: its routes are under /api, and a test's paths stay relative to it."""
+    from fastapi.testclient import TestClient
+
+    return TestClient(app, base_url="http://testserver/api", **kwargs)
+
+
+TEST_KEY = "test-key-" + "k" * 40  # the agent's API key in every test: conftest puts it in the environment
+
+
+class ServiceClient:
+    """A client for the agent's service. Starting it starts the backend the service records through, in this process,
+    on the same database, as `npm run dev` starts both."""
+
+    def __new__(cls, app, **kwargs):
+        from fastapi.testclient import TestClient
+
+        class Client(TestClient):
+            def __enter__(self):
+                from contextlib import ExitStack
+
+                from agent import connection
+                from app.api import create_app
+
+                self._backend = ExitStack()
+                backend = self._backend.enter_context(api_client(create_app(app.state.settings, jwks=MINT)))
+                self._backend.enter_context(connection.use(backend))
+                try:
+                    return super().__enter__()
+                except BaseException:
+                    self._backend.close()
+                    raise
+
+            def __exit__(self, *exc):
+                try:
+                    return super().__exit__(*exc)
+                finally:
+                    self._backend.close()
+
+        return Client(app, headers={"X-API-Key": TEST_KEY}, **kwargs)
+
+
+def service_client(app, **kwargs):
+    """A client for the agent's service, with the key every call to it needs."""
+    return ServiceClient(app, **kwargs)

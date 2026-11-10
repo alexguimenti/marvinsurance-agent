@@ -3,8 +3,14 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, func, select, update
 
 from app.claims import get_claim
+from app.settings_store import approval_limit
 from app.db import claims, decisions, insert_or_ignore, iso, payments
 from app.reference import Reference
+from app.runs import add_trace_event
+
+
+class OverLimit(Exception):
+    """A payment over the approval limit: the system refuses it, on any claim, before it looks at the claim."""
 
 
 class SignOffRequired(Exception):
@@ -16,7 +22,7 @@ class Payment:
     payment_id: str
     claim_id: str
     amount: float
-    status: str  # held -> signed_off -> paid, or paid straight away within the limit
+    status: str  # held -> paid by a sign-off, or paid straight away within the limit
     approved_by: str | None = None
     approved_at: str | None = None
     paid_at: str | None = None
@@ -34,7 +40,8 @@ def _payment(row) -> Payment:
 
 
 def sign_off(engine: Engine, ref: Reference, payment_id: str, handler_id: str) -> Payment:
-    """Record who signed off and when, and put the claim back in progress. It does not pay: the agent does."""
+    """Pay a held payout on a handler's sign-off: held to paid in one conditional update that records who and when, then
+    the claim is decided and the paid step is added to its trace. The agent is not needed. A repeat changes nothing."""
     handler = next((h for h in ref.handlers if h["handler_id"] == handler_id), None)
     if handler is None or not handler["can_approve_over_limit"]:
         raise PermissionError(f"{handler_id} cannot approve payments over the limit")
@@ -43,10 +50,10 @@ def sign_off(engine: Engine, ref: Reference, payment_id: str, handler_id: str) -
         row = conn.execute(
             update(payments)
             .where(payments.c.payment_id == payment_id, payments.c.status == "held", payments.c.claim_id.in_(queue_claims))
-            .values(status="signed_off", approved_by=handler_id, approved_at=func.now(), updated_at=func.now())
+            .values(status="paid", approved_by=handler_id, approved_at=func.now(), paid_at=func.now(), updated_at=func.now())
             .returning(payments)
         ).mappings().first()
-        if row is None:  # already signed off or paid, an evaluation's copy, or no such payment
+        if row is None:  # already paid, an evaluation's copy, or no such payment
             row = conn.execute(
                 select(payments, claims.c.copy_of)
                 .select_from(payments.join(claims, payments.c.claim_id == claims.c.claim_id))
@@ -56,11 +63,15 @@ def sign_off(engine: Engine, ref: Reference, payment_id: str, handler_id: str) -
                 raise LookupError(payment_id)
             if row["copy_of"] is not None:
                 raise PermissionError("an evaluation's copy cannot be signed off")
-        if row["status"] == "signed_off":
+            if row["status"] == "held":  # only a paid one is left to explain: a held one would have been taken above
+                raise LookupError(payment_id)
+        else:
             conn.execute(
-                update(claims).where(claims.c.claim_id == row["claim_id"], claims.c.status == "awaiting_approval")
-                .values(status="in_progress")
+                update(claims).where(claims.c.claim_id == row["claim_id"], claims.c.status.in_(("in_progress", "awaiting_approval")))
+                .values(status="decided")
             )
+            add_trace_event(conn, row["claim_id"], "status",
+                            {"status": "paid", "amount": row["amount"], "approved_by": handler_id})
     return _payment(row)
 
 
@@ -96,3 +107,18 @@ def pay(engine: Engine, ref: Reference, claim_id: str) -> dict:
             .values(status="decided")
         )
     return {**get_claim(engine, claim_id), "paid_now": paid_now}
+
+
+def pay_claim(engine: Engine, ref: Reference, claim_id: str, amount: float) -> dict:
+    """The agent's payment. An amount over the approval limit is refused first, on any claim, naming the limit; then
+    an amount other than the decision's payout is refused; then it is paid as `pay` does, once."""
+    limit = approval_limit(engine, ref)
+    if amount > limit:
+        raise OverLimit(f"a payment of ${amount:,.2f} is over the approval limit of ${limit:,.2f}")
+    with engine.connect() as conn:
+        found = conn.execute(select(decisions.c.decision, decisions.c.payout).where(decisions.c.claim_id == claim_id)).first()
+    if found is None or found[0] != "approve":
+        raise ValueError(f"{claim_id} has no approval to pay")
+    if round(amount, 2) != round(found[1], 2):
+        raise ValueError(f"{claim_id}: the payment is ${found[1]:,.2f}, not ${amount:,.2f}")
+    return pay(engine, ref, claim_id)

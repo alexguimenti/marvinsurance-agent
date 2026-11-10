@@ -3,9 +3,9 @@
 ## The backend and the agent
 
 - `backend/app/` holds the records and the API. `backend/agent/` holds the agent. `app` never imports LangGraph or LangChain; it imports from `agent` only the loaders in `agent.prompts` (the first instructions and the first recipe, which seed version 1).
-- The agent calls `app`'s operations in Python and has its own connections to the same database.
+- The agent reaches the backend only over HTTP, with the API key in `X-API-Key`, through one client, `agent/connection.py`. `agent/api.py` (the claim agent, the worker, the dispatcher and the service) and `agent/improver_api.py` (the improver) are the only modules that call it; `backend/app/` owns every record. The agent's one connection to the database is LangGraph's checkpoints.
 - Our code, not the model, enforces the rules: the $1,000 limit, which claims a run works, attempts, and one decision and one payment per claim.
-- The graph never applies the limit. It asks the backend (`needs_sign_off`) and the backend refuses a payout over the limit with no sign-off (`pay`).
+- The graph never applies the limit. It asks the backend whether a sign-off is needed, and the backend refuses a payment over the limit with a 403 (`pay_claim`) before it looks at the claim. A sign-off pays the claim in the backend.
 
 ## The six parts of the agent
 
@@ -40,7 +40,7 @@ Every operation has an `operation_id`, a one-line docstring and no optional inpu
 
 - Backend behavior is tested on a stub model through the real graph, the real dispatcher and real SQLite files. Tests name what should happen.
 - `tests/fakes.py` holds the stub model and helpers. `RawDb` lets a test arrange or inspect tables in plain SQL; production code does not use it.
-- The front end has component tests with a mocked API. End-to-end tests run the whole app on the scripted model, with a stand-in for the agent's service on port 8003 that writes down each start and sign-off.
+- The front end has component tests with a mocked API. End-to-end tests run the whole app on the scripted model, with a stand-in for the agent's service on port 8003 that writes down each start. The backend and the stand-in share a fixed API key.
 
 ## Style
 

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from agent.service import create_service
 from app.api import create_app
 from app.config import Settings
-from tests.fakes import MINT
+from tests.fakes import service_client, api_client, MINT
 from app.scoring import measures, score_claim
 
 HANDLERS = [
@@ -68,8 +68,8 @@ MEASURES = {"claims", "decision_accuracy", "accuracy", "mistake_cost", "straight
 @pytest.fixture
 def backend(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as client:
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as client:
             yield client
 
 

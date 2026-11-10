@@ -11,7 +11,7 @@ from app.db import init_schema, make_engine
 from app.reference import Reference
 from app.seed import seed_claims
 from app.settings_store import change_setting, get_settings, models_allowed, setting_history
-from tests.fakes import MINT, approve
+from tests.fakes import service_client, api_client, MINT, approve
 
 DANA = Handler("HND-01", "Dana Whitfield", "Senior Claims Handler", "dana.whitfield@marvinsurance.example", True)
 
@@ -104,8 +104,8 @@ def test_models_allowed_with_model_name_is_that_model_at_default_and_free(ref, m
 @pytest.fixture
 def backend(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service, jwks=MINT)) as client:
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as client:
             yield client
 
 
@@ -133,7 +133,7 @@ def test_marcus_cannot_change_a_setting(backend):
 
 
 def test_a_change_needs_a_sign_in(backend):
-    assert backend.put("/settings/round_spending_limit", json={"value": 1}).status_code == 401
+    assert backend.put("/settings/round_spending_limit", json={"value": 1}, headers={"Authorization": ""}).status_code == 401
 
 
 def test_a_value_that_makes_no_sense_is_422_and_an_unknown_name_404(backend):

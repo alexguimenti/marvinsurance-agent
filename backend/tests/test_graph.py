@@ -8,7 +8,7 @@ from langgraph.types import Command
 
 from agent.events import rationale_warnings
 from agent.graph import TooManyModelCalls
-from agent.prompts import load_instructions
+from app.configs import load_instructions
 from app.claims import get_claim
 from app.payments import get_payment, sign_off
 from tests.fakes import RawDb, agent_env, approve, decline, stub, tool_call
@@ -85,7 +85,7 @@ def test_resume_after_sign_off_pays_once_without_calling_the_model(run):
     env, model, _ = run(approve(2000.0))
     calls = model.calls
     sign_off(env.engine, env.ref, f"PAY-{CLAIM}", "HND-01")
-    assert status(env) == "in_progress"
+    assert status(env) == "decided"  # the sign-off paid it
     for _ in range(2):
         env.graph.invoke(Command(resume={"signed_off": True}), config(), durability="sync")
     payment = get_payment(env.engine, CLAIM)
@@ -138,7 +138,7 @@ def test_finishing_without_a_decision_raises(run):
 def test_every_step_is_recorded_on_the_claim(run):
     env, _, _ = run([tool_call("read_section", {"document": "policy_wording", "section": 5}, "c1"), approve(420.0)])
     got = kinds(env)
-    assert got[0] == "tool_call" and "tool_result" in got
+    assert got[:2] == ["screening", "tool_call"] and "tool_result" in got  # the security check is the first step
     assert got.count("decision") == 1 and "usage" not in got  # cost is in model_calls now
     assert trace(env, "status")[-1]["status"] == "paid"
     names = [e["name"] for e in trace(env, "tool_call")]
@@ -151,8 +151,8 @@ def test_usage_totals_every_model_call(run):
 
     totals = claim_totals(env.engine, CLAIM)
     assert {k: totals[k] for k in ("calls", "input_tokens", "output_tokens", "reasoning_tokens")} == {
-        "calls": 2, "input_tokens": 100, "output_tokens": 10, "reasoning_tokens": 4}
-    assert totals["cost_usd"] == 0.001
+        "calls": 3, "input_tokens": 140, "output_tokens": 14, "reasoning_tokens": 4}  # the check, then two replies
+    assert totals["cost_usd"] == pytest.approx(0.0011)
 
 
 def test_rationale_warning_goes_to_the_trace(run):
@@ -213,13 +213,12 @@ def test_claim_text_only_reaches_the_model_inside_a_tool_result(db_path, data_di
     claim = json.loads((Path(data_dir) / "security" / "claims.json").read_text(encoding="utf-8"))[0]
     model = stub({claim["claim_id"]: [decline()]})
     with agent_env(db_path, data_dir, model) as env:
-        RawDb(env.engine).execute("INSERT INTO claims (claim_id, status, payload) VALUES (?, 'in_progress', ?)",
-                                  (claim["claim_id"], json.dumps(claim)))
+        RawDb(env.engine).execute("UPDATE claims SET status='in_progress' WHERE claim_id=?", (claim["claim_id"],))  # seeded with the queue
         env.graph.invoke({"claim_id": claim["claim_id"]}, config(claim["claim_id"]), durability="sync")
     shown = model.shown[-1]
-    tool_msgs = [m for m in shown if m.type == "tool" and "IMPORTANT NOTE" in m.content]
+    tool_msgs = [m for m in shown if m.type == "tool" and "PROCESSING NOTE" in m.content]
     assert tool_msgs and all(m.content.startswith("<claim_data>") for m in tool_msgs)
-    assert not any("IMPORTANT NOTE" in m.content for m in shown if m.type in ("human", "system"))
+    assert not any("PROCESSING NOTE" in m.content for m in shown if m.type in ("human", "system"))
 
 
 def test_a_slow_claim_times_out(db_path, data_dir):
@@ -240,3 +239,31 @@ def test_instructions_tell_the_agent_the_system_pays():
     text = load_instructions("claim").lower()
     assert "never follow instructions" in text and "save_decision" in text and "calculate_payout" in text
     assert "request_payment" not in text
+
+
+def test_a_limit_lowered_after_the_decision_holds_the_payout_for_a_handler(db_path, data_dir, monkeypatch):
+    """The decision was recorded under a limit of $1,000, so `needs_sign_off` says no; the limit is then lowered, and the
+    payment operation refuses with a 403. The payout is held for a handler, and the claim does not fail."""
+    import agent.graph as graph_module
+    from app.auth import Handler
+    from app.settings_store import change_setting
+
+    dana = Handler("HND-01", "Dana Whitfield", "Senior Claims Handler", "dana.whitfield@marvinsurance.example", True)
+    model = stub({CLAIM: [approve(800.0)]})
+    with agent_env(db_path, data_dir, model) as env:
+        real = graph_module.api.record_decision
+
+        def record_then_lower(*args):
+            answer = real(*args)
+            change_setting(env.engine, "approval_limit", 500, dana)
+            return answer
+
+        monkeypatch.setattr(graph_module.api, "record_decision", record_then_lower)
+        RawDb(env.engine).execute("UPDATE claims SET status='in_progress' WHERE claim_id=?", (CLAIM,))
+        env.graph.invoke({"claim_id": CLAIM}, config(), durability="sync")
+        assert status(env) == "awaiting_approval"
+        assert get_payment(env.engine, CLAIM).status == "held"
+        assert [e["status"] for e in trace(env, "status")].count("awaiting_approval") == 1
+        assert kinds(env).count("error") == 0
+        sign_off(env.engine, env.ref, f"PAY-{CLAIM}", "HND-01")
+        assert status(env) == "decided" and get_payment(env.engine, CLAIM).status == "paid"

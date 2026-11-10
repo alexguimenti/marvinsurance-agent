@@ -4,12 +4,12 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from agent.prompts import load_instructions
+from app.configs import load_instructions
 from agent.service import create_service
 from agent.worker import work_claim
 from app.api import create_app
 from app.config import Settings
-from tests.fakes import MINT, agent_env, connect, decline, stub, tool_call
+from tests.fakes import service_client, api_client, MINT, agent_env, connect, decline, stub, tool_call
 
 
 def make_settings(db_path, data_dir, **over):
@@ -19,8 +19,8 @@ def make_settings(db_path, data_dir, **over):
 @pytest.fixture
 def client(db_path, data_dir):
     settings = make_settings(db_path, data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:  # work is done before a call returns
-        with TestClient(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as c:
+    with service_client(create_service(settings, inline=True)) as service:  # work is done before a call returns
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as c:
             yield c
 
 
@@ -28,9 +28,9 @@ def statuses(client):
     return {c["claim_id"]: c["status"] for c in client.get("/claims").json()}
 
 
-def test_list_claims_returns_25_waiting(client):
+def test_list_claims_returns_26_waiting(client):
     claims = client.get("/claims").json()
-    assert len(claims) == 25
+    assert len(claims) == 26  # the 25 of the queue, and the security team's CLM-1901
     assert {c["status"] for c in claims} == {"waiting"}
     first = claims[0]
     assert first["claim_id"] == "CLM-1001" and first["customer_name"] == "Maya Patel"
@@ -63,18 +63,18 @@ def test_a_dispatch_works_the_whole_queue(client):
     values = list(statuses(client).values())
     assert values.count("awaiting_approval") == 3
     assert values.count("needs_handler") == 1  # CLM-1013 fails every time
-    assert values.count("decided") == 21  # CLM-1017 fails once and is tried again in the same dispatch
+    assert values.count("decided") == 22  # CLM-1017 fails once and is tried again; CLM-1901 is referred by the security check
 
 
 def test_backend_forwards_n_to_the_service(db_path, data_dir):
     class Recorder:
         calls = []
 
-        def post(self, url, json=None, timeout=None):
+        def post(self, url, json=None, timeout=None, headers=None):
             self.calls.append((url, json))
             return httpx.Response(202, json={"status": "started"})
 
-    with TestClient(create_app(make_settings(db_path, data_dir), http=Recorder(), jwks=MINT), headers=MINT.header()) as backend:
+    with api_client(create_app(make_settings(db_path, data_dir), http=Recorder(), jwks=MINT), headers=MINT.header()) as backend:
         assert backend.post("/dispatches", json={"workers": 3}).status_code == 202
     assert Recorder.calls == [("http://127.0.0.1:8002/dispatches", {"workers": 3})]
 
@@ -99,7 +99,7 @@ def test_latest_dispatch_shows_its_claims_summary_and_totals(client):
     client.post("/dispatches", json={"workers": 5})
     latest = client.get("/dispatches/latest").json()
     assert (latest["run"]["status"], latest["run"]["workers"], latest["run"]["kind"]) == ("finished", 5, "dispatch")
-    assert len(latest["claims"]) == 25 and all(c["started_at"] for c in latest["claims"])
+    assert len(latest["claims"]) == 26 and all(c["started_at"] for c in latest["claims"])
     assert [p["claim_id"] for p in latest["summary"]["awaiting_sign_off"]] == ["CLM-1003", "CLM-1008", "CLM-1011"]
     assert latest["summary"]["left_for_handler"] == ["CLM-1013"]
     assert latest["totals"]["calls"] > 0 and "seconds" in latest["totals"]
@@ -118,7 +118,7 @@ def read_with(db_path, data_dir, *reads):
     steps = [tool_call("read_section", {"document": d, "section": n}, f"r{i}") for i, (d, n) in enumerate(reads)]
     with agent_env(db_path, data_dir, stub({"CLM-1001": [[*steps, decline()]]})) as env:
         work_claim(env, "CLM-1001")
-    with TestClient(create_app(make_settings(db_path, data_dir), jwks=MINT), headers=MINT.header()) as client:
+    with api_client(create_app(make_settings(db_path, data_dir), jwks=MINT), headers=MINT.header()) as client:
         return client.get("/claims/CLM-1001").json()["read"]
 
 
@@ -146,16 +146,16 @@ def test_claim_usage_sums_every_attempt_and_its_time(client, db_path):
     assert total["seconds"] == 25.0
 
 
-def test_sign_off_is_recorded_and_the_agent_pays(client):
+def test_a_sign_off_pays_the_claim_with_no_help_from_the_service(client):
     client.post("/dispatches", json={"workers": 5})
     held = client.get("/approvals").json()
     assert {h["claim_id"] for h in held} == {"CLM-1003", "CLM-1008", "CLM-1011"}
     pid = held[0]["payment_id"]
     resp = client.post(f"/payments/{pid}/approve")
-    assert resp.status_code == 200 and resp.json()["status"] == "signed_off"
-    assert resp.json()["approved_by"] == "HND-01" and resp.json()["approved_at"] and resp.json()["paid_at"] is None
+    assert resp.status_code == 200 and resp.json()["status"] == "paid"
+    assert resp.json()["approved_by"] == "HND-01" and resp.json()["approved_at"] and resp.json()["paid_at"]
     detail = client.get(f"/claims/{held[0]['claim_id']}").json()
-    assert detail["status"] == "decided" and detail["payment"]["status"] == "paid"  # the service heard, and paid
+    assert detail["status"] == "decided" and detail["payment"]["status"] == "paid"  # the sign-off itself paid it
     assert len(client.get("/approvals").json()) == 2
 
 
@@ -193,12 +193,19 @@ def test_no_route_serves_evals(client, path):
 
 def test_backend_restart_changes_nothing(db_path, data_dir):
     settings = make_settings(db_path, data_dir)
-    with TestClient(create_app(settings, jwks=MINT), headers=MINT.header()):
+    with api_client(create_app(settings, jwks=MINT), headers=MINT.header()):
         pass
     conn = connect(db_path)
     conn.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
     conn.execute("UPDATE claims SET status='in_progress', run_id=1, thread_id='CLM-1001-1' WHERE claim_id='CLM-1001'")
 
-    with TestClient(create_app(settings, jwks=MINT), headers=MINT.header()) as client:  # marking a stopped run is the service's job, not the backend's
+    with api_client(create_app(settings, jwks=MINT), headers=MINT.header()) as client:  # marking a stopped run is the service's job, not the backend's
         assert client.get("/dispatches/latest").json()["run"]["status"] == "running"
         assert client.get("/claims/CLM-1001").json()["status"] == "in_progress"
+
+
+def test_health_is_open_and_routes_live_under_api(db_path, data_dir):
+    with TestClient(create_app(make_settings(db_path, data_dir), jwks=MINT)) as bare:  # no credentials, no prefix in the client
+        assert bare.get("/api/health").json() == {"status": "ok"}
+        assert bare.get("/claims").status_code == 404
+        assert bare.get("/openapi.json").status_code == 404 and bare.get("/docs").status_code == 404

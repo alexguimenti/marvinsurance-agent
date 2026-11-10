@@ -1,7 +1,7 @@
 """Cost and time for every claim, recorded with the run they happened in."""
 import pytest
 
-from agent.worker import carry_on, work_claim
+from agent.worker import invoke, work_claim
 from app.payments import sign_off
 from app.usage import claim_totals, per_claim, run_totals
 from tests.fakes import FakeClock, RawDb, agent_env, approve, stub, tool_call
@@ -35,25 +35,25 @@ def test_each_model_call_is_recorded_with_its_run(env_for):
     env, model = env_for({"CLM-1001": [[SEARCH, approve(100.0)]]})
     work_claim(env, "CLM-1001", run_id=7)
     calls = model_calls(env, "CLM-1001")
-    assert len(calls) == model.calls == 2
-    assert {c["run_id"] for c in calls} == {7} and {c["model"] for c in calls} == {"stub/model"}
-    assert (calls[0]["input_tokens"], calls[0]["output_tokens"], calls[0]["reasoning_tokens"]) == (50, 5, 2)
+    assert len(calls) == model.calls + 1 == 3  # the security check, then the two replies
+    assert {c["run_id"] for c in calls} == {7} and {c["model"] for c in calls} == {"stub/model", "screen/stub"}
+    assert (calls[1]["input_tokens"], calls[1]["output_tokens"], calls[1]["reasoning_tokens"]) == (50, 5, 2)
     totals = run_totals(env.engine, 7)
-    assert totals["calls"] == 2 and totals["cost_usd"] == pytest.approx(0.001)
+    assert totals["calls"] == 3 and totals["cost_usd"] == pytest.approx(0.0011)
 
 
 def test_a_failed_attempt_counts_in_its_runs_cost(env_for):
     env, _ = env_for({"CLM-1001": [[SEARCH, RuntimeError("the provider broke")]]})
     work_claim(env, "CLM-1001", run_id=7)
-    assert run_totals(env.engine, 7)["calls"] == 1
-    assert run_totals(env.engine, 7)["cost_usd"] == pytest.approx(0.0005)
+    assert run_totals(env.engine, 7)["calls"] == 2  # the check, and the reply that came before the failure
+    assert run_totals(env.engine, 7)["cost_usd"] == pytest.approx(0.0006)
 
 
 def test_work_outside_a_run_is_recorded_with_no_run(env_for):
     env, _ = env_for({"CLM-1003": [approve(3750.0)]})
     work_claim(env, "CLM-1003", run_id=7)
     sign_off(env.engine, env.ref, "PAY-CLM-1003", "HND-01")
-    carry_on(env, "CLM-1003")  # after a sign-off, with no run
+    invoke(env, "CLM-1003", "CLM-1003-1", None, None)  # the agent resumed after a sign-off, with no run
     runs = {c["run_id"] for c in model_calls(env, "CLM-1003")}
     assert runs == {7}  # paying needs no model call
     spans = list(RawDb(env.engine).execute("SELECT run_id FROM work_spans WHERE claim_id = 'CLM-1003' ORDER BY id"))
@@ -66,7 +66,7 @@ def test_time_leaves_out_the_wait_for_a_sign_off(env_for):
     work_claim(env, "CLM-1003", run_id=7)  # pauses for the sign-off: one graph run
     env.clock.jump(86_400)  # a day waiting for the handler
     sign_off(env.engine, env.ref, "PAY-CLM-1003", "HND-01")
-    carry_on(env, "CLM-1003")  # the second graph run, with no run
+    invoke(env, "CLM-1003", "CLM-1003-1", None, None)  # the second graph run, with no run
     assert claim_totals(env.engine, "CLM-1003")["seconds"] == 4.0
     assert run_totals(env.engine, 7)["seconds"] == 2.0
 
@@ -77,7 +77,7 @@ def test_per_claim_totals_of_a_run(env_for):
     work_claim(env, "CLM-1001", run_id=7)
     work_claim(env, "CLM-1002", run_id=7)
     totals = per_claim(env.engine, 7)
-    assert (totals["CLM-1001"]["calls"], totals["CLM-1002"]["calls"]) == (1, 2)
+    assert (totals["CLM-1001"]["calls"], totals["CLM-1002"]["calls"]) == (2, 3)
     assert totals["CLM-1001"]["seconds"] == 1.0
 
 

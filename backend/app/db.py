@@ -23,6 +23,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.pool import NullPool
 
 from app.config import Settings
 
@@ -275,6 +276,8 @@ def make_engine(settings: Settings, max_connections: int) -> Engine:
     """A pool of at most max_connections, where every statement commits by itself: BEGIN, COMMIT and a ping per
     checkout would make each query four trips to Supabase. So each statement must be safe on its own, and an
     operation must be safe to repeat if it stops between two. One statement, with its constraints, is atomic."""
+    if settings.database_url and settings.on_lambda:
+        return _lambda_engine(settings.database_url)
     if settings.database_url:
         return _postgres_engine(settings.database_url, max_connections).execution_options(isolation_level="AUTOCOMMIT")
     engine = create_engine(
@@ -305,6 +308,16 @@ def warm_up(engine: Engine, connections: int) -> None:
         thread.start()
     for thread in threads:
         thread.join()
+
+
+def _lambda_engine(database_url: str) -> Engine:
+    """Lambda starts a copy of the function for each request that arrives while the others are busy, so connections kept
+    by each copy would soon reach the pooler's limit: one is opened for each request and none is kept (NullPool). The
+    pooler (Supabase's transaction pooler, port 6543) keeps no prepared statements and no `SET` between statements, so
+    prepared statements are off and every statement names the schema."""
+    url = make_url(database_url).set(drivername="postgresql+psycopg")
+    engine = create_engine(url, poolclass=NullPool, connect_args={"prepare_threshold": None})
+    return engine.execution_options(isolation_level="AUTOCOMMIT", schema_translate_map={None: SCHEMA})
 
 
 def _postgres_engine(database_url: str, max_connections: int) -> Engine:

@@ -12,6 +12,7 @@ CONFIG_FILE = ROOT / "agent.toml"
 DEFAULT_AGENT_URL = "http://127.0.0.1:8002"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_EFFORT = "low"
+SCREENING_MODEL = ("openai/gpt-6-luna", "none")  # the security check: quick and cheap enough to read every claim
 
 
 def _agent_toml() -> dict:
@@ -40,6 +41,10 @@ class Settings(BaseSettings):
     database_url: str | None = None  # from the process environment only: see model_post_init
     agent_url: str = DEFAULT_AGENT_URL
     supabase_url: str | None = None  # from the process environment only: see model_post_init
+    model_name: str | None = None  # MODEL_NAME, when the platform runs on one model: see model_post_init
+    on_lambda: bool = False  # from AWS_LAMBDA_FUNCTION_NAME: see model_post_init
+    dashboard_dir: str = str(ROOT / "dashboard" / "dist")  # the dashboard's build: served at / when it exists
+    api_key: str | None = None  # from the process environment only: see model_post_init
     judge_url: str = "https://openrouter.ai"  # the origin of the judge's endpoint; the tests point it at a stand-in
 
     def model_post_init(self, _context) -> None:
@@ -47,14 +52,23 @@ class Settings(BaseSettings):
         # `npm run dev` passes these in the environment, and the tests never do.
         self.database_url = os.environ.get("DATABASE_URL") or None
         self.agent_url = os.environ.get("UNDERCOVER_AGENT") or DEFAULT_AGENT_URL
-        self.agent_model = os.environ.get("MODEL_NAME") or self.agent_model
+        self.on_lambda = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+        self.model_name = os.environ.get("MODEL_NAME") or None  # the one place MODEL_NAME is read
+        self.agent_model = self.model_name or self.agent_model
         self.judge_url = os.environ.get("OPENROUTER_DECISIONS_URL") or self.judge_url
+        self.api_key = os.environ.get("UNDERCOVER_API_KEY") or None  # the agent's key to the backend
         self.supabase_url = os.environ.get("VITE_SUPABASE_URL") or None  # the same address the dashboard signs in at
 
     @property
     def reasoning_effort(self) -> str | None:
         """Low for the default model. Any other model runs with no effort set, since not every model takes one."""
         return DEFAULT_EFFORT if self.agent_model == DEFAULT_MODEL else None
+
+    @property
+    def screening_model(self) -> tuple[str, str]:
+        """The model that checks each claim and its reasoning effort: Luna with none, or the one model the platform runs
+        on (MODEL_NAME) with no effort set."""
+        return (self.model_name, "default") if self.model_name else SCREENING_MODEL
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):

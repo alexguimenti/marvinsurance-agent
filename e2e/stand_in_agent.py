@@ -1,8 +1,8 @@
 """The agent's service for the end-to-end tests, on port 8003, so they never reach the one `npm run dev` starts.
 
 Dispatches and evaluations are real, on the scripted model, and each start is written down with its body, so the
-tests can check that N reached the service. A resume is only written down: the tests check that the sign-off
-reaches the service, and the Python tests cover what happens next.
+tests can check that N reached the service. It records through the backend, over HTTP with the API key, as the real
+service does.
 """
 import json
 
@@ -11,21 +11,14 @@ from fastapi import FastAPI
 from agent.service import create_service
 from app.config import get_settings
 
-received: dict[str, list] = {"resumes": [], "starts": []}
+received: dict[str, list] = {"starts": []}
 STARTS = ("/dispatches", "/evaluations")
 app = FastAPI(title="Stand-in for the agent's service")
 
 
-@app.post("/claims/{claim_id}/resume", status_code=202)
-def resume_claim(claim_id: str):
-    """Write down that the sign-off arrived."""
-    received["resumes"].append(claim_id)
-    return {"claim_id": claim_id}
-
-
 @app.get("/received")
 def get_received():
-    """List the sign-offs and the starts that arrived, in order."""
+    """List the starts that arrived, in order."""
     return received
 
 

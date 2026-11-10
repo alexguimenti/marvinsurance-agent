@@ -13,7 +13,7 @@ from tests.fakes import RawDb, agent_env, approve, counting_stub, credit_error, 
 
 SEARCH = tool_call("search_documents", {"query": "delay"}, "s1")
 FAST_RETRY = CLAIM_RETRY._replace(initial_interval=0.01, max_interval=0.01, jitter=False)
-ALL = [f"CLM-{n}" for n in range(1001, 1026)]
+ALL = [*(f"CLM-{n}" for n in range(1001, 1026)), "CLM-1901"]  # the queue, and the security team's claim
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def test_oldest_submitted_first_and_claims_in_progress_first(env_for):
     assert order[0] == "CLM-1020"
     rest = order[1:]
     assert [submitted[c] for c in rest] == sorted(submitted[c] for c in rest)
-    assert len(order) == 25
+    assert len(order) == 26
 
 
 def test_a_rate_limit_carries_on_as_the_same_attempt_with_one_decision(env_for):

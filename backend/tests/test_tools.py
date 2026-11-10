@@ -3,7 +3,10 @@ import json
 import pytest
 
 from app.db import init_schema
-from tests.fakes import connect
+from agent import connection
+from app.api import create_app
+from app.config import Settings
+from tests.fakes import MINT, api_client, connect
 from app.reference import Reference
 from app.seed import seed_claims
 from agent.tools import build_tools
@@ -21,11 +24,13 @@ def ref(data_dir):
 
 
 @pytest.fixture
-def conn(db_path, ref):
+def conn(db_path, data_dir, ref):
     c = connect(db_path)
     init_schema(c.engine)
     seed_claims(c.engine, ref)
-    return c
+    settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
+    with api_client(create_app(settings, jwks=MINT)) as backend, connection.use(backend):  # the tools reach the claims over HTTP
+        yield c
 
 
 def unwrap(text: str) -> dict:
@@ -45,7 +50,7 @@ class Bound:
 
 
 def tools_for(conn, ref, claim_id="CLM-1001"):
-    return {t.name: Bound(t, claim_id) for t in build_tools(conn.engine, ref)}
+    return {t.name: Bound(t, claim_id) for t in build_tools()}
 
 
 def test_tools_offer_lookups_not_whole_wording(conn, ref):
@@ -53,7 +58,7 @@ def test_tools_offer_lookups_not_whole_wording(conn, ref):
 
 
 def test_tools_expose_no_file_or_eval_access(conn, ref):
-    for t in build_tools(conn.engine, ref):
+    for t in build_tools():
         offered_to_the_model = set(t.tool_call_schema.model_fields)
         assert not offered_to_the_model & {"path", "file", "filename", "claim_id", "messages", "proposal"}, t.name
 

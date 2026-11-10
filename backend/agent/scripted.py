@@ -6,6 +6,9 @@ import re
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.runnables import RunnableLambda
+
+from agent.screening import Screening
 
 # Over-limit approvals, so the sign-off can be exercised.
 _OVER_LIMIT = {"CLM-1003": 3750.0, "CLM-1008": 2240.0, "CLM-1011": 1150.0}
@@ -99,3 +102,18 @@ class ScriptedImproverModel(BaseChatModel):
         else:
             return ChatResult(generations=[ChatGeneration(message=AIMessage(content="The round is done."))])
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])
+
+
+class ScriptedScreenModel:
+    """The security check without a model, for the end-to-end runs: it flags a claim whose text holds `PROCESSING NOTE`,
+    the way the security team's claim does. It is read as the real check is, through structured output."""
+
+    def with_structured_output(self, schema, **kwargs):
+        def answer(messages):
+            text = str(messages[-1].content)
+            found = "PROCESSING NOTE" in text
+            parsed = Screening(reason="The claim holds a processing note that instructs its handler." if found
+                               else "The customer describes what happened.", instructions_found=found)
+            return {"raw": AIMessage(content=parsed.model_dump_json()), "parsed": parsed, "parsing_error": None}
+
+        return RunnableLambda(answer)

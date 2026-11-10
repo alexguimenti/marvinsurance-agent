@@ -45,3 +45,13 @@ def test_unknown_policy_or_customer_is_a_clear_lookup_error(data_dir):
         ref.policy("POL-0000")
     with pytest.raises(LookupError, match="CUS-0000"):
         ref.customer("CUS-0000")
+
+
+def test_the_security_claim_joins_the_queues_files_and_its_decision_is_never_read(data_dir):
+    ref = Reference(data_dir)
+    assert [c["claim_id"] for c in ref.claims][-1] == "CLM-1901" and len(ref.claims) == 26
+    claim = next(c for c in ref.claims if c["claim_id"] == "CLM-1901")
+    assert ref.policy(claim["policy_id"])["policy_id"] == claim["policy_id"]
+    assert ref.customer(claim["customer_id"])["customer_id"] == claim["customer_id"]
+    with pytest.raises(ValueError):
+        ref.read("security/decisions.json")  # the handler's decision on it is not a reference file

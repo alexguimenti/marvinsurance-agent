@@ -1,15 +1,19 @@
 import json
 import re
+from pathlib import Path
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any, Literal, Mapping
 
 import httpx
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app import agent_client, configs, runs
+from app import agent_client, claims as claim_records, configs, runs
+from app.agent_routes import agent_routes
 from app.auth import Handler, handler_view, make_guards, make_jwks
 from app.config import Settings
 from app.db import (
@@ -24,7 +28,7 @@ from app.db import (
     warm_up,
 )
 from app.documents import documents_for
-from app.payments import sign_off
+from app.payments import OverLimit, SignOffRequired, pay_claim as pay_the_claim, sign_off
 from app.payout import LineItem, calculate_payout
 from app.reference import Reference
 from app.scoring import evaluation_report, list_evaluations
@@ -32,6 +36,13 @@ from app.improvement import get_round as get_round_row, list_rounds as list_roun
 from app.seed import seed_claims
 from app.settings_store import approval_limit, change_setting, models_allowed, setting_history
 from app.usage import claim_totals, run_totals
+
+# The operations the claim agent's tools are made of. The Gateway makes a tool of every operation in the document it is
+# given, so the document holds these and nothing else: not the dashboard's routes, the evaluations or the sign-off.
+GATEWAY_OPERATIONS = frozenset({
+    "get_claim", "get_policy", "get_claim_history", "search_documents", "read_section", "calculate_payout",
+    "record_decision", "pay_claim",
+})
 
 # How the claim agent traces a section it read: "[claims_manual section 7: Interpretation notes, 5000 characters]".
 # Refused reads (errors, rereads, past the cap) are traced as plain text and do not match.
@@ -43,6 +54,24 @@ class PayoutBody(BaseModel):
     third_party_paid: float
     deductible: float
     benefit_max: float | None
+
+
+class CalcStep(BaseModel):
+    step: str
+    amount: float
+
+
+class DecisionIn(BaseModel):
+    decision: str
+    payout: float
+    calculation: list[CalcStep]
+    rationale: str
+    citations: list[str]
+    model: str
+
+
+class PaymentIn(BaseModel):
+    amount: float
 
 
 class SettingValue(BaseModel):
@@ -87,7 +116,8 @@ def _run(row: Mapping | None) -> dict | None:
 
 def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     ref = Reference(settings.data_dir)
-    signed_in, senior = make_guards(ref, jwks if jwks is not None else make_jwks(settings))
+    guards = make_guards(ref, jwks if jwks is not None else make_jwks(settings), settings.api_key)
+    signed_in, senior = guards.signed_in, guards.senior
     docs = documents_for(ref)
     engine = make_engine(settings, max_connections=4)
 
@@ -99,7 +129,13 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         yield
         engine.dispose()
 
-    app = FastAPI(title="Marvin Agent", lifespan=lifespan)
+    # a public address publishes no schema: the agent's own document is served by a route, behind the key
+    app = FastAPI(title="Marvin Agent", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    # Every route needs a signed-in handler, unless it is in one of the others
+    router = APIRouter(prefix="/api", dependencies=[Depends(signed_in)])
+    shared = APIRouter(prefix="/api", dependencies=[Depends(guards.key_or_handler)])  # the reads and tools the agent shares
+    public = APIRouter(prefix="/api")
+    agent_only = APIRouter(prefix="/api", dependencies=[Depends(guards.agent_key)])  # the claim agent's two writes
 
     def one(table, key, value) -> Mapping | None:
         with engine.connect() as conn:
@@ -110,6 +146,12 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         if row is None:
             raise HTTPException(404, f"unknown claim {claim_id}")
         return row
+
+    def claim_row_payload(claim_id: str) -> dict:
+        try:
+            return claim_records.get_claim_payload(engine, claim_id)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
 
     def trace_rows(claim_id: str, kind: str | None = None) -> list[Mapping]:
         query = select(trace_events).where(trace_events.c.claim_id == claim_id).order_by(trace_events.c.seq)
@@ -150,13 +192,18 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
 
     def forward_run(path: str, body: dict) -> dict:
         try:
-            return agent_client.start(http, settings.agent_url, path, body)
+            return agent_client.start(http, settings.agent_url, path, body, settings.api_key)
         except agent_client.AgentDown:
             raise HTTPException(503, "the agent is not running")
         except agent_client.AgentRefused as exc:
             raise HTTPException(exc.status_code, exc.detail)
 
-    @app.get("/claims", operation_id="list_claims")
+    @public.get("/health", operation_id="get_health")
+    def health():
+        """Say that the backend is up."""
+        return {"status": "ok"}
+
+    @router.get("/claims", operation_id="list_claims")
     def list_claims():
         """List every claim with its status and decision."""
         query = (
@@ -184,7 +231,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             })
         return out
 
-    @app.get("/claims/{claim_id}", operation_id="get_claim")
+    @shared.get("/claims/{claim_id}", operation_id="get_claim")
     def get_claim(claim_id: str):
         """Get one claim with its policy, customer, decision, payment, cost and what the agent read."""
         with engine.connect() as conn:  # one connection: this page is asked for every second or two
@@ -215,29 +262,87 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             "read": read_sections(steps),
         }
 
-    @app.get("/claims/{claim_id}/trace", operation_id="get_claim_trace")
+    @shared.get("/claims/{claim_id}/policy", operation_id="get_policy")
+    def get_policy(claim_id: str):
+        """Get the policy for the claim's trip: plan, add-ons, purchase date, trip dates and travelers."""
+        return ref.policy(claim_row_payload(claim_id)["policy_id"])
+
+    @shared.get("/claims/{claim_id}/history", operation_id="get_claim_history")
+    def get_claim_history(claim_id: str):
+        """Get the claim's customer: name, customer-since date and earlier claims."""
+        customer = ref.customer(claim_row_payload(claim_id)["customer_id"])
+        return {"name": customer["name"], "customer_since": customer["customer_since"],
+                "previous_claims": customer["previous_claims"]}
+
+    @shared.get("/documents/search", operation_id="search_documents")
+    def search_documents(query: str):
+        """Find the sections of the policy wording and the claims manual that mention a word or phrase."""
+        return docs.search(query)
+
+    @shared.get("/documents/{document}/sections/{section}", operation_id="read_section")
+    def read_section(document: str, section: int):
+        """Read one numbered section of the policy wording or the claims manual."""
+        try:
+            return {"text": docs.section(document, section).text}
+        except KeyError as exc:
+            raise HTTPException(404, exc.args[0])
+
+    @agent_only.post("/claims/{claim_id}/decision", operation_id="record_decision")
+    def record_decision(claim_id: str, body: DecisionIn):
+        """Record the claim's decision, once: approve, decline or refer, with the payout and the rationale."""
+        claim_row(claim_id)
+        try:
+            return claim_records.record_decision(engine, ref, claim_id, body.model_dump(exclude={"model"}), body.model)
+        except claim_records.DecisionConflict as exc:
+            raise HTTPException(409, str(exc))
+
+    @agent_only.post("/claims/{claim_id}/pay", operation_id="pay_claim")
+    def pay_claim(claim_id: str, body: PaymentIn):
+        """Pay a claim's approved amount, once."""
+        try:
+            return pay_the_claim(engine, ref, claim_id, body.amount)
+        except OverLimit as exc:
+            raise HTTPException(403, str(exc))
+        except SignOffRequired as exc:
+            raise HTTPException(403, str(exc))
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+
+    @shared.get("/agent/openapi.json", operation_id="get_agent_openapi")
+    def agent_openapi():
+        """Get the OpenAPI document of the claim agent's eight operations."""
+        wanted = [r for each in (shared, agent_only) for r in each.routes if getattr(r, "operation_id", None) in GATEWAY_OPERATIONS]
+        document = get_openapi(title="Marvin Agent: the claim agent's operations", version="1.0.0", routes=wanted)
+        document.pop("servers", None)  # the deployment adds the app's address
+        for operations in document["paths"].values():  # how a request is checked is not an input of the operation
+            for operation in operations.values():
+                operation.pop("security", None)
+        document.get("components", {}).pop("securitySchemes", None)
+        return document
+
+    @router.get("/claims/{claim_id}/trace", operation_id="get_claim_trace")
     def get_trace(claim_id: str):
         """List every step recorded on a claim, in order."""
         claim_row(claim_id)
         return [{"seq": r["seq"], "kind": r["kind"], "content": json.loads(r["content"]),
                  "created_at": iso(r["created_at"])} for r in trace_rows(claim_id)]
 
-    @app.post("/dispatches", status_code=202, operation_id="start_dispatch")
+    @router.post("/dispatches", status_code=202, operation_id="start_dispatch")
     def start_dispatch(body: DispatchBody, handler: Handler = Depends(signed_in)):
         """Ask the agent to work every claim in progress and every waiting claim, with N claim agents at once."""
         return forward_run("/dispatches", {"workers": body.workers})
 
-    @app.post("/evaluations", status_code=202, operation_id="start_evaluation")
+    @router.post("/evaluations", status_code=202, operation_id="start_evaluation")
     def start_evaluation(body: EvaluationBody, handler: Handler = Depends(signed_in)):
         """Ask the agent to evaluate copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
         return forward_run("/evaluations", body.model_dump())
 
-    @app.post("/rounds", status_code=202, operation_id="start_round")
+    @router.post("/rounds", status_code=202, operation_id="start_round")
     def start_round(handler: Handler = Depends(senior)):
         """Ask the agent to start an improvement round. Only a handler who can sign off over the limit may."""
         return forward_run("/rounds", {"handler_id": handler.handler_id})
 
-    @app.post("/rounds/{round_id}/stop", operation_id="stop_round")
+    @router.post("/rounds/{round_id}/stop", operation_id="stop_round")
     def stop_round(round_id: int, handler: Handler = Depends(senior)):
         """Stop a round that is open. What its verdict already decided stays."""
         try:
@@ -248,17 +353,17 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             raise HTTPException(409, f"round {round_id} has ended")
         return {"round_id": round_id, "stage": "stopped"}
 
-    @app.post("/rounds/{round_id}/decision", status_code=202, operation_id="decide_proposal")
+    @router.post("/rounds/{round_id}/decision", status_code=202, operation_id="decide_proposal")
     def decide_proposal_route(round_id: int, body: DecisionBody, handler: Handler = Depends(senior)):
         """Approve or reject the proposal a round waits on, as the signed-in handler."""
         return forward_run(f"/rounds/{round_id}/decision", {**body.model_dump(), "handler_id": handler.handler_id})
 
-    @app.get("/rounds", operation_id="list_rounds")
+    @router.get("/rounds", operation_id="list_rounds")
     def rounds_list():
         """List the improvement rounds, newest first, each with where it has got to and what it cost."""
         return [round_report(engine, ref, r) for r in list_round_rows(engine)]
 
-    @app.get("/rounds/{round_id}", operation_id="get_round")
+    @router.get("/rounds/{round_id}", operation_id="get_round")
     def round_one(round_id: int):
         """Get one round with its proposals, the one it waits on shown as a diff, and what it cost."""
         try:
@@ -275,18 +380,18 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             "summary": None if row["status"] == "running" else runs.run_summary(engine, row["run_id"]),
         }
 
-    @app.get("/dispatches/latest", operation_id="get_latest_dispatch")
+    @router.get("/dispatches/latest", operation_id="get_latest_dispatch")
     def latest_dispatch():
         """Get the latest dispatch with its claims, its cost and time and, once it has ended, its summary."""
         row = runs.latest_run(engine, "dispatch")
         return run_report(row) if row else {"run": None, "claims": [], "totals": None, "summary": None}
 
-    @app.get("/evaluations", operation_id="list_evaluations")
+    @router.get("/evaluations", operation_id="list_evaluations")
     def evaluations():
         """List the evaluations, newest first, each with its measures."""
         return list_evaluations(engine)
 
-    @app.get("/evaluations/{run_id}", operation_id="get_evaluation")
+    @router.get("/evaluations/{run_id}", operation_id="get_evaluation")
     def evaluation(run_id: int):
         """Get one evaluation with its measures and its claims, each beside the handler's decision."""
         report = evaluation_report(engine, run_id)
@@ -294,7 +399,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             raise HTTPException(404, f"no evaluation {run_id}")
         return report
 
-    @app.get("/configuration", operation_id="get_configuration")
+    @router.get("/configuration", operation_id="get_configuration")
     def configuration():
         """Show the current version of the claim agent's configuration, every version and the recipe's versions."""
         names = {h["handler_id"]: h["name"] for h in ref.handlers}
@@ -309,7 +414,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             "recipes": [named(r) for r in configs.list_versions(engine, "recipe")],
         }
 
-    @app.get("/configuration/{kind}/{version}/diff", operation_id="get_version_diff")
+    @router.get("/configuration/{kind}/{version}/diff", operation_id="get_version_diff")
     def version_diff(kind: Literal["config", "recipe"], version: int):
         """Show what a version changed from the one before it, line by line."""
         try:
@@ -326,13 +431,13 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             out["reasoning_effort"] = {"before": before_cfg["reasoning_effort"], "after": row["reasoning_effort"]}
         return out
 
-    @app.post("/payouts/calculate", operation_id="calculate_payout")
+    @shared.post("/payouts/calculate", operation_id="calculate_payout")
     def payout(body: PayoutBody):
         """Work out a payout under wording section 10, and say whether it needs a sign-off."""
         return calculate_payout(body.items, body.third_party_paid, body.deductible, body.benefit_max,
                                 approval_limit(engine, ref))
 
-    @app.get("/approvals", operation_id="list_approvals")
+    @router.get("/approvals", operation_id="list_approvals")
     def approvals():
         """List the payouts waiting for a handler's sign-off."""
         query = (
@@ -360,14 +465,14 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             })
         return out
 
-    @app.get("/settings", operation_id="get_platform_settings")
+    @router.get("/settings", operation_id="get_platform_settings")
     def platform_settings():
         """Show every setting with who last changed it and when, and the models the claim agent may use."""
         names = {h["handler_id"]: h["name"] for h in ref.handlers}
         rows = [{**r, "changed_by_name": names.get(r["changed_by"])} for r in setting_history(engine, current_only=True)]
         return {"settings": rows, "models_allowed": models_allowed(ref, settings)}
 
-    @app.put("/settings/{name}", operation_id="change_platform_setting")
+    @router.put("/settings/{name}", operation_id="change_platform_setting")
     def change_platform_setting(name: str, body: SettingValue, handler: Handler = Depends(senior)):
         """Change one setting, recording who changed it. Only a handler who can sign off over the limit may."""
         try:
@@ -377,22 +482,37 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(422, str(exc))
 
-    @app.get("/me", operation_id="get_signed_in_handler")
+    @router.get("/me", operation_id="get_signed_in_handler")
     def me(handler: Handler = Depends(signed_in)):
         """Say who is signed in and whether they can sign off payouts over the limit."""
         return handler_view(handler)
 
-    @app.post("/payments/{payment_id}/approve", operation_id="sign_off_payment")
-    def approve(payment_id: str, background: BackgroundTasks, handler: Handler = Depends(signed_in)):
-        """Record a handler's sign-off, then tell the agent, which pays."""
+    @router.post("/payments/{payment_id}/approve", operation_id="sign_off_payment")
+    def approve(payment_id: str, handler: Handler = Depends(signed_in)):
+        """Record a handler's sign-off and pay the claim, once."""
         try:
             payment = sign_off(engine, ref, payment_id, handler.handler_id)
         except LookupError:
             raise HTTPException(404, f"unknown payment {payment_id}")
         except PermissionError as exc:
             raise HTTPException(403, str(exc))
-        # Runs after the response: the backend does not wait for the payment, and the sign-off is already saved.
-        background.add_task(agent_client.notify_sign_off, http, settings.agent_url, payment.claim_id)
         return asdict(payment)
+
+    app.include_router(public)
+    app.include_router(agent_only)
+    app.include_router(agent_routes(engine, ref, docs, guards, settings))
+    app.include_router(shared)
+    app.include_router(router)
+
+    dist = Path(settings.dashboard_dir).resolve()
+    if dist.is_dir():  # the dashboard's build: its files at their own paths, and its pages on a refresh
+        @app.get("/{path:path}", include_in_schema=False)
+        def dashboard(path: str):
+            if path == "api" or path.startswith("api/"):
+                raise HTTPException(404, "not found")  # an unknown API path stays a JSON 404
+            target = (dist / path).resolve()
+            if path and target.is_relative_to(dist) and target.is_file():  # nothing outside the build is ever served
+                return FileResponse(target)
+            return FileResponse(dist / "index.html")
 
     return app

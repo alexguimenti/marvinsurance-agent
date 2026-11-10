@@ -24,6 +24,15 @@ def get_claim(engine: Engine, claim_id: str) -> dict:
     return {**{k: v for k, v in row.items() if k != "payload"}, "decision": _decision(decision)}
 
 
+def get_claim_payload(engine: Engine, claim_id: str) -> dict:
+    """The claim as the customer wrote it. Raises LookupError for an unknown claim."""
+    with engine.connect() as conn:
+        payload = conn.execute(select(claims.c.payload).where(claims.c.claim_id == claim_id)).scalar_one_or_none()
+    if payload is None:
+        raise LookupError(f"no claim {claim_id}")
+    return json.loads(payload)
+
+
 def _decision(row) -> dict | None:
     if row is None:
         return None
@@ -101,3 +110,56 @@ def hold_for_sign_off(engine: Engine, ref: Reference, claim_id: str) -> dict:
                 .values(status="awaiting_approval")
             )
     return get_claim(engine, claim_id)
+
+
+# --- what the agent's worker did to the claim itself, now the backend's -------------------------------
+
+def take_claim(engine: Engine, claim_id: str, run_id: int | None) -> dict:
+    """Take a waiting claim for a new attempt: in progress, on a thread of its own. Says whether it was taken, and
+    if not, the status it was found in. A claim that is not waiting is never touched."""
+    with engine.begin() as conn:
+        row = conn.execute(select(claims.c.status, claims.c.attempts).where(claims.c.claim_id == claim_id)).mappings().first()
+        if row is None:
+            raise LookupError(f"no claim {claim_id}")
+        attempt = row["attempts"] + 1  # claims.attempts counts the failed ones
+        thread_id = f"{claim_id}-{attempt}"
+        taken = conn.execute(
+            update(claims).where(claims.c.claim_id == claim_id, claims.c.status == "waiting")
+            .values(status="in_progress", run_id=run_id, thread_id=thread_id)
+        ).rowcount == 1
+    return {"taken": taken, "status": row["status"], "attempt": attempt, "thread_id": thread_id}
+
+
+def fail_claim(engine: Engine, claim_id: str, attempt: int, max_attempts: int, message: str) -> str:
+    """An error with no decision yet fails the attempt: back in the queue for the next one, on a new thread, or left
+    for a handler after the last. Returns the new status."""
+    status = "waiting" if attempt < max_attempts else "needs_handler"
+    with engine.begin() as conn:
+        conn.execute(update(claims).where(claims.c.claim_id == claim_id).values(
+            status=status, attempts=attempt, last_error=message, thread_id=None,
+        ))
+    return status
+
+
+def set_claim_run(engine: Engine, claim_id: str, run_id: int | None) -> None:
+    """The run a claim's steps are traced under, when a run carries it on."""
+    with engine.begin() as conn:
+        conn.execute(update(claims).where(claims.c.claim_id == claim_id).values(run_id=run_id))
+
+
+def claim_state(engine: Engine, ref: Reference, claim_id: str) -> dict:
+    """Everything the agent needs to settle a claim, in one read: where it stands, its decision and payment, and
+    whether its payout still needs a handler's sign-off."""
+    from app.payments import get_payment  # payments imports this module
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(claims.c.status, claims.c.thread_id, claims.c.attempts, claims.c.run_id, claims.c.copy_of, claims.c.last_error)
+            .where(claims.c.claim_id == claim_id)
+        ).mappings().first()
+    if row is None:
+        raise LookupError(f"no claim {claim_id}")
+    decision = get_claim(engine, claim_id)["decision"]
+    payment = get_payment(engine, claim_id)
+    return {**row, "decision": decision, "payment": None if payment is None else payment.__dict__,
+            "needs_sign_off": needs_sign_off(engine, ref, claim_id)}

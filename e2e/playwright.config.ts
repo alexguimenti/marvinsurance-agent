@@ -10,6 +10,9 @@ const AUTH_PORT = 8004 // a stand-in for Supabase Auth: the tests never reach th
 const AUTH_URL = `http://127.0.0.1:${AUTH_PORT}`
 const JUDGE_PORT = 8005 // a stand-in for the judge's endpoint: the tests never call the real one
 const DB_PATH = `${process.cwd()}/.tmp/${DB}`
+// the agent's key: the backend and the stand-in service share it, and nothing else does
+const API_KEY = 'e2e-api-key-0123456789abcdef0123456789abcdef'
+const API_URL = `http://127.0.0.1:${API_PORT}`
 const PYTHON = resolve(
   '../backend/.venv',
   process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
@@ -38,26 +41,27 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      // scripted model: no model calls; fresh throwaway database (see scripts/clean.mjs)
-      command: `"${PYTHON}" -m uvicorn stand_in_agent:app --app-dir ../e2e --port ${AGENT_PORT}`,
-      cwd: '../backend',
-      env: {
-        AGENT_PROVIDER: 'scripted', DB_PATH, PYTHONPATH: '.',
-        // the service grades an evaluation as it finishes it: with a key and the stand-in's address
-        OPENROUTER_API_KEY: 'e2e-key', OPENROUTER_DECISIONS_URL: `http://127.0.0.1:${JUDGE_PORT}`,
-      },
-      url: `http://127.0.0.1:${AGENT_PORT}/health`,
-      reuseExistingServer: false,
-      timeout: 60_000,
-    },
-    {
+      // the backend first: the agent's service records everything through it. It grades an evaluation as it finishes
+      // it, so it gets a key and the judge's stand-in
       command: `"${PYTHON}" -m uvicorn app.main:app --port ${API_PORT}`,
       cwd: '../backend',
       env: {
         AGENT_PROVIDER: 'scripted', DB_PATH, UNDERCOVER_AGENT: `http://127.0.0.1:${AGENT_PORT}`,
-        VITE_SUPABASE_URL: AUTH_URL,
+        VITE_SUPABASE_URL: AUTH_URL, UNDERCOVER_API_KEY: API_KEY,
+        OPENROUTER_API_KEY: 'e2e-key', OPENROUTER_DECISIONS_URL: `http://127.0.0.1:${JUDGE_PORT}`,
       },
-      url: `http://127.0.0.1:${API_PORT}/claims`,
+      url: `${API_URL}/api/health`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      // scripted model: no model calls; the database is the backend's (see scripts/clean.mjs)
+      command: `"${PYTHON}" -m uvicorn stand_in_agent:app --app-dir ../e2e --port ${AGENT_PORT}`,
+      cwd: '../backend',
+      env: {
+        AGENT_PROVIDER: 'scripted', DB_PATH, PYTHONPATH: '.', UNDERCOVER_API_KEY: API_KEY, UNDERCOVER_BACKEND: API_URL,
+      },
+      url: `http://127.0.0.1:${AGENT_PORT}/health`,
       reuseExistingServer: false,
       timeout: 60_000,
     },

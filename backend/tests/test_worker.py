@@ -5,13 +5,13 @@ import pytest
 from agent.checkpoints import clear_checkpoints
 from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
 
-from agent.worker import carry_on, signed_off_claims, stopped_claims, work, work_claim
+from agent.worker import carry_on, work, work_claim
 from app.claims import get_claim
 from app.config import Settings
 from app.payments import get_payment, sign_off
 from app.reference import Reference
 from app.seed import reseed
-from tests.fakes import RawDb, Stopped, agent_env, approve, credit_error, decline, refer, stub, tool_call
+from tests.fakes import RawDb, Stopped, agent_env, approve, credit_error, decline, refer, stopped_claims, stub, tool_call
 
 CLAIM = "CLM-1003"
 SEARCH = tool_call("search_documents", {"query": "delay"}, "s1")
@@ -144,7 +144,7 @@ def test_error_after_the_decision_is_carried_on_not_retried(env_for, monkeypatch
     import agent.graph as graph_module
 
     env, model = env_for({CLAIM: [approve(420.0)]})
-    real = graph_module.pay
+    real = graph_module.api.pay_claim
     failures = [RuntimeError("the database went away")]
 
     def flaky(*args):
@@ -152,7 +152,7 @@ def test_error_after_the_decision_is_carried_on_not_retried(env_for, monkeypatch
             raise failures.pop()
         return real(*args)
 
-    monkeypatch.setattr(graph_module, "pay", flaky)
+    monkeypatch.setattr(graph_module.api, "pay_claim", flaky)
     line = work_claim(env, CLAIM)
     row = claim(env)
     assert (row["status"], row["attempts"], row["thread_id"]) == ("in_progress", 0, "CLM-1003-1")
@@ -170,7 +170,7 @@ def test_repeated_decide_step_after_a_stop_counts_as_done(env_for, monkeypatch):
     import agent.graph as graph_module
 
     env, _ = env_for({CLAIM: [approve(420.0)]})
-    real = graph_module.pay
+    real = graph_module.api.pay_claim
     stops = [Stopped()]
 
     def stopping(*args):
@@ -178,27 +178,31 @@ def test_repeated_decide_step_after_a_stop_counts_as_done(env_for, monkeypatch):
             raise stops.pop()
         return real(*args)
 
-    monkeypatch.setattr(graph_module, "pay", stopping)
+    monkeypatch.setattr(graph_module.api, "pay_claim", stopping)
     with pytest.raises(Stopped):
         work_claim(env, CLAIM)
     assert carry_on(env, CLAIM) == "CLM-1003: approve $420.00, paid"
     assert count(env, "decisions") == 1 and count(env, "payments") == 1
 
 
-def test_sign_off_then_carrying_on_pays_once(env_for):
+def test_a_sign_off_pays_and_an_agent_resumed_afterwards_makes_no_payment_call(env_for, monkeypatch):
+    import agent.graph as graph_module
+    import agent.worker as worker_module
+
     env, model = env_for({CLAIM: [approve(2000.0)]})
     work_claim(env, CLAIM)
     calls = model.calls
-    assert signed_off_claims(env.engine) == []
+    assert get_payment(env.engine, CLAIM).status == "held"
     sign_off(env.engine, env.ref, f"PAY-{CLAIM}", "HND-01")
-    assert signed_off_claims(env.engine) == [CLAIM]
-    assert claim(env)["status"] == "in_progress"
-    assert carry_on(env, CLAIM) == "CLM-1003: approve $2,000.00, paid"
-    assert carry_on(env, CLAIM).startswith("CLM-1003: not worked")
-    assert model.calls == calls and count(env, "payments") == 1
-    assert signed_off_claims(env.engine) == []
+    assert claim(env)["status"] == "decided"
     payment = get_payment(env.engine, CLAIM)
-    assert payment.approved_by == "HND-01" and payment.paid_at
+    assert (payment.status, payment.approved_by) == ("paid", "HND-01") and payment.paid_at
+    paid = []
+    real = graph_module.api.pay_claim
+    monkeypatch.setattr(graph_module.api, "pay_claim", lambda *args: paid.append(args) or real(*args))
+    worker_module.invoke(env, CLAIM, "CLM-1003-1", None, None)  # the agent, resumed on its paused thread
+    assert paid == [] and model.calls == calls and count(env, "payments") == 1
+    assert carry_on(env, CLAIM).startswith("CLM-1003: not worked")
 
 
 def test_a_claim_on_hold_is_not_carried_on_before_its_sign_off(env_for):
@@ -241,7 +245,7 @@ def test_after_the_pause_the_trace_goes_in_the_same_session(env_for, monkeypatch
     monkeypatch.setattr(worker_module, "trace_config", spy)
     work_claim(env, CLAIM)
     sign_off(env.engine, env.ref, f"PAY-{CLAIM}", "HND-01")
-    carry_on(env, CLAIM)
+    worker_module.invoke(env, CLAIM, "CLM-1003-1", None, None)
     assert set(sessions) == {(CLAIM, "CLM-1003-1")} and len(sessions) >= 2
 
 
@@ -279,7 +283,7 @@ def test_each_attempt_records_its_usage(env_for):
     work_claim(env, CLAIM)
     work_claim(env, CLAIM)
     calls = raw(env).execute("SELECT COUNT(*) FROM model_calls WHERE claim_id = ?", (CLAIM,)).fetchone()[0]
-    assert calls == 2  # one from the failed attempt, one from the decision
+    assert calls == 4  # the check and the reply of the failed attempt, the check and the reply of the decision
 
 
 def test_the_error_event_says_which_attempt_failed(env_for):
@@ -330,18 +334,6 @@ def test_a_claim_worked_inside_another_traced_call_starts_its_own_trace(env_for,
     RunnableLambda(lambda _: work_claim(env, CLAIM)).invoke("the queue agent's tool")
 
     assert roots[0] is None
-
-
-def test_a_sign_off_stopped_between_its_two_steps_is_still_paid(env_for):
-    """The payment says signed off, but the process died before the claim moved on, or a hold landed just after."""
-    env, _ = env_for({CLAIM: [approve(2000.0)]})
-    work_claim(env, CLAIM)
-    raw(env).execute("UPDATE payments SET status='signed_off', approved_by='HND-01', approved_at=CURRENT_TIMESTAMP")
-    assert claim(env)["status"] == "awaiting_approval"
-    assert signed_off_claims(env.engine) == [CLAIM]
-    assert carry_on(env, CLAIM) == "CLM-1003: approve $2,000.00, paid"
-    assert claim(env)["status"] == "decided"
-    assert signed_off_claims(env.engine) == []
 
 
 # --- the one function the dispatcher calls ----------------------------------------------------------

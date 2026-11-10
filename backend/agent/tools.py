@@ -7,13 +7,9 @@ from langchain_core.tools import BaseTool, InjectedToolCallId, tool
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from pydantic import BaseModel
-from sqlalchemy import Engine, select
 
-from app.db import claims
-from app.documents import DOCUMENTS, documents_for
-from app.payout import LineItem, calculate_payout as compute_payout
-from app.reference import Reference
-from app.settings_store import approval_limit
+from agent import api
+from app.documents import DOCUMENTS
 
 # Each section read goes back to the model on every later step, so reading costs grow fast.
 MAX_SECTIONS = 8
@@ -28,9 +24,20 @@ ClaimId = Annotated[str, InjectedState("claim_id")]
 Messages = Annotated[list, InjectedState("messages")]
 
 
+class LineItem(BaseModel):
+    description: str
+    amount: float
+    item_limit: float | None
+
+
 class CalcStep(BaseModel):
     step: str
     amount: float
+
+
+def claim_data(claim: dict) -> str:
+    """The claim as the model sees it, inside the tags that mark it as the customer's text."""
+    return "<claim_data>\n" + json.dumps(claim) + "\n</claim_data>"
 
 
 def sections_read(messages: list) -> set[tuple[str, int]]:
@@ -44,49 +51,37 @@ def sections_read(messages: list) -> set[tuple[str, int]]:
     }
 
 
-def build_tools(engine: Engine, ref: Reference) -> list[BaseTool]:
-    """Tools over the records and the documents. None of them takes a path, and none pays."""
-    docs = documents_for(ref)
+def build_tools() -> list[BaseTool]:
+    """Tools over the backend's operations. None of them takes a path, and none pays."""
     unknown = f"Documents: {', '.join(DOCUMENTS)}."
-
-    def claim(claim_id: str) -> dict:
-        with engine.connect() as conn:
-            return json.loads(conn.execute(select(claims.c.payload).where(claims.c.claim_id == claim_id)).scalar_one())
 
     @tool
     def get_claim(claim_id: ClaimId) -> str:
         """Get the claim: the customer's story, the items claimed and the supporting documents."""
-        return "<claim_data>\n" + json.dumps(claim(claim_id)) + "\n</claim_data>"
+        return claim_data(api.get_claim(claim_id))
 
     @tool
     def get_policy(claim_id: ClaimId) -> str:
         """Get the policy for the trip: plan, add-ons, purchase date, trip dates and travelers."""
-        return json.dumps(ref.policy(claim(claim_id)["policy_id"]))
+        return json.dumps(api.get_policy(claim_id))
 
     @tool
     def get_customer_history(claim_id: ClaimId) -> str:
         """Get the customer's name, customer-since date and earlier claims."""
-        customer = ref.customer(claim(claim_id)["customer_id"])
-        return json.dumps({
-            "name": customer["name"],
-            "customer_since": customer["customer_since"],
-            "previous_claims": customer["previous_claims"],
-        })
+        return json.dumps(api.get_claim_history(claim_id))
 
     @tool
     def get_plan(claim_id: ClaimId) -> str:
         """Get the limits, waiting periods and deductible of the policy's plan, and its add-ons."""
-        policy = ref.policy(claim(claim_id)["policy_id"])
-        add_ons = [a for a in ref.add_ons if a["add_on"] in policy["add_ons"]]
-        return json.dumps({"plan": ref.plan(policy["plan"]), "add_ons": add_ons})
+        return json.dumps(api.get_plan(claim_id))
 
     @tool
     def list_sections(document: str) -> str:
         """List the numbered sections of a document: 'policy_wording' (the contract) or 'claims_manual'."""
         try:
-            return json.dumps([{"section": s.number, "title": s.title} for s in docs.sections(document)])
-        except KeyError as exc:
-            return f"Error: {exc.args[0]}. {unknown}"
+            return json.dumps(api.list_sections(document))
+        except LookupError as exc:
+            return f"Error: {exc}. {unknown}"
 
     @tool
     def read_section(document: str, section: int, messages: Messages) -> str:
@@ -97,20 +92,20 @@ def build_tools(engine: Engine, ref: Reference) -> list[BaseTool]:
         if len(read) >= MAX_SECTIONS:
             return f"Error: you have read {MAX_SECTIONS} sections, the most for one claim. Decide with what you have."
         try:
-            return docs.section(document, section).text
-        except KeyError as exc:
-            return f"Error: {exc.args[0]}. {unknown}"
+            return api.read_section(document, section)
+        except LookupError as exc:
+            return f"Error: {exc}. {unknown}"
 
     @tool
     def search_documents(query: str) -> str:
         """Find the sections of the policy wording and the claims manual that mention a word or phrase."""
-        return json.dumps(docs.search(query))
+        return json.dumps(api.search_documents(query))
 
     @tool
     def lookup_knowledge(topic: str) -> str:
         """Look up public facts (events, products, places). Give a topic such as 'events' or a search word."""
         term = topic.lower()
-        facts = [f for f in ref.knowledge if f["topic"].lower() == term or term in f["fact"].lower()]
+        facts = [f for f in api.knowledge() if f["topic"].lower() == term or term in f["fact"].lower()]
         return json.dumps(facts)
 
     @tool
@@ -123,8 +118,10 @@ def build_tools(engine: Engine, ref: Reference) -> list[BaseTool]:
         """Work out the payout (wording section 10). Give every input: each item with the per-item limit
         that applies to it (null when none), 0 where nothing was paid or no deductible applies, and the
         benefit maximum (null when none)."""
-        limit = approval_limit(engine, ref)
-        return json.dumps(compute_payout(items, third_party_paid, deductible, benefit_max, limit))
+        return json.dumps(api.calculate_payout({
+            "items": [i.model_dump() if isinstance(i, BaseModel) else dict(i) for i in items],
+            "third_party_paid": third_party_paid, "deductible": deductible, "benefit_max": benefit_max,
+        }))
 
     @tool
     def save_decision(
@@ -144,7 +141,7 @@ def build_tools(engine: Engine, ref: Reference) -> list[BaseTool]:
         naming the section of the wording relied on. citations are the places you relied on."""
         if decision not in DECISIONS:
             return f"Error: decision must be one of {', '.join(DECISIONS)}."
-        amount_claimed = claim(claim_id)["amount_claimed"]
+        amount_claimed = api.get_claim(claim_id)["amount_claimed"]
         if decision == "approve" and not 0 < payout <= amount_claimed:
             return f"Error: an approval needs a payout above 0 and at most the amount claimed ({amount_claimed})."
         if decision != "approve" and payout != 0:

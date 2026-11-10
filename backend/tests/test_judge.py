@@ -15,7 +15,7 @@ from app.evaluations import start_evaluation
 from app.judge import GRADES, JEV, JUDGE_QUESTIONS, grade_evaluation, judge
 from app.scoring import measures
 from app.usage import run_totals
-from tests.fakes import MINT, RawDb, agent_env
+from tests.fakes import service_client, api_client, MINT, RawDb, agent_env
 
 HANDLER = {"decision": "approve", "reason": "A covered delay of 19 hours.", "reference": "Policy wording, section 3"}
 AGENT = {"decision": "approve", "rationale": "The delay passed the waiting period under section 3.", "section": "Policy wording, section 3"}
@@ -198,8 +198,8 @@ def test_the_real_client_is_never_built_in_a_test(db_path, data_dir):
 def backend(db_path, data_dir, monkeypatch):
     monkeypatch.setattr(judge_module, "make_client", lambda settings: StubJudge(answers(score=2.4, probabilities={"0": 0, "1": 0.1, "2": 0.6, "3": 0.3})))
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir, openrouter_api_key="k")
-    with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as client:
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as client:
             yield client
 
 

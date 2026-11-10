@@ -7,7 +7,7 @@ from app.api import create_app
 from app.auth import NotSignedIn, UnknownHandler, handler_from_token
 from app.config import Settings
 from app.reference import Reference
-from tests.fakes import EMAILS, TokenMint
+from tests.fakes import service_client, api_client, EMAILS, TokenMint
 
 
 @pytest.fixture
@@ -79,8 +79,8 @@ def test_with_no_keys_to_check_against_every_token_is_refused(mint, ref):
 @pytest.fixture
 def backend(db_path, data_dir, mint):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service, jwks=mint)) as client:
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=mint)) as client:
             yield client
 
 
@@ -116,8 +116,9 @@ def test_marcus_cannot_sign_off_over_the_limit(backend, mint):
     backend.post("/dispatches", json={"workers": 5}, headers=mint.header("HND-01"))
     answer = backend.post("/payments/PAY-CLM-1003/approve", headers=mint.header("HND-02"))
     assert answer.status_code == 403
-    assert "PAY-CLM-1003" in {a["payment_id"] for a in backend.get("/approvals").json()}  # still held
+    assert "PAY-CLM-1003" in {a["payment_id"] for a in backend.get("/approvals", headers=mint.header("HND-01")).json()}  # still held
 
 
-def test_reads_stay_open(backend):
-    assert backend.get("/claims").status_code == 200 and backend.get("/approvals").status_code == 200
+def test_reads_need_a_sign_in(backend, mint):
+    assert backend.get("/claims").status_code == 401 and backend.get("/approvals").status_code == 401
+    assert backend.get("/claims", headers=mint.header()).status_code == 200

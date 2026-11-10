@@ -115,6 +115,14 @@ function Row({ event }: { event: TraceEvent }) {
         </span>
       )
       break
+    case 'screening':
+      body = (
+        <span className="body">
+          <strong>{c.instructions_found ? 'The security check found an instruction' : 'The security check found nothing'}</strong>
+          {' '}— {c.reason}
+        </span>
+      )
+      break
     case 'usage':
       body = <span className="body">{describeUsage(c as Parameters<typeof describeUsage>[0])}</span>
       break

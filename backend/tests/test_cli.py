@@ -12,7 +12,13 @@ def cli_env(db_path, data_dir, monkeypatch):
     monkeypatch.setenv("DB_PATH", db_path)
     monkeypatch.setenv("DATA_DIR", data_dir)
     monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: None)
-    return db_path
+    from agent import connection
+    from app.api import create_app
+    from tests.fakes import MINT, api_client
+
+    settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
+    with api_client(create_app(settings, jwks=MINT)) as backend, connection.use(backend):  # the backend the CLI works through
+        yield db_path
 
 
 def status(db_path, claim_id):

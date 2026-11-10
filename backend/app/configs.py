@@ -4,17 +4,28 @@ it, and is not the current version until a round keeps it. The claim agent's own
 import difflib
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 
 from sqlalchemy import Engine, and_, func, insert, null, select, update
 
-from agent.prompts import load_instructions, load_recipe
 from app.config import DEFAULT_EFFORT, DEFAULT_MODEL, _agent_toml
 from app.db import config_versions, current_version, insert_or_ignore, iso, recipe_versions, runs
 from app.reference import Reference
 
+AGENT_FILES = Path(__file__).resolve().parent.parent / "agent"  # the instructions and the recipe, in the package
 Kind = Literal["config", "recipe"]
 TABLES = {"config": config_versions, "recipe": recipe_versions}
+
+
+def load_instructions(name: Literal["claim"]) -> str:
+    """The claim agent's instructions as the file has them: version 1 of its configuration."""
+    return (AGENT_FILES / f"instructions_{name}.md").read_text(encoding="utf-8")
+
+
+def load_recipe() -> str:
+    """The improver's first recipe: version 1 of the recipe."""
+    return (AGENT_FILES / "recipe_v1.md").read_text(encoding="utf-8")
 
 
 def default_model_and_effort() -> tuple[str, str]:

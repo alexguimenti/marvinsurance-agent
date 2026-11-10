@@ -80,7 +80,7 @@ def test_reseed_leaves_every_claim_waiting_and_nothing_else(db_path, data_dir):
     conn.execute("INSERT INTO decisions (claim_id, decision, payout, calculation, rationale, citations, model) "
                  "VALUES ('CLM-1001', 'decline', 0, '[]', 'r', '[]', 'm')")
 
-    assert reseed(conn.engine, Reference(data_dir)) == 25
+    assert reseed(conn.engine, Reference(data_dir)) == 26
 
     tables = set(inspect(conn.engine).get_table_names())
     assert "todo_items" not in tables and "run_events" not in tables

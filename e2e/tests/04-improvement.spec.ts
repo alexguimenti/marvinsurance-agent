@@ -28,7 +28,7 @@ test('a round shows as it happens, and a handler approves its proposals', async 
   await expect(row).toContainText('Rolled back') // the scripted claim agent is nowhere near the objectives
   await expect(row).toContainText('Dana Whitfield approved the change')
 
-  const view = await (await request.get('/api/rounds/1')).json()
+  const view = await (await request.get('/api/rounds/1', { headers: await asHandler(request) })).json()
   const answer = await request.post('/api/rounds/1/decision', {
     data: { proposal_id: view.waiting.id, approve: true, reason: '' },
     headers: await asHandler(request),

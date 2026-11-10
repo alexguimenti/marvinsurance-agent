@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import Engine, func, insert, select, update
+from sqlalchemy import Connection, Engine, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.db import claims, decisions, payments, plain, run_claims, runs, trace_events
@@ -170,10 +170,14 @@ def run_view(row) -> dict | None:
 
 # --- a claim's own trace ------------------------------------------------------------------------
 
-def add_trace_event(engine: Engine, claim_id: str, kind: str, content: dict) -> None:
-    """Append one step to a claim's trace, under the run working it."""
+def add_trace_event(target: Engine | Connection, claim_id: str, kind: str, content: dict) -> None:
+    """Append one step to a claim's trace, under the run working it. On a connection, in its transaction."""
     t = trace_events
     next_seq = select(func.coalesce(func.max(t.c.seq), 0) + 1).where(t.c.claim_id == claim_id).scalar_subquery()
     run_id = select(claims.c.run_id).where(claims.c.claim_id == claim_id).scalar_subquery()
-    with engine.begin() as conn:
-        conn.execute(insert(t).values(claim_id=claim_id, seq=next_seq, kind=kind, content=json.dumps(content), run_id=run_id))
+    statement = insert(t).values(claim_id=claim_id, seq=next_seq, kind=kind, content=json.dumps(content), run_id=run_id)
+    if isinstance(target, Connection):
+        target.execute(statement)
+    else:
+        with target.begin() as conn:
+            conn.execute(statement)

@@ -2,10 +2,13 @@
 action; this checks it against the project's public keys (no secret is needed: the project signs with asymmetric keys)
 and finds the handler by the token's email in data/handlers.json."""
 import logging
+import secrets
 from dataclasses import asdict, dataclass
 
 import jwt
-from fastapi import Depends, HTTPException
+from typing import Callable
+
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 
@@ -58,8 +61,27 @@ def handler_from_token(token: str, ref: Reference, jwks) -> Handler:
     raise UnknownHandler(f"{email or 'this account'} is not one of our handlers")
 
 
-def make_guards(ref: Reference, jwks):
-    """The two dependencies every handler action uses: any signed-in handler, and one who may sign off over the limit."""
+def key_matches(request: Request, api_key: str | None) -> bool:
+    """Is the request's X-API-Key the configured key? Never a match when either is missing or empty, and never an error
+    whatever the header holds. The comparison takes the same time wherever the two differ."""
+    sent = request.headers.get("x-api-key")
+    if not api_key or not sent:
+        return False
+    return secrets.compare_digest(sent.encode("utf-8", "replace"), api_key.encode("utf-8"))
+
+
+@dataclass
+class Guards:
+    signed_in: Callable
+    senior: Callable
+    agent_key: Callable
+    key_or_handler: Callable
+
+
+def make_guards(ref: Reference, jwks, api_key: str | None = None) -> Guards:
+    """The dependencies routes use: any signed-in handler, one who may sign off over the limit, the agent's key (and
+    nothing else), and either the key or a signed-in handler. They read the request's headers themselves, so a route
+    that uses one gains no input in its OpenAPI operation. The key never stands in for a handler."""
     bearer = HTTPBearer(auto_error=False)
 
     def signed_in(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Handler:
@@ -78,7 +100,16 @@ def make_guards(ref: Reference, jwks):
             raise HTTPException(403, "only a handler who can sign off payouts over the limit can do this")
         return handler
 
-    return signed_in, senior
+    def agent_key(request: Request) -> None:
+        if not key_matches(request, api_key):
+            raise HTTPException(401, "this needs the agent's API key")
+
+    def key_or_handler(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
+        if key_matches(request, api_key):
+            return
+        signed_in(credentials)
+
+    return Guards(signed_in, senior, agent_key, key_or_handler)
 
 
 def handler_view(handler: Handler) -> dict:

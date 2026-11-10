@@ -10,7 +10,7 @@ const received = async (page: Page) => (await (await page.request.get('http://12
  */
 async function queueCounts(page: Page) {
   await page.goto('/')
-  await expect(page.locator('tbody tr')).toHaveCount(25)
+  await expect(page.locator('tbody tr')).toHaveCount(26)
   const tiles = await page.locator('.tile').allTextContents()
   const n = (label: string) => Number(tiles.find((t) => t.endsWith(label))?.replace(label, '') ?? NaN)
   return {

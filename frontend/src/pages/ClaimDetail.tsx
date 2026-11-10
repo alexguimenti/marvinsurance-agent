@@ -63,12 +63,6 @@ export default function ClaimDetail() {
         </div>
       )}
 
-      {payment?.status === 'signed_off' && (
-        <div className="notice">
-          Signed off by {payment.approved_by_name ?? payment.approved_by}. The agent is paying {formatUsd(payment.amount)} now.
-        </div>
-      )}
-
       {payment?.status === 'paid' && payment.approved_by && (
         <div className="notice">
           Paid {formatUsd(payment.amount)}, signed off by {payment.approved_by_name ?? payment.approved_by}

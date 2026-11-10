@@ -18,6 +18,11 @@ ALLOWED_FILES = frozenset(
 )
 
 
+# The security team's claim, with its policy and customer, sits in a folder of its own and joins the queue's own files
+# when they are read. Its handler's decision beside them is never read: it stays out of every evaluation set.
+SECURITY_MERGED = ("claims.json", "policies.json", "customers.json")
+
+
 class Reference:
     """Read-only access to the whitelisted files in data/."""
 
@@ -34,7 +39,10 @@ class Reference:
             raise ValueError(f"{name!r} is not an allowed reference file")
         if name not in self._cache:
             text = (self._dir / name).read_text(encoding="utf-8")
-            self._cache[name] = text if name.endswith(".md") else json.loads(text)
+            value = text if name.endswith(".md") else json.loads(text)
+            if name in SECURITY_MERGED:
+                value = value + json.loads((self._dir / "security" / name).read_text(encoding="utf-8"))
+            self._cache[name] = value
         return self._cache[name]
 
     def policy(self, policy_id: str) -> dict:

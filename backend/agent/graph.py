@@ -3,7 +3,10 @@
 Nodes record every step on the claim and hand refusals back to the model. The graph pays every approval, and
 asks the backend whether a sign-off is needed: it never applies the limit itself.
 
-    prepare -> model <-> tools -> tools_done -> decide -> pay
+    screen -> prepare -> model <-> tools -> tools_done -> decide -> pay
+
+The security check comes first, outside the versioned configuration: a claim it flags is referred and never reaches the
+claim agent's model.
 """
 import time
 from typing import Annotated
@@ -15,16 +18,14 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
 from pydantic import BaseModel, Field
-from sqlalchemy import Engine
 
+from agent import api
+from agent.connection import Refused
 from agent.events import Usage, call_usage, emit_message, rationale_warnings
 from agent.prompts import claim_prompt
-from agent.tools import NOT_OFFERED, PREFETCHED, build_tools
-from app.claims import hold_for_sign_off, needs_sign_off, record_decision
-from app.payments import get_payment, pay
+from agent.screening import screen_claim
+from agent.tools import NOT_OFFERED, PREFETCHED, build_tools, claim_data
 from app.reference import Reference
-from app.runs import add_trace_event
-from app.usage import record_model_call
 
 
 class TooManyModelCalls(Exception):
@@ -44,16 +45,34 @@ def _tool_refused(error: Exception) -> str:
     return f"Error: {error}"
 
 
-def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_model_calls: int, checkpointer,
-                      instructions: str):
-    tools = build_tools(engine, ref)
+def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int, checkpointer, instructions: str,
+                      screen_model, screen_model_id: str):
+    tools = build_tools()
     by_name = {t.name: t for t in tools}
     offered = [t for t in tools if t.name not in NOT_OFFERED]
     # One tool call per turn: two save_decision calls in the same step would both write the proposal
     bound = model.bind_tools(offered, parallel_tool_calls=False)
 
     def recorder(claim_id: str):
-        return lambda kind, content: add_trace_event(engine, claim_id, kind, content)
+        return lambda kind, content: api.add_step(claim_id, kind, content)
+
+    def screen(state: ClaimState, config: RunnableConfig) -> dict:
+        """Have a second model read the claim before the claim agent's model does. A claim that tries to instruct its
+        handler is referred with the check's reason, and goes no further. An error fails the claim as any other does."""
+        claim_id = state.claim_id
+        run_id = config.get("configurable", {}).get("run_id")
+        screening = screen_claim(screen_model, screen_model_id, claim_data(api.get_claim(claim_id)),
+                                 lambda usage: api.record_model_call(claim_id, run_id, screen_model_id, usage))
+        trace = recorder(claim_id)
+        trace("screening", {"instructions_found": screening.instructions_found, "reason": screening.reason,
+                            "model": screen_model_id})
+        if not screening.instructions_found:
+            return {}
+        referral = {"decision": "refer", "payout": 0, "calculation": [], "rationale": screening.reason,
+                    "citations": ["Security check"]}
+        api.record_decision(claim_id, referral, screen_model_id)
+        trace("decision", referral)
+        return {"decision": referral}
 
     def prepare(state: ClaimState) -> dict:
         """Open the conversation with the facts every claim needs, as tool results it did not have to ask for."""
@@ -79,7 +98,7 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
             raise TimeoutError("the agent took too long on this claim")
         reply = bound.invoke([SystemMessage(claim_prompt(ref, instructions)), *state.messages])
         run_id = config.get("configurable", {}).get("run_id")
-        record_model_call(engine, state.claim_id, run_id, model_id, call_usage(reply))
+        api.record_model_call(state.claim_id, run_id, model_id, call_usage(reply))
         usage = Usage(state.usage)
         usage.add(reply)
         emit_message(reply, recorder(state.claim_id), {})
@@ -102,31 +121,38 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
         if state.proposal is None:
             raise ValueError("the agent finished without a decision")
         trace = recorder(state.claim_id)
-        record_decision(engine, ref, state.claim_id, state.proposal, model_id)
+        api.record_decision(state.claim_id, state.proposal, model_id)
         for warning in rationale_warnings(state.proposal["rationale"]):
             trace("warning", {"message": warning})
         trace("decision", state.proposal)
         return {"decision": state.proposal}
 
     def pay_node(state: ClaimState) -> dict:
-        """Pay the approval, straight away or after a sign-off. The backend says whether one is needed, refuses
-        anything over the limit without it, and pays only once. The node runs again from the top on resume, so an
-        early resume finds the claim still unsigned and waits again. Waiting and paying are one step on purpose:
-        saving a step in between would be several more trips to the database for a handler to wait through."""
-        needed = needs_sign_off(engine, ref, state.claim_id)
-        if needed:
-            first_time = get_payment(engine, state.claim_id) is None
-            hold_for_sign_off(engine, ref, state.claim_id)
-            if first_time:
-                recorder(state.claim_id)("status", {"status": "awaiting_approval"})
-        while needed:
-            interrupt({"claim_id": state.claim_id, "payout": state.decision["payout"], "waiting_for": "sign-off"})
-            needed = needs_sign_off(engine, ref, state.claim_id)
-        if pay(engine, ref, state.claim_id)["paid_now"]:
-            payment = get_payment(engine, state.claim_id)
-            recorder(state.claim_id)("status", {
-                "status": "paid", "amount": payment.amount, "approved_by": payment.approved_by,
-            })
+        """Pay the approval, straight away or after a sign-off. The backend says whether one is needed, and refuses
+        any payment over the limit without it, so the node never applies the limit itself. A sign-off pays the claim
+        in the backend: after a wait, a paid claim ends the node with no call. The node runs again from the top on
+        resume, so an early resume finds the claim still unsigned and waits again. Waiting and paying are one step on
+        purpose: saving a step in between would be several more trips to the backend for a handler to wait through."""
+        claim_id = state.claim_id
+        current = api.claim_state(claim_id)
+        if (current["payment"] or {}).get("status") == "paid":
+            return {}
+        if not current["needs_sign_off"]:
+            try:
+                paid_now = api.pay_claim(claim_id, state.decision["payout"])["paid_now"]
+            except Refused as exc:
+                if exc.status_code != 403:  # over the limit, as the limit stands now: a handler decides
+                    raise
+            else:
+                if paid_now:
+                    payment = api.claim_state(claim_id)["payment"]
+                    recorder(claim_id)("status", {"status": "paid", "amount": payment["amount"],
+                                                   "approved_by": payment["approved_by"]})
+                return {}
+        if api.hold(claim_id):
+            recorder(claim_id)("status", {"status": "awaiting_approval"})
+        while (api.claim_state(claim_id)["payment"] or {}).get("status") != "paid":
+            interrupt({"claim_id": claim_id, "payout": state.decision["payout"], "waiting_for": "sign-off"})
         return {}
 
     def after_model(state: ClaimState) -> str:
@@ -139,13 +165,15 @@ def build_claim_graph(engine: Engine, ref: Reference, model, model_id: str, max_
         return "pay" if state.decision["decision"] == "approve" else END
 
     builder = StateGraph(ClaimState)
+    builder.add_node("screen", screen)
     builder.add_node("prepare", prepare)
     builder.add_node("model", model_node)
     builder.add_node("tools", ToolNode(offered, handle_tool_errors=_tool_refused))
     builder.add_node("tools_done", tools_done)
     builder.add_node("decide", decide)
     builder.add_node("pay", pay_node)
-    builder.add_edge(START, "prepare")
+    builder.add_edge(START, "screen")
+    builder.add_conditional_edges("screen", lambda state: END if state.decision else "prepare", ["prepare", END])
     builder.add_edge("prepare", "model")
     builder.add_conditional_edges("model", after_model, ["tools", "decide"])
     builder.add_edge("tools", "tools_done")

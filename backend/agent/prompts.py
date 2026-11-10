@@ -1,19 +1,6 @@
 """What the agents are told. The backend shows this on the instructions page, so it stays free of agent machinery."""
-from pathlib import Path
-from typing import Literal
-
 from app.documents import documents_for
 from app.reference import Reference
-
-
-def load_instructions(name: Literal["claim"]) -> str:
-    """The claim agent's instructions as the file has them: version 1 of its configuration."""
-    return (Path(__file__).parent / f"instructions_{name}.md").read_text(encoding="utf-8")
-
-
-def load_recipe() -> str:
-    """The improver's first recipe: version 1 of the recipe."""
-    return (Path(__file__).parent / "recipe_v1.md").read_text(encoding="utf-8")
 
 
 def claim_prompt(ref: Reference, instructions: str) -> str:

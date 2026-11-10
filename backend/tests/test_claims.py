@@ -99,8 +99,8 @@ def test_holding_after_a_sign_off_changes_nothing(engine, ref):
     record_decision(engine, ref, CLAIM, approve(2000.0), "m")
     payment = get_payment(engine, hold_for_sign_off(engine, ref, CLAIM)["claim_id"])
     sign_off(engine, ref, payment.payment_id, "HND-01")
-    assert hold_for_sign_off(engine, ref, CLAIM)["status"] == "in_progress"
-    assert get_payment(engine, CLAIM).status == "signed_off"
+    assert hold_for_sign_off(engine, ref, CLAIM)["status"] == "decided"
+    assert get_payment(engine, CLAIM).status == "paid"
 
 
 def test_pay_within_limit(engine, ref):
@@ -146,13 +146,13 @@ def test_pay_amount_comes_from_the_decision(engine, ref):
     assert get_payment(engine, CLAIM).amount == 2000.0
 
 
-def test_sign_off_does_not_pay(engine, ref):
+def test_sign_off_pays(engine, ref):
     record_decision(engine, ref, CLAIM, approve(2000.0), "m")
     hold_for_sign_off(engine, ref, CLAIM)
     payment = sign_off(engine, ref, f"PAY-{CLAIM}", "HND-01")
-    assert payment.status == "signed_off" and payment.paid_at is None
+    assert payment.status == "paid" and payment.paid_at
     assert payment.approved_by == "HND-01" and payment.approved_at
-    assert status(engine) == "in_progress"
+    assert status(engine) == "decided"
     assert needs_sign_off(engine, ref, CLAIM) is False
 
 

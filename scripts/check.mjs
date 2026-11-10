@@ -5,13 +5,15 @@ import { resolve } from 'node:path'
 const root = resolve(import.meta.dirname, '..')
 // the checks need no Supabase, Langfuse or running agent, whatever this shell has set
 for (const name of ['DATABASE_URL', 'LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_BASE_URL', 'UNDERCOVER_AGENT',
-  'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'HANDLER_PASSWORD', 'MODEL_NAME', 'OPENROUTER_DECISIONS_URL']) {
+  'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'HANDLER_PASSWORD', 'MODEL_NAME', 'OPENROUTER_DECISIONS_URL', 'UNDERCOVER_API_KEY', 'UNDERCOVER_BACKEND']) {
   delete process.env[name]
 }
 const python = resolve(root, 'backend/.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
 
 const steps = [
   ['Backend unit tests', python, ['-m', 'pytest', '-q'], 'backend'],
+  // the backend must import with only the server group installed, in a temporary environment that leaves .venv alone
+  ['Backend imports on a server', 'uv', ['run', '--project', 'backend', '--isolated', '--only-group', 'server', 'python', '-c', "__import__('backend.main')"], '.'],
   ['Front-end unit tests', 'npx', ['vitest', 'run'], 'frontend'],
   ['Front-end type check', 'npx', ['tsc', '-b'], 'frontend'],
   ['Front-end lint', 'npx', ['oxlint', '--deny-warnings', 'src'], 'frontend'],

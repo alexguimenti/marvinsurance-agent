@@ -18,19 +18,14 @@ class AgentRefused(Exception):
         self.status_code, self.detail = status_code, detail
 
 
-def notify_sign_off(http, url: str, claim_id: str) -> None:
-    """Tell the agent a claim is signed off. The sign-off stands either way: if the agent can't be reached,
-    it picks the claim up the next time it starts or runs."""
-    try:
-        http.post(f"{url}/claims/{claim_id}/resume", timeout=2)
-    except httpx.HTTPError as exc:
-        log.warning("the agent did not hear about the sign-off of %s: %s", claim_id, exc)
+def _headers(key: str | None) -> dict:
+    return {"X-API-Key": key} if key else {}
 
 
-def start(http, url: str, path: str, body: dict) -> dict:
+def start(http, url: str, path: str, body: dict, key: str | None) -> dict:
     """Ask the service to start a dispatch or an evaluation. It answers at once, or refuses while one runs."""
     try:
-        answer = http.post(f"{url}{path}", json=body, timeout=10)
+        answer = http.post(f"{url}{path}", json=body, timeout=10, headers=_headers(key))
     except httpx.HTTPError as exc:
         raise AgentDown(str(exc)) from exc
     if answer.status_code >= 400:

@@ -18,9 +18,10 @@ from agent.tracing import improver_trace_config, trace_config
 from app import configs, improvement
 from app.api import create_app
 from app.auth import Handler
+from app.db import make_engine
 from app.config import Settings
 from app.settings_store import change_setting, get_settings
-from tests.fakes import MINT, FakeToolModel, RawDb, agent_env, credit_error, script, tool_call
+from tests.fakes import service_client, api_client, MINT, FakeToolModel, RawDb, agent_env, credit_error, script, tool_call
 from tests.test_judge import StubJudge, answers
 
 DANA = Handler("HND-01", "Dana Whitfield", "Senior Claims Handler", "dana.whitfield@marvinsurance.example", True)
@@ -76,7 +77,7 @@ def test_an_approved_change_becomes_a_version_and_the_improver_carries_on(db_pat
     with open_env(db_path, data_dir) as env:
         model = script(change(), AIMessage(content="Done."))
         round_id = run_round(env, model)
-        improver.record_decision(env, round_id, waiting(env, round_id)["id"], True, "", DANA)
+        improver.record_decision(env, round_id, waiting(env, round_id)["id"], True, "", "HND-01")
         assert [v["version"] for v in configs.list_versions(env.engine, "config")] == [1, 2]
         improver.resume_round(env, round_id, True, "")
         assert improvement.get_round(env.engine, round_id)["stage"] == "finished"
@@ -89,7 +90,7 @@ def test_a_rejections_reason_reaches_the_improver_which_may_propose_again(db_pat
         model = script(change(call_id="c1"), change(instructions="Narrower rules.\n", call_id="c2"))
         round_id = run_round(env, model)
         first = waiting(env, round_id)["id"]
-        improver.record_decision(env, round_id, first, False, "Too broad: name the section.", DANA)
+        improver.record_decision(env, round_id, first, False, "Too broad: name the section.", "HND-01")
         improver.resume_round(env, round_id, False, "Too broad: name the section.")
         assert "Too broad: name the section." in " ".join(str(m.content) for m in model.seen[-1])
         second = waiting(env, round_id)
@@ -145,7 +146,7 @@ def test_a_round_waiting_for_a_handler_survives_a_restart(db_path, data_dir, no_
         proposal_id = waiting(before, round_id)["id"]
     with open_env(db_path, data_dir, improver_model=script(AIMessage(content="Done."))) as after:  # a new process
         assert improvement.get_round(after.engine, round_id)["stage"] == "awaiting_change"
-        improver.record_decision(after, round_id, proposal_id, True, "", DANA)
+        improver.record_decision(after, round_id, proposal_id, True, "", "HND-01")
         improver.resume_round(after, round_id, True, "")
         assert improvement.get_round(after.engine, round_id)["stage"] == "finished"
         assert configs.get_version(after.engine, "config", 2)["approved_by"] == "HND-01"
@@ -244,7 +245,7 @@ def test_a_rounds_work_goes_in_one_session_and_its_claims_carry_its_tag():
 
 AGENT = Path(__file__).resolve().parents[1] / "agent"
 CLAIM_AGENT = ("graph.py", "tools.py", "worker.py", "dispatcher.py", "prompts.py", "models.py", "events.py", "checkpoints.py", "scripted.py")
-FORBIDDEN = ("app.scoring", "app.improvement", "app.judge", "agent.improver", "agent.improver_backend")
+FORBIDDEN = ("app.scoring", "app.improvement", "app.judge", "agent.improver", "agent.improver_api")
 
 
 def imports_of(path: Path) -> set[str]:
@@ -275,8 +276,8 @@ def test_only_the_improvers_own_module_reaches_the_improvement_records():
 @pytest.fixture
 def backend(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir, openrouter_api_key="k")
-    with TestClient(create_service(settings, inline=True)) as svc:
-        with TestClient(create_app(settings, http=svc, jwks=MINT)) as client:
+    with service_client(create_service(settings, inline=True)) as svc:
+        with api_client(create_app(settings, http=svc, jwks=MINT), headers=MINT.header()) as client:
             yield client, svc
 
 
@@ -285,7 +286,7 @@ def backend(db_path, data_dir):
     ("POST", "/rounds/1/decision", {"proposal_id": 1, "approve": True, "reason": ""})])
 def test_every_round_action_needs_a_sign_in(backend, method, path, body):
     client, _ = backend
-    assert client.request(method, path, json=body).status_code == 401
+    assert client.request(method, path, json=body, headers={"Authorization": ""}).status_code == 401
 
 
 @pytest.mark.parametrize("method,path,body", [
@@ -358,16 +359,17 @@ def test_a_stopped_round_refuses_a_decision_and_changes_nothing(backend):
 
 def test_a_decision_is_refused_while_a_dispatch_runs_and_nothing_is_recorded(db_path, data_dir, monkeypatch):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir, openrouter_api_key="k")
-    release, started = threading.Event(), threading.Event()
+    release, started, finished = threading.Event(), threading.Event(), threading.Event()
 
     def slow_dispatch(env, run_id, workers, *args, **kwargs):
         started.set()
         release.wait(10)
-        dispatcher_module.runs.finish_run(env.engine, run_id)
+        dispatcher_module.api.finish_run(run_id)
+        finished.set()
 
     monkeypatch.setattr(service_module, "dispatch", slow_dispatch)
-    with TestClient(create_service(settings)) as svc:  # real threads: the dispatch is running while we ask
-        engine = RawDb(service_module.make_engine(settings, 1)).engine
+    with service_client(create_service(settings)) as svc:  # real threads: the dispatch is running while we ask
+        engine = RawDb(make_engine(settings, 1)).engine
         round_id = improvement.start_round(engine, "HND-01", 1, get_settings(engine))
         pid = improvement.add_proposal(engine, round_id, "change", {"instructions": "x", "model": OK_MODEL, "reasoning_effort": "low"}, "r")
         assert svc.post("/dispatches", json={"workers": 3}).status_code == 202
@@ -377,6 +379,7 @@ def test_a_decision_is_refused_while_a_dispatch_runs_and_nothing_is_recorded(db_
         assert improvement.get_proposal(engine, pid)["status"] == "waiting"  # nothing recorded
         assert [v["version"] for v in configs.list_versions(engine, "config")] == [1]
         release.set()
+        assert finished.wait(10)  # the dispatch ends before the backend it records through goes away
 
 
 def test_dispatches_and_evaluations_can_run_while_a_round_waits_for_a_handler(backend):

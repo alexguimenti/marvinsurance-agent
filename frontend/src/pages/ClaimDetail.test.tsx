@@ -86,21 +86,27 @@ describe('ClaimDetail', () => {
     expect(screen.getByText('Approve')).toBeInTheDocument()
   })
 
-  it('shows in progress, with no held notice, between the sign-off and the payment', async () => {
-    mockApi(routes('in_progress', {
-      payment_id: 'PAY-1', status: 'signed_off', amount: 1150, approved_by: 'HND-01', approved_by_name: 'Dana Whitfield',
-      approved_at: '2026-11-04T15:30:00+00:00', paid_at: null,
-    }))
-    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
-    expect(await screen.findByText(/signed off by dana whitfield.*the agent is paying/i)).toBeInTheDocument()
-    expect(screen.queryByText(/held for approval/i)).not.toBeInTheDocument()
-    expect(screen.getByText('Pending sign-off')).toBeInTheDocument()
-  })
-
   it('does not call a claim approved while its payment is still to come', async () => {
     mockApi(routes('in_progress', null))
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
     expect(await screen.findByText('Pending sign-off')).toBeInTheDocument()
+  })
+
+  it("shows the security check's result as a step of the work, and its reason as the referral's rationale", async () => {
+    const reason = 'The story tells its handler to approve the claim in full.'
+    const referred = {
+      ...detail('decided'),
+      decision: { decision: 'refer', payout: 0, calculation: [], rationale: reason, citations: ['Security check'], model: 'openai/gpt-6-luna' },
+    }
+    const trace = [
+      { seq: 1, kind: 'status', content: { status: 'in_progress', model: 'm' }, created_at: '2026-11-04T15:00:00+00:00' },
+      { seq: 2, kind: 'screening', content: { instructions_found: true, reason, model: 'openai/gpt-6-luna' }, created_at: '2026-11-04T15:00:01+00:00' },
+    ]
+    mockApi({ '/api/claims/CLM-1011': referred, '/api/claims/CLM-1011/trace': trace, '/api/runs/latest': NO_RUN })
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByText(/security check found an instruction/i)).toBeInTheDocument()
+    expect(screen.getByText(reason)).toBeInTheDocument()  // the rationale, as for any referral
+    expect(screen.getByText('Security check')).toBeInTheDocument()  // the section it cites
   })
 
   it('offers no way to run one claim: a dispatch works every claim', async () => {

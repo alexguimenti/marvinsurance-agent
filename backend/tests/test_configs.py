@@ -2,7 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from agent.prompts import load_instructions
+from app.configs import load_instructions
 from agent.service import create_service
 from agent.worker import work_claim
 from app import configs
@@ -11,7 +11,7 @@ from app.config import Settings
 from app.db import init_schema, make_engine
 from app.reference import Reference
 from app.seed import seed_claims
-from tests.fakes import MINT, RawDb, agent_env, approve, stub
+from tests.fakes import service_client, api_client, MINT, RawDb, agent_env, approve, stub
 
 
 @pytest.fixture
@@ -96,8 +96,8 @@ def test_a_run_without_a_version_uses_the_current_one(engine):
 
 def test_a_dispatch_and_an_evaluation_record_their_version(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as backend:
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as backend:
             backend.post("/dispatches", json={"workers": 3})
             backend.post("/evaluations", json={"eval_set": "evaluation", "tiny": True, "workers": 3})
             runs = RawDb(make_engine(settings, max_connections=1)).execute(
@@ -119,8 +119,8 @@ def test_a_run_uses_its_versions_instructions(db_path, data_dir):
 @pytest.fixture
 def backend(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service, jwks=MINT)) as client:
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as client:
             yield client
 
 

@@ -5,11 +5,11 @@ from contextlib import contextmanager
 import pytest
 from sqlalchemy import event
 
-from agent.worker import carry_on, work_claim
+from agent.worker import invoke, work_claim
 from app.claims import needs_sign_off
 from app.config import Settings
 from app.db import make_engine, warm_up
-from app.payments import pay, sign_off
+from app.payments import sign_off
 from tests.fakes import agent_env, approve, stub
 
 CLAIM = "CLM-1003"
@@ -48,26 +48,12 @@ def test_asking_whether_a_sign_off_is_needed_is_one_statement(held):
     assert len(seen) == 1
 
 
-def test_a_sign_off_is_two_statements(held):
+def test_a_sign_off_pays_in_three_statements(held):
+    """The payment, the claim, the trace: all of it by the sign-off, so a handler sees it paid at once."""
     with statements(held.engine) as seen:
         payment = sign_off(held.engine, held.ref, f"PAY-{CLAIM}", "HND-01")
-    assert payment.status == "signed_off" and len(seen) == 2
-
-
-def test_paying_reaches_the_payment_by_the_second_statement(held):
-    sign_off(held.engine, held.ref, f"PAY-{CLAIM}", "HND-01")
-    with statements(held.engine) as seen:
-        pay(held.engine, held.ref, CLAIM)
-    assert "UPDATE payments" in seen[1]
-
-
-def test_from_a_sign_off_to_the_payment_is_a_handful_of_statements(held):
-    """Records only; the checkpointer's trips are on top. Everything after the payment does not count."""
-    sign_off(held.engine, held.ref, f"PAY-{CLAIM}", "HND-01")
-    with statements(held.engine) as seen:
-        carry_on(held, CLAIM)
-    upto_paid = next(i for i, s in enumerate(seen) if "UPDATE payments" in s) + 1
-    assert upto_paid <= 5, seen[:upto_paid]  # four, and one to read the run's configuration version
+    assert payment.status == "paid" and len(seen) == 3
+    assert "UPDATE payments" in seen[0]
 
 
 def test_a_paused_claim_saves_no_checkpoint_before_it_is_paid(held):
@@ -76,9 +62,9 @@ def test_a_paused_claim_saves_no_checkpoint_before_it_is_paid(held):
     assert held.graph.get_state(config).next == ("pay",)
     before = len(list(held.graph.checkpointer.list(config)))
     sign_off(held.engine, held.ref, f"PAY-{CLAIM}", "HND-01")
-    carry_on(held, CLAIM)
+    invoke(held, CLAIM, f"{CLAIM}-1", None, None)  # the agent resumed: it finds the claim paid
     assert held.graph.get_state(config).next == ()
-    assert len(list(held.graph.checkpointer.list(config))) == before + 1  # only the one after the payment
+    assert len(list(held.graph.checkpointer.list(config))) == before + 1  # only the one after the node
 
 
 def test_warm_up_opens_every_connection(db_path):

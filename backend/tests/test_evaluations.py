@@ -12,7 +12,7 @@ from app.db import make_engine
 from app.evaluations import is_copy, start_evaluation
 from app.payments import sign_off
 from app.runs import RunActive, get_run, run_claim_ids, start_dispatch, stop_running
-from tests.fakes import MINT, RawDb, agent_env
+from tests.fakes import service_client, api_client, MINT, RawDb, agent_env
 
 # Fields of the handlers' decisions in data/evals/: none may reach a claim's record.
 ANSWER_KEY_FIELDS = {"handler_id", "reason", "failure_class", "tests", "needs", "tone", "difficulty", "over_approval_limit"}
@@ -32,7 +32,7 @@ def evaluate(env, eval_set="evaluation", tiny=False, workers=5):
 
 def queue_counts(env):
     """The queue page's counts, as the backend gives them."""
-    with TestClient(create_app(Settings(_env_file=None, db_path=str(env.settings.db_path), data_dir=env.settings.data_dir), jwks=MINT), headers=MINT.header()) as client:
+    with api_client(create_app(Settings(_env_file=None, db_path=str(env.settings.db_path), data_dir=env.settings.data_dir), jwks=MINT), headers=MINT.header()) as client:
         statuses = [c["status"] for c in client.get("/claims").json()]
     return {s: statuses.count(s) for s in set(statuses)}, len(statuses)
 
@@ -48,7 +48,7 @@ def all_keys(value) -> set:
 def test_an_evaluation_leaves_the_queue_as_it_was(env):
     before = queue_counts(env)
     run_id = evaluate(env)
-    assert queue_counts(env) == before == ({"waiting": 25}, 25)
+    assert queue_counts(env) == before == ({"waiting": 26}, 26)
     assert len(run_claim_ids(env.engine, run_id)) == 25
 
 
@@ -133,7 +133,7 @@ def test_an_unknown_set_is_refused(env):
 
 def test_service_starts_an_evaluation_and_refuses_one_during_a_dispatch(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:
+    with service_client(create_service(settings, inline=True)) as service:
         body = {"eval_set": "held_out", "tiny": True, "workers": 5}
         assert service.post("/evaluations", json=body).status_code == 202
         raw = RawDb(make_engine(settings, max_connections=1))
@@ -145,11 +145,11 @@ def test_service_starts_an_evaluation_and_refuses_one_during_a_dispatch(db_path,
 
 def test_backend_forwards_an_evaluation_and_hides_copies(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
-    with TestClient(create_service(settings, inline=True)) as service:
-        with TestClient(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as backend:
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as backend:
             body = {"eval_set": "evaluation", "tiny": False, "workers": 5}
             assert backend.post("/evaluations", json=body).status_code == 202
-            assert len(backend.get("/claims").json()) == 25
+            assert len(backend.get("/claims").json()) == 26
             assert backend.get("/approvals").json() == []
             detail = backend.get("/claims/E1-CLM-1003").json()
             assert (detail["copy_of"], detail["evaluation_id"]) == ("CLM-1003", 1)

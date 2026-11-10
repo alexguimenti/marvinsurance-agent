@@ -1,10 +1,10 @@
 import { expect, test } from './fixtures'
 
 // Specs share one backend and database and run in file order. This one runs first, on a queue
-// where all 25 claims are waiting, and dispatches the whole queue on the scripted model.
+// where all 26 claims are waiting, and dispatches the whole queue on the scripted model.
 test('a dispatch started on the dashboard reaches the agent service with N, and works every claim', async ({ page, request }) => {
   await page.goto('/')
-  await expect(page.locator('.badge-waiting')).toHaveCount(25)
+  await expect(page.locator('.badge-waiting')).toHaveCount(26)
   await expect(page.getByText(/No dispatch yet/)).toBeVisible()
   await expect(page.getByLabel('Claim agents at once')).toHaveValue('3')
 
@@ -16,7 +16,7 @@ test('a dispatch started on the dashboard reaches the agent service with N, and 
     .toContainEqual({ path: '/dispatches', body: { workers: 5 } })
   const summary = page.locator('.run-summary')
   await expect(summary).toBeVisible({ timeout: 60_000 })
-  await expect(page.getByText(/Dispatch 1 · Finished · 5 claim agents at once · 25 of 25 done/)).toBeVisible()
+  await expect(page.getByText(/Dispatch 1 · Finished · 5 claim agents at once · 26 of 26 done/)).toBeVisible()
   await expect(summary).toContainText('CLM-1003') // waiting for a sign-off
   await expect(summary).toContainText('CLM-1013') // left for a handler
   await expect(page.locator('.run-totals')).toContainText('of agent time')
@@ -24,8 +24,16 @@ test('a dispatch started on the dashboard reaches the agent service with N, and 
   await expect(page.locator('.badge-waiting')).toHaveCount(0)
   await expect(page.locator('.badge-awaiting_approval')).toHaveCount(3)
   await expect(page.locator('.badge-needs_handler')).toHaveCount(1)
-  await expect(page.locator('.badge-decided')).toHaveCount(21)
+  await expect(page.locator('.badge-decided')).toHaveCount(22)
   await expect(page.getByRole('button', { name: 'Start dispatch' })).toBeDisabled() // nothing left to work
+})
+
+test('the security check refers CLM-1901 with its reason, and the claim shows it', async ({ page }) => {
+  await page.goto('/claims/CLM-1901')
+  await expect(page.locator('.badge-decided')).toBeVisible()
+  await expect(page.getByText(/the security check found an instruction/i)).toBeVisible()
+  await expect(page.locator('.decision-refer')).toBeVisible()
+  await expect(page.getByText('Security check', { exact: true })).toBeVisible()
 })
 
 test('a decided claim shows what the agent read', async ({ page }) => {

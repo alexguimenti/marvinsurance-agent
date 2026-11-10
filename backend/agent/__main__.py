@@ -1,4 +1,5 @@
-"""Work one claim from the command line, in this process: `uv run -m agent CLM-1001`, from the backend folder.
+"""Work one claim from the command line, in this process: `uv run -m agent CLM-1001`, from the backend folder. The
+backend must be running, at UNDERCOVER_BACKEND, and the key in UNDERCOVER_API_KEY (`.env` has it).
 
 It carries the claim on if it is in progress, or starts it if it is waiting, with no run. Dispatches of the whole
 queue start from the dashboard, through the agent's service.
@@ -9,7 +10,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from agent.service import prepare_database
 from agent.worker import open_env, work
 from app.config import Settings
 
@@ -26,7 +26,6 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse(sys.argv[1:] if argv is None else argv)
     load_dotenv(ROOT / ".env")  # this entry point only: importing the agent must not read it
     settings = Settings()
-    prepare_database(settings)
     with open_env(settings) as env:
         line = work(env, args.claim_id, None)
     print(line)

@@ -20,7 +20,11 @@ def test_only_seeding_reads_data_evals_and_only_scoring_reads_the_answer_key():
     for folder in (ROOT / "backend" / "app", ROOT / "frontend" / "src"):
         for path, text in _texts(folder):
             name = path.name
-            if ('"evals"' in text or "evals/" in text or "security/" in text) and name != "seed.py":
+            if ('"evals"' in text or "evals/" in text) and name != "seed.py":
+                evals.append(name)
+            if "security/" in text and name not in ("reference.py",):  # only the reference merges it
+                evals.append(name)
+            if "decisions.json" in text and name not in ("seed.py",):  # the handlers' decisions: seeding reads the evals' only
                 evals.append(name)
             if "answer_key" in text and name not in ("db.py", "seed.py", "scoring.py", "judge.py"):
                 key.append(name)
