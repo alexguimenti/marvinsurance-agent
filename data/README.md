@@ -5,7 +5,7 @@ The data behind MarvInsurance, a fictional insurer. Everything here is invented,
 ## The insurer's systems
 
 - `company.json`: company settings, including the $1,000 payout approval limit.
-- `plans.json`: the three plans (Economy, Premium, First) with their limits, waiting periods and deductibles, and the three add-ons.
+- `plans.json`: the three plans (Economy, Premium, First) with their limits, waiting periods and deductibles, and the three add-ons. The product no longer reads it: the context layer's `plans.yaml` is the source now. It stays here as it was.
 - `policies.json`: one policy per trip, with the plan, the add-ons, the purchase date, the trip and the travelers.
 - `customers.json`: contact details and claim history, with the date and a one line summary of each earlier claim. This is personal data.
 - `handlers.json`: the claims handlers, with their email (what a signed-in handler is matched on) and `can_approve_over_limit`. Only Dana Whitfield may sign off over the limit, and so decide an improvement proposal or change a setting; Marcus Oyelaran and Priya Raman may not.
@@ -18,7 +18,7 @@ The data behind MarvInsurance, a fictional insurer. Everything here is invented,
 
 ## The documents
 
-- `policy_wording.md`: the contract with the customer. Short enough to fit in a prompt.
+- `policy_wording.md`: the contract with the customer. Short enough to fit in a prompt. The product no longer reads it, nor `claims_manual.md`: seeding loads the copies in `backend/context/`, which data governance owns. They stay here as they were.
 - `claims_manual.md`: the internal handling manual. Longer, and it holds rules the wording does not, such as the third claim in 12 months, losses to wild animals and meals without receipts. The agent looks up its sections, and the wording's, as it needs them.
 
 ## The evaluation set

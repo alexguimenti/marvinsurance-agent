@@ -3,12 +3,13 @@
 Nodes record every step on the claim and hand refusals back to the model. The graph pays every approval, and
 asks the backend whether a sign-off is needed: it never applies the limit itself.
 
-    screen -> prepare -> model <-> tools -> tools_done -> decide -> pay
+    screen -> prepare -> model <-> tools -> tools_done -> decide -> remember -> pay
 
 The security check comes first, outside the versioned configuration: a claim it flags is referred and never reaches the
 claim agent's model.
 """
 import json
+import logging
 import time
 from typing import Annotated
 
@@ -21,6 +22,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
 from agent import api
+from agent import memory as memory_of
 from agent.connection import Refused
 from agent.events import GATEWAY_REFUSAL, Usage, call_usage, emit_message, rationale_warnings
 from agent.gateway import GatewayRefused
@@ -30,6 +32,9 @@ from agent.route import Route
 from agent.screening import screen_claim
 from agent.tools import NOT_OFFERED, PREFETCHED, build_tools, claim_data
 from app.reference import Reference
+
+
+log = logging.getLogger(__name__)
 
 
 class TooManyModelCalls(Exception):
@@ -58,8 +63,8 @@ def _needs_a_handler(exc: Exception) -> bool:
 
 
 def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int, checkpointer, instructions: str,
-                      screen_model, screen_model_id: str, route: Route, decided_by: str):
-    tools = build_tools(route, decided_by, model_id)
+                      screen_model, screen_model_id: str, route: Route, decided_by: str, store=None):
+    tools = build_tools(route, decided_by, model_id, store)
     by_name = {t.name: t for t in tools}
     offered = [t for t in tools if t.name not in NOT_OFFERED]
     # One tool call per turn: two save_decision calls in the same step would both write the proposal
@@ -153,6 +158,22 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         trace("decision", state.proposal)
         return {"decision": state.proposal}
 
+    def remember(state: ClaimState) -> dict:
+        """Save the claim and its decision to memory, in code, every time: never at the model's choice. Nothing is saved when
+        memory is off or for an evaluation's copy (a claim the security check referred never gets here). When AgentCore
+        cannot be reached it logs a warning and the claim keeps its decision."""
+        if store is None or api.claim_state(state.claim_id)["copy_of"] is not None:
+            return {}
+        trace = recorder(state.claim_id)
+        try:
+            saved = memory_of.save_claim(store, api.get_claim(state.claim_id), state.decision)
+        except Exception as exc:
+            log.warning("could not save %s to memory: %s: %s", state.claim_id, type(exc).__name__, exc)
+            trace("memory_save", {"error": f"{type(exc).__name__}: {exc}"})
+        else:
+            trace("memory_save", {"saved": saved})
+        return {}
+
     def pay_node(state: ClaimState) -> dict:
         """Pay the approval, straight away or after a sign-off. The backend says whether one is needed, and refuses
         any payment over the limit without it, so the node never applies the limit itself. A sign-off pays the claim
@@ -191,7 +212,7 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
     def after_tools(state: ClaimState) -> str:
         return "decide" if state.proposal is not None else "model"
 
-    def after_decide(state: ClaimState) -> str:
+    def after_remember(state: ClaimState) -> str:
         return "pay" if state.decision["decision"] == "approve" else END
 
     builder = StateGraph(ClaimState)
@@ -201,6 +222,7 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
     builder.add_node("tools", ToolNode(offered, handle_tool_errors=_tool_refused))
     builder.add_node("tools_done", tools_done)
     builder.add_node("decide", decide)
+    builder.add_node("remember", remember)
     builder.add_node("pay", pay_node)
     builder.add_edge(START, "screen")
     builder.add_conditional_edges("screen", lambda state: END if state.decision else "prepare", ["prepare", END])
@@ -208,6 +230,7 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
     builder.add_conditional_edges("model", after_model, ["tools", "decide"])
     builder.add_edge("tools", "tools_done")
     builder.add_conditional_edges("tools_done", after_tools, ["model", "decide"])
-    builder.add_conditional_edges("decide", after_decide, ["pay", END])
+    builder.add_edge("decide", "remember")
+    builder.add_conditional_edges("remember", after_remember, ["pay", END])
     builder.add_edge("pay", END)
     return builder.compile(checkpointer=checkpointer)

@@ -387,7 +387,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
   - **The `search_memory(query: str)` tool:** "Search what we remember about this claim's customer from their earlier claims." It is bound only when `store is not None and not evaluation`. An error becomes the model's refusal.
   - **Building the graph:** `AgentEnv.claim_graph(run_id, config)` computes `evaluation = run_id is not None and api.get_run(run_id)["kind"] == "evaluation"`.
 
-- [ ] **Step 1: Write the failing tests** with `FakeMemoryStore`. It records `put` calls and answers `search` from fixed items carrying namespaces.
+- [x] **Step 1: Write the failing tests** with `FakeMemoryStore`. It records `put` calls and answers `search` from fixed items carrying namespaces.
   - `test_after_a_decision_two_events_are_saved_customer_as_actor_claim_as_session`: the first is a `HumanMessage`, the second an `AIMessage`, and the JSON has no `story` or `documents`.
   - `test_nothing_is_saved_for_a_claim_the_check_referred`
   - `test_nothing_is_saved_for_an_evaluations_copy`
@@ -397,13 +397,13 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
   - `test_an_unreachable_memory_logs_and_keeps_the_decision`
   - `test_a_failed_search_is_a_refusal_the_model_sees`
   - `test_open_store_reads_the_environment_when_called`: patch `AgentCoreMemoryStore`.
-- [ ] **Step 2: Run them.**
+- [x] **Step 2: Run them.**
   - Run: `.venv\Scripts\python -m pytest tests/test_memory.py -q`
   - Expected: FAIL.
-- [ ] **Step 3: Implement.** Run `uv add langgraph-checkpoint-aws`, then write the code and the instructions.
-- [ ] **Step 4: Run the whole backend suite.**
+- [x] **Step 3: Implement.** Run `uv add langgraph-checkpoint-aws`, then write the code and the instructions.
+- [x] **Step 4: Run the whole backend suite.**
   - Expected: all pass. With `npm run dev` and no `UNDERCOVER_MEMORY_ID`, `uv run -m agent CLM-1002` works with no `search_memory` among the `tool_call`s.
-- [ ] **Step 5: Commit the phase:** `git commit -m "feat: the agent remembers each customer in AgentCore Memory"`
+- [x] **Step 5: Commit the phase:** `git commit -m "feat: the agent remembers each customer in AgentCore Memory"`
 
 ---
 

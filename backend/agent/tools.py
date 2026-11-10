@@ -13,6 +13,7 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from agent import memory as memory_of
 from agent.route import Route
 
 # Each section read goes back to the model on every later step, so reading costs grow fast.
@@ -56,9 +57,9 @@ def _short(text: str) -> str:
     return text if len(text) <= FOUND_CHARS else text[: FOUND_CHARS - 1] + "…"
 
 
-def build_tools(route: Route, decided_by: str = "UnderCover Agent", model: str = "unknown") -> list[BaseTool]:
+def build_tools(route: Route, decided_by: str = "UnderCover Agent", model: str = "unknown", store=None) -> list[BaseTool]:
     """Tools over the app's operations and the context layer's tools, on whichever route is in use. None of them takes a
-    path, and none pays. `decided_by` and `model` are what the agent fills into the decision record: the model never sees them."""
+    path, and none pays. `store` is the memory, when it is on. `decided_by` and `model` are what the agent fills into the decision record: the model never sees them."""
 
     def lookup(name: str, args: dict, found) -> tuple[str, dict]:
         """A context tool's answer for the model, and what the claim's steps keep of it."""
@@ -123,6 +124,13 @@ def build_tools(route: Route, decided_by: str = "UnderCover Agent", model: str =
         text = f"{result['answer']['text']}\n\n[From {source['file']}: {source['system']}, {source['owner']}, reviewed {source['reviewed']}]"
         return text, {"sources": result["sources"], "found": result["answer"]["title"]}
 
+    @tool(response_format="content_and_artifact")
+    def search_memory(query: str, claim_id: ClaimId) -> tuple[str, dict]:
+        """Search what we remember about this claim's customer from their earlier claims."""
+        customer = route.app("get_claim", {"claim_id": claim_id})["claim"]["customer_id"]
+        found = memory_of.search(store, customer, claim_id, query)
+        return json.dumps(found), {"memory_query": query, "memory_found": found}
+
     @tool
     def calculate_payout(
         items: list[LineItem],
@@ -179,7 +187,8 @@ def build_tools(route: Route, decided_by: str = "UnderCover Agent", model: str =
             "messages": [ToolMessage(f"Decision recorded for {claim_id}.", name="record_decision", tool_call_id=tool_call_id)],
         })
 
-    return [
+    every = [
         get_claim, get_policy, get_claim_history, get_plan, lookup_term, describe_fields, get_claim_rules,
         search_reference_data, search_documents, read_section, calculate_payout, record_decision,
     ]
+    return [*every, search_memory] if store is not None else every

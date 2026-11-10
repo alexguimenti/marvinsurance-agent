@@ -79,13 +79,17 @@ def emit_message(message, on_event: Emit, calls: dict[str, dict], shown: Callabl
         if getattr(message, "status", "success") == "error":  # the app, the context layer or the Gateway said no
             from agent.operations import CONTEXT_TOOLS
 
-            by = "gateway" if content.startswith(GATEWAY_REFUSAL) else "context" if message.name in CONTEXT_TOOLS else "app"
+            by = ("gateway" if content.startswith(GATEWAY_REFUSAL) else "memory" if message.name == "search_memory"
+                  else "context" if message.name in CONTEXT_TOOLS else "app")
             reason = content.removeprefix(GATEWAY_REFUSAL).removeprefix("Error: ")
             on_event("refusal", {"by": by, "tool": shown(message.name), "reason": reason})
             return
         if message.name == "record_decision" and not content.startswith("Error:"):
             return
         artifact = getattr(message, "artifact", None)
+        if isinstance(artifact, dict) and "memory_found" in artifact:  # a search of memory: what for, and what it found
+            on_event("memory_search", {"query": artifact["memory_query"], "found": artifact["memory_found"]})
+            return
         if isinstance(artifact, dict) and "sources" in artifact:  # a lookup in the context layer: what and where from
             on_event("lookup", {"tool": shown(message.name), "args": calls.get(message.tool_call_id, {}),
                                 "sources": artifact["sources"], "found": artifact.get("found", "")})

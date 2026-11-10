@@ -13,6 +13,7 @@ from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
 from agent import api
 from agent.checkpoints import Checkpoints, make_checkpoints
 from agent.graph import build_claim_graph
+from agent.memory import open_store
 from agent.route import make_route
 from agent.tracing import flush_traces, trace_config, warm_up_tracing
 from app.config import Settings
@@ -30,6 +31,14 @@ def out_of_credit(exc: BaseException) -> bool:
     return getattr(exc, "status_code", None) == 402
 
 
+def _kind_of(run_id: int) -> str | None:
+    """dispatch or evaluation; None for a run the backend does not know."""
+    try:
+        return api.get_run(run_id)["kind"]
+    except LookupError:
+        return None
+
+
 @dataclass
 class AgentEnv:
     ref: Reference
@@ -39,6 +48,7 @@ class AgentEnv:
     model_id: str | None
     improver_model: object | None = None  # a test's own, for the improver
     screen_model: object | None = None  # the security check's model: a test's stub, or the scripted one; None builds the real one
+    memory_store: object | None = None  # a test's memory; None reads UNDERCOVER_MEMORY_ID each time a graph is built
     route: object | None = None  # a test's route to the tools; None reads the environment each time a graph is built
     clock: Callable[[], float] = time.monotonic  # a test can move it on without sleeping
     out_of_credit: threading.Event = field(default_factory=threading.Event)  # set by the first 402; a run stops starting claims
@@ -78,20 +88,23 @@ class AgentEnv:
             self._models["screen"] = chat_model(self.settings, *self.settings.screening_model, max_retries=0)
         return self._models["screen"], self.settings.screening_model[0]
 
-    def _build(self, saver, config: dict):
+    def _build(self, saver, config: dict, evaluation: bool = False):
         screen_model, screen_model_id = self.screen()
         return build_claim_graph(self.ref, self.model_for(config), self.effective(config)[0],
                                  self.settings.agent_max_model_calls, saver, config["instructions"],
                                  screen_model, screen_model_id, self.route or make_route(),
-                                 f"UnderCover Agent, configuration version {config['version']}")
+                                 f"UnderCover Agent, configuration version {config['version']}",
+                                 None if evaluation else (self.memory_store or open_store()))
 
     @contextmanager
     def claim_graph(self, run_id: int | None = None, config: dict | None = None) -> Iterator:
         """The claim graph for a run's version, on a saver of its own for one claim run: a saver takes turns between
         its callers."""
         config = config or self.config_for(run_id)
+        # an evaluation's scores must not depend on memory: the kind of run decides it when its graphs are built
+        evaluation = run_id is not None and _kind_of(run_id) == "evaluation"
         with self.checkpoints.saver() as saver:
-            yield self._build(saver, config)
+            yield self._build(saver, config, evaluation)
 
     @property
     def graph(self):
@@ -123,7 +136,7 @@ class AgentEnv:
 
 @contextmanager
 def open_env(settings: Settings, model=None, model_id: str | None = None, improver_model=None, screen_model=None,
-             route=None) -> Iterator[AgentEnv]:
+             route=None, memory_store=None) -> Iterator[AgentEnv]:
     """Everything the agent needs in a process: its connections, its checkpoints and its graph."""
     if model is None:
         if settings.agent_provider == "scripted":
@@ -136,7 +149,7 @@ def open_env(settings: Settings, model=None, model_id: str | None = None, improv
     warm_up_tracing()
     with make_checkpoints(settings) as checkpoints:  # the one connection the agent keeps to the database
         env = AgentEnv(Reference(settings.data_dir), settings, checkpoints, model, model_id, improver_model, screen_model,
-                       route=route)
+                       memory_store=memory_store, route=route)
         try:
             yield env
         finally:
@@ -160,7 +173,7 @@ def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input, run_id: in
         # traced call would lose its work from the claim's session.
         version = env.config_for(run_id)
         config = _config(env, claim_id, thread_id, run_id, env.effective(version)[0], version.get("round_id"))
-        with env.claim_graph(config=version) as graph:
+        with env.claim_graph(run_id, config=version) as graph:
             return contextvars.Context().run(graph.invoke, graph_input, config, durability="sync")
     finally:
         api.record_work_time(claim_id, run_id, started_at, env.clock() - start)

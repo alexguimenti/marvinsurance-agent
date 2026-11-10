@@ -297,14 +297,14 @@ def direct_route():
 
 
 @contextmanager
-def agent_env(db_path: str, data_dir: str, model, improver_model=None, screen_model=None, route=None, **settings):
+def agent_env(db_path: str, data_dir: str, model, improver_model=None, screen_model=None, route=None, memory_store=None, **settings):
     """A real AgentEnv, with its checkpoints on disk, around a stub model, and the backend it records through, in
     this process. `env.engine` looks at the records the backend keeps: the agent has no engine of its own."""
     from agent.worker import open_env
 
     with running_backend(db_path, data_dir, **settings) as config:
         with open_env(config, model=model, model_id="stub/model", improver_model=improver_model,
-                      screen_model=screen_model or ScreenStub(), route=route or direct_route()) as env:
+                      screen_model=screen_model or ScreenStub(), route=route or direct_route(), memory_store=memory_store) as env:
             env.engine = make_engine(config, max_connections=2)
             try:
                 yield env

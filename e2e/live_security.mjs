@@ -1,5 +1,6 @@
 // The live checks of docs/PLAN_SECURE.md, as Dana Whitfield through the dashboard on 5173. Reads the password from .env in
-// this process only.   node live_security.mjs <dispatch|evaluate|signoff> [screens dir]
+// this process only.   node live_security.mjs <dispatch|evaluate|signoff|queue|show:CLAIM> [screens dir]
+// WORKERS sets the dispatch's claim agents at once (5 by default); DASHBOARD the address (http://127.0.0.1:5173).
 import { createRequire } from 'node:module'
 import { mkdirSync } from 'node:fs'
 const require = createRequire(import.meta.url)
@@ -19,7 +20,7 @@ await page.getByRole('button', { name: 'Sign in' }).click()
 await page.getByRole('button', { name: 'Sign out' }).waitFor()
 
 if (step === 'dispatch') {
-  await page.getByLabel('Claim agents at once').fill('5')
+  await page.getByLabel('Claim agents at once').fill(process.env.WORKERS ?? '5')
   await page.getByRole('button', { name: 'Start dispatch' }).click()
   await page.locator('.run-summary').waitFor({ timeout: 20 * 60_000 })
   log('summary: ' + (await page.locator('.run-summary').innerText()).replace(/\s+/g, ' ').slice(0, 400))
@@ -34,10 +35,19 @@ if (step === 'dispatch') {
   log('claims shown at ' + base + ': ' + (await page.locator('tbody tr').count()))
   await page.screenshot({ path: `${shots}/queue-from-backend.png` })
 } else if (step.startsWith('show:')) {
-  await page.goto(`${base}/claims/${step.slice(5)}`)
+  const claim = step.slice(5)
+  await page.goto(`${base}/claims/${claim}`)
   await page.getByText(/Case file/).waitFor()
-  const text = (await page.locator('main').innerText()).replace(/\s+/g, ' ')
-  log(text.slice(-1400))
+  await page.getByRole('heading', { name: 'Agent activity' }).waitFor()
+  await page.waitForTimeout(1500)
+  const text = async (selector) => (await page.locator(selector).first().innerText().catch(() => '(none)')).replace(/\s+/g, ' ')
+  log(`${claim} decision panel: ` + (await text('.verdict')))
+  const context = page.locator('.card', { has: page.getByRole('heading', { name: 'Context used' }) })
+  log(`${claim} context used: ` + ((await context.count()) ? (await context.first().innerText()).replace(/\s+/g, ' ') : '(none)'))
+  const steps = await page.locator('ol.trace > li').allInnerTexts()
+  log(`${claim} steps: ${steps.length}`)
+  steps.forEach((t, i) => log(`  ${i + 1}. ` + t.replace(/\s+/g, ' ').slice(0, 260)))
+  await page.screenshot({ path: `${shots}/${claim}.png`, fullPage: true })
 } else if (step === 'evaluate') {
   await page.goto(`${base}/scoreboard`)
   await page.getByLabel('Set').selectOption('evaluation')
