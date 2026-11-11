@@ -9,7 +9,7 @@ import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 
 from app import agent_client, claims as claim_records, configs, runs
@@ -46,9 +46,17 @@ GATEWAY_OPERATIONS = frozenset({
 
 class PayoutBody(BaseModel):
     items: list[LineItem]
-    third_party_paid: float
-    deductible: float
-    benefit_max: float | None
+    third_party_paid: float = Field(description="What a carrier or another party has paid for the same loss, or 0 when nothing was paid")
+    deductible: float = Field(description="The deductible that applies to this benefit, or 0 when none applies")
+    # 0, not null, when there is no maximum: the Gateway cannot read "a number or null"
+    benefit_max: float = Field(description="The benefit's maximum payout, or 0 when the benefit has no maximum")
+
+    @field_validator("benefit_max", "third_party_paid", "deductible")
+    @classmethod
+    def not_negative(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("this is 0 (none) or more")
+        return value
 
 
 class DecisionIn(BaseModel):

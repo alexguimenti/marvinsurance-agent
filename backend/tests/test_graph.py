@@ -268,8 +268,8 @@ def test_instructions_tell_the_agent_the_system_pays():
 
 
 def test_a_section_14_refusal_goes_back_to_the_model_which_tries_again(run):
-    calculate = tool_call("calculate_payout", {"items": [{"description": "Payout", "amount": 420.0, "item_limit": None}],
-                                               "third_party_paid": 0, "deductible": 0, "benefit_max": None}, "calc")
+    calculate = tool_call("calculate_payout", {"items": [{"description": "Payout", "amount": 420.0, "item_limit": 0}],
+                                               "third_party_paid": 0, "deductible": 0, "benefit_max": 0}, "calc")
     # the first approval has no calculation on file (the stub's own calculation comes with the second): refused, then put right
     first = tool_call("record_decision", approve(420.0), "early")
     env, model, _ = run([first, calculate, approve(420.0)], claim="CLM-1001")

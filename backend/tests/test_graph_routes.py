@@ -50,8 +50,8 @@ def test_a_claim_is_decided_on_either_route(on_route):
         assert "undercover-app___pay_claim" in stand_in.names and "undercover-app___get_claim" in stand_in.names
 
 
-CALCULATE = {"items": [{"description": "x", "amount": 420.0, "item_limit": None}], "third_party_paid": 0, "deductible": 0,
-             "benefit_max": None}
+CALCULATE = {"items": [{"description": "x", "amount": 420.0, "item_limit": 0}], "third_party_paid": 0, "deductible": 0,
+             "benefit_max": 0}
 
 
 def test_an_app_refusal_reaches_the_model_and_is_a_refusal_step(on_route, monkeypatch):

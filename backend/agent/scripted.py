@@ -63,8 +63,8 @@ class ScriptedChatModel(BaseChatModel):
             if decision["decision"] == "approve" and not any(m.type == "tool" and m.name == "calculate_payout" for m in messages):
                 # an approval needs a payout calculation on file (claims manual section 14): one line for the payout
                 call = {"name": "calculate_payout", "id": f"calc-{claim_id}", "args": {
-                    "items": [{"description": "Eligible amount", "amount": decision["payout"], "item_limit": None}],
-                    "third_party_paid": 0, "deductible": 0, "benefit_max": None}}
+                    "items": [{"description": "Eligible amount", "amount": decision["payout"], "item_limit": 0}],
+                    "third_party_paid": 0, "deductible": 0, "benefit_max": 0}}
             else:
                 call = {"name": "record_decision", "args": decision, "id": f"save-{claim_id}"}
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])

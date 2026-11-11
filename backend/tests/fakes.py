@@ -127,8 +127,8 @@ def _with_calculations(steps: list) -> list:
     out = []
     for step in steps:
         if isinstance(step, dict) and step.get("decision") == "approve" and not calls_it:
-            out.append(tool_call("calculate_payout", {"items": [{"description": "Payout", "amount": step["payout"], "item_limit": None}],
-                                                      "third_party_paid": 0, "deductible": 0, "benefit_max": None}, f"calc-{id(step)}"))
+            out.append(tool_call("calculate_payout", {"items": [{"description": "Payout", "amount": step["payout"], "item_limit": 0}],
+                                                      "third_party_paid": 0, "deductible": 0, "benefit_max": 0}, f"calc-{id(step)}"))
         out.append(step)
     return out
 
@@ -472,8 +472,8 @@ def record_approval(client, claim_id: str, payout: float, decided_by: str = "Tes
     """The same, over HTTP: calculate, then record. The calculation is one `expense` line for the payout, so it comes
     to the payout whatever the claim: `client` is a backend client, and the agent's key is sent."""
     key = {"X-API-Key": TEST_KEY}
-    body = {"items": [{"description": "Payout", "amount": payout, "item_limit": None}], "third_party_paid": 0,
-            "deductible": 0, "benefit_max": None}
+    body = {"items": [{"description": "Payout", "amount": payout, "item_limit": 0}], "third_party_paid": 0,
+            "deductible": 0, "benefit_max": 0}
     assert client.post(f"/claims/{claim_id}/payout", json=body, headers=key).status_code == 200
     decision = {"decision": "approve", "payout": payout, "rationale": "Covered. Section 10 sets the payment.",
                 "citations": ["Policy wording, section 10"], "decided_by": decided_by, "model": "m"}

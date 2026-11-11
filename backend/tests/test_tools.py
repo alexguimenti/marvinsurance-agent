@@ -136,9 +136,9 @@ def test_on_the_gateway_route_context_tools_are_called_undercover_context_name(c
 
 def test_calculate_payout_tool_returns_steps(conn, ref):
     out = json.loads(tools_for(conn, ref)["calculate_payout"].invoke({
-        "items": [{"description": "Hospital bill", "amount": 3800, "item_limit": None}],
+        "items": [{"description": "Hospital bill", "amount": 3800, "item_limit": 0}],
         "third_party_paid": 0,
         "deductible": 50,
-        "benefit_max": None,
+        "benefit_max": 0,
     }))
     assert out["payout"] == 3750.0 and out["steps"] and out["needs_sign_off"] is True

@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import BaseTool, InjectedToolCallId, tool
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agent import memory as memory_of
 from agent.route import Route
@@ -33,7 +33,7 @@ Messages = Annotated[list, InjectedState("messages")]
 class LineItem(BaseModel):
     description: str
     amount: float
-    item_limit: float | None
+    item_limit: float = Field(description="The per-item limit that applies to this item, or 0 when none applies")
 
 
 def claim_data(claim: dict) -> str:
@@ -137,11 +137,11 @@ def build_tools(route: Route, decided_by: str = "UnderCover Agent", model: str =
         claim_id: ClaimId,
         third_party_paid: float,
         deductible: float,
-        benefit_max: float | None,
+        benefit_max: float,
     ) -> str:
         """Work out the payout (wording section 10). Give every input: each item with the per-item limit
-        that applies to it (null when none), 0 where nothing was paid or no deductible applies, and the
-        benefit maximum (null when none)."""
+        that applies to it (0 when none), 0 where nothing was paid or no deductible applies, and the
+        benefit maximum (0 when none)."""
         return json.dumps(route.app("calculate_payout", {
             "claim_id": claim_id,
             "items": [i.model_dump() if isinstance(i, BaseModel) else dict(i) for i in items],

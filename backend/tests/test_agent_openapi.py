@@ -55,3 +55,55 @@ def test_the_document_needs_the_key_or_a_sign_in(client):
     assert client.get("/agent/openapi.json", headers={"X-API-Key": "wrong"}).status_code == 401
     assert client.get("/agent/openapi.json", headers=MINT.header()).status_code == 200
     assert client.get("/agent/openapi.json", headers=KEY).status_code == 200
+
+
+def inputs_of(doc, op):
+    """Every schema an operation takes as input, parameters and body, with the schemas they point at."""
+    schemas = doc.get("components", {}).get("schemas", {})
+    roots = [p["schema"] for p in op.get("parameters", [])]
+    body = op.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema")
+    if body:
+        roots.append(body)
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                yield from walk(schemas[node["$ref"].rsplit("/", 1)[1]])
+                return
+            yield node
+            for value in node.values():
+                yield from walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from walk(value)
+
+    for root in roots:
+        yield from walk(root)
+
+
+def test_no_input_of_the_document_is_nullable_or_optional(client):
+    """The Gateway cannot read a type that is "this or null" (anyOf): it takes the field for an object and refuses every value,
+    so the claim agent cannot call the tool at all. A limit that does not apply is 0."""
+    doc = document(client)
+    for name, (_, _, op) in operations(doc).items():
+        for node in inputs_of(doc, op):
+            assert not {"anyOf", "oneOf", "allOf", "nullable"} & set(node), f"{name}: {sorted({'anyOf', 'oneOf', 'allOf', 'nullable'} & set(node))}"
+            assert node.get("type") != "null", name
+            if "properties" in node:
+                assert set(node.get("required", [])) == set(node["properties"]), f"{name}: an input is optional"
+
+
+CALCULATE = {"items": [{"description": "x", "amount": 100.0, "item_limit": 0}], "third_party_paid": 0, "deductible": 0, "benefit_max": 0}
+
+
+def test_the_payout_route_takes_numbers_only(client):
+    ok = client.post("/claims/CLM-1001/payout", json=CALCULATE, headers=KEY)
+    assert ok.status_code == 200 and ok.json()["payout"] == 100.0
+    for broken in (
+        {**CALCULATE, "benefit_max": None},
+        {**CALCULATE, "items": [{"description": "x", "amount": 100.0, "item_limit": None}]},
+        {**CALCULATE, "benefit_max": -5},
+        {**CALCULATE, "items": [{"description": "x", "amount": 100.0, "item_limit": -1}]},
+        {key: value for key, value in CALCULATE.items() if key != "benefit_max"},
+    ):
+        assert client.post("/claims/CLM-1001/payout", json=broken, headers=KEY).status_code == 422, broken

@@ -8,8 +8,8 @@ from tests.fakes import MINT, TEST_KEY, api_client, record_approval
 
 KEY = {"X-API-Key": TEST_KEY}
 CLAIM = "CLM-1001"
-CALCULATE = {"items": [{"description": "Payout", "amount": 420.0, "item_limit": None}], "third_party_paid": 0, "deductible": 0,
-             "benefit_max": None}
+CALCULATE = {"items": [{"description": "Payout", "amount": 420.0, "item_limit": 0}], "third_party_paid": 0, "deductible": 0,
+             "benefit_max": 0}
 
 
 @pytest.fixture
@@ -75,13 +75,13 @@ def test_a_calculation_from_an_earlier_attempt_does_not_count(client):
 
 
 def test_cents_noise_matches(client):
-    body = {**CALCULATE, "items": [{"description": "Payout", "amount": 419.999999, "item_limit": None}]}
+    body = {**CALCULATE, "items": [{"description": "Payout", "amount": 419.999999, "item_limit": 0}]}
     client.post(f"/claims/{CLAIM}/payout", json=body, headers=KEY)
     assert record(client, payout=420.0).status_code == 200
 
 
 def test_the_latest_calculation_counts(client):
-    client.post(f"/claims/{CLAIM}/payout", json={**CALCULATE, "items": [{"description": "x", "amount": 100.0, "item_limit": None}]}, headers=KEY)
+    client.post(f"/claims/{CLAIM}/payout", json={**CALCULATE, "items": [{"description": "x", "amount": 100.0, "item_limit": 0}]}, headers=KEY)
     client.post(f"/claims/{CLAIM}/payout", json=CALCULATE, headers=KEY)
     assert record(client).status_code == 200
 
@@ -101,7 +101,7 @@ def test_a_complete_approval_holds_its_calculation_maker_time_and_manual_version
 
 
 def test_the_calculation_on_a_record_is_the_one_calculate_payout_gave_not_one_the_caller_sends(client):
-    body = {**CALCULATE, "items": [{"description": "Hospital bill", "amount": 3800.0, "item_limit": None}], "deductible": 50}
+    body = {**CALCULATE, "items": [{"description": "Hospital bill", "amount": 3800.0, "item_limit": 0}], "deductible": 50}
     on_file = client.post(f"/claims/{CLAIM}/payout", json=body, headers=KEY).json()
     sent = decision(payout=on_file["payout"], calculation=[{"step": "A made up line", "amount": on_file["payout"]}])
     assert client.post(f"/claims/{CLAIM}/decision", json=sent, headers=KEY).status_code == 200
