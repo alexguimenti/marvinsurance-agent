@@ -1,5 +1,6 @@
 {
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 1000,
-  "notebook.output.wordWrap": true
+  "notebook.output.wordWrap": true,
+  "git.ignoredRepositories": ["C:\\Users\\alexg\\Documents\\Projects\\udemy\\FDE\\undercover_mex\\undercoverlab"]
 }

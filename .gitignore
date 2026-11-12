@@ -19,3 +19,6 @@ knowledge_mcp.log
 memory_data/
 .playwright-mcp/
 build/
+
+# The Week 3 Day 4 lab project: its own git repository, with its own .gitignore and the AgentCore secrets
+undercoverlab/
