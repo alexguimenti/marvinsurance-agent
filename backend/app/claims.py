@@ -201,7 +201,10 @@ def claim_state(engine: Engine, ref: Reference, claim_id: str) -> dict:
         ).mappings().first()
     if row is None:
         raise LookupError(f"no claim {claim_id}")
+    from app.send_back import latest_sent_back  # send_back imports payments, which imports this module
+
     decision = get_claim(engine, claim_id)["decision"]
     payment = get_payment(engine, claim_id)
     return {**row, "decision": decision, "payment": None if payment is None else payment.__dict__,
-            "needs_sign_off": needs_sign_off(engine, ref, claim_id)}
+            "needs_sign_off": needs_sign_off(engine, ref, claim_id),
+            "sent_back": latest_sent_back(engine, ref, claim_id)}

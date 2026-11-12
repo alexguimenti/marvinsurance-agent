@@ -62,4 +62,10 @@ describe("Trace: the steps of the agent's work", () => {
     await show({ name: 'undercover-app___get_claim', args: {} }, 'tool_call')
     expect(screen.getByText(/undercover-app___get_claim/)).toBeInTheDocument()
   })
+
+  it('a sent_back step shows the note and who sent the decision back', async () => {
+    await show({ note: 'Check the per-item limit', sent_back_by: 'HND-01', sent_back_by_name: 'Dana Whitfield', decision: 'approve', payout: 2000 }, 'sent_back')
+    expect(screen.getByText(/Sent back by Dana Whitfield/)).toBeInTheDocument()
+    expect(screen.getByText(/Check the per-item limit/)).toBeInTheDocument()
+  })
 })

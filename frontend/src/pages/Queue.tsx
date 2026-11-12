@@ -9,7 +9,7 @@ import PageHeader from '../components/PageHeader'
 import { ErrorState } from '../components/States'
 
 const POLL_MS = 2000
-const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'decided', 'needs_handler'] as const
+const STATUS_ORDER = ['waiting', 'in_progress', 'awaiting_approval', 'sent_back', 'decided', 'needs_handler'] as const
 
 export default function Queue() {
   const [claims, setClaims] = useState<ClaimSummary[] | null>(null)
@@ -48,7 +48,7 @@ export default function Queue() {
 
   const running = latest?.run?.status === 'running'
   // claims in progress are carried on, so there is work even with nothing waiting
-  const work = (claims ?? []).some((c) => c.status === 'waiting' || c.status === 'in_progress')
+  const work = (claims ?? []).some((c) => c.status === 'waiting' || c.status === 'in_progress' || c.status === 'sent_back')
 
   const counts = (claims ?? []).reduce<Record<string, number>>((acc, c) => {
     acc[c.status] = (acc[c.status] ?? 0) + 1

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from app import claims as claim_records
+from app.send_back import heard_from_resume, take_sent_back
 from app import configs, evaluations, improvement, runs
 from app.auth import Guards, Handler
 from app.config import Settings
@@ -157,6 +158,19 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
             return {"first_time": claim_records.hold_after_gateway_refusal(engine, ref, claim_id)}
         except ValueError as exc:
             raise HTTPException(409, str(exc))
+
+    @router.post("/claims/{claim_id}/take-sent-back", operation_id="take_sent_back_claim")
+    def take_sent_back_route(claim_id: str):
+        """Take a sent-back claim for work: sent back to in progress, once. Only the first caller gets it."""
+        known(claim_id)
+        return {"taken": take_sent_back(engine, claim_id)}
+
+    @router.post("/claims/{claim_id}/heard", operation_id="hear_from_resume")
+    def heard(claim_id: str):
+        """Say that the agent is still working a resumed claim."""
+        known(claim_id)
+        heard_from_resume(engine, claim_id)
+        return {"claim_id": claim_id}
 
     @router.post("/claims/{claim_id}/take", operation_id="take_claim")
     def take(claim_id: str, body: Take):

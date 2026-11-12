@@ -50,6 +50,16 @@ def hold(claim_id: str) -> bool:
     return call("POST", f"/api/agent/claims/{claim_id}/hold")["first_time"]
 
 
+def take_sent_back(claim_id: str) -> bool:
+    """Take a sent-back claim for work, once: True only for the first caller."""
+    return call("POST", f"/api/agent/claims/{claim_id}/take-sent-back")["taken"]
+
+
+def heard(claim_id: str) -> None:
+    """Say that a resume is still working the claim."""
+    call("POST", f"/api/agent/claims/{claim_id}/heard")
+
+
 def take(claim_id: str, run_id: int | None) -> dict:
     return call("POST", f"/api/agent/claims/{claim_id}/take", json={"run_id": run_id})
 

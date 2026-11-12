@@ -13,6 +13,7 @@ from langgraph.types import Command
 
 from agent import api
 from agent.checkpoints import Checkpoints, make_checkpoints
+from agent.heartbeat import heartbeat
 from agent.graph import build_claim_graph
 from agent.memory import open_store
 from agent.route import make_route
@@ -288,23 +289,31 @@ def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
 
 
 def resume_refusal(env: AgentEnv, claim_id: str) -> str | None:
-    """Why a claim cannot be resumed, or None when it can: only a claim whose thread is paused, waiting for an answer."""
+    """Why a claim cannot be resumed, or None when it can: only a claim whose thread is paused, waiting for an answer. A
+    sent-back claim is taken for work here, once: a second caller is refused."""
     try:
         paused = claim_paused(env, claim_id)
+        status = api.claim_state(claim_id)["status"]
     except LookupError:
         return f"there is no claim {claim_id}"
-    return None if paused else f"{claim_id} is not waiting for a handler's answer"
+    if not paused:
+        return f"{claim_id} is not waiting for a handler's answer"
+    if status == "sent_back" and not api.take_sent_back(claim_id):
+        return f"{claim_id} is already being worked"
+    return None
 
 
-def resume(env: AgentEnv, claim_id: str) -> str:
-    """Resume a paused claim with the handler's answer, read from the app's record, outside any run. The node that paused
-    finds the claim paid and the work ends; a claim still waiting pauses again."""
+def resume(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
+    """Resume a paused claim with the handler's answer, read from the app's record. The node that paused finds the claim
+    paid and the work ends, or sent back, and the agent decides again; a claim still waiting pauses again. While it works it
+    tells the app every minute, so a dispatch leaves the claim alone."""
     claim = api.claim_state(claim_id)
     with env.working(claim_id) as free:
         if not free:
             return f"{claim_id}: not worked, it is already being worked."
-        return _drive(env, claim_id, claim["thread_id"], None, claim["attempts"] + 1, env.settings.agent_max_attempts,
-                      Command(resume=RESUME))
+        with heartbeat(lambda: api.heard(claim_id)):
+            return _drive(env, claim_id, claim["thread_id"], run_id, claim["attempts"] + 1, env.settings.agent_max_attempts,
+                          Command(resume=RESUME))
 
 
 def work(env: AgentEnv, claim_id: str, run_id: int | None) -> str:
@@ -316,6 +325,16 @@ def work(env: AgentEnv, claim_id: str, run_id: int | None) -> str:
         return f"{claim_id}: not worked, there is no such claim."
     if status == "waiting":
         line = work_claim(env, claim_id, run_id, env.settings.agent_max_attempts)
+    elif status == "sent_back":  # a send back the agent never received: this dispatch takes it, with the note
+        reason = resume_refusal(env, claim_id)
+        if reason is None:
+            line = resume(env, claim_id, run_id)
+        elif api.claim_state(claim_id)["status"] == "sent_back" or "already being worked" in reason:
+            line = f"{claim_id}: not worked, {reason}."
+        else:  # taken, but its thread is not paused any more: start it again as a new attempt
+            claim = api.claim_state(claim_id)
+            line = _fail(env, claim_id, claim["thread_id"], run_id, claim["attempts"] + 1, env.settings.agent_max_attempts,
+                         ValueError("the saved progress was not waiting for the handler's note"))
     else:
         line = carry_on(env, claim_id, run_id)  # it leaves alone anything it cannot carry on, and says so
     _clear_finished_copy(env, claim_id)

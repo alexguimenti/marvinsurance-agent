@@ -25,6 +25,7 @@ from app.db import (
     make_engine,
     payments,
     plain,
+    sent_back_decisions,
     trace_events,
     warm_up,
 )
@@ -32,6 +33,7 @@ from app.documents import Documents
 from app.payments import NotWaiting, OverLimit, SignOffRequired, pay_claim as pay_the_claim, sign_off
 from app.payout import LineItem, calculate_payout
 from app.section14 import Section14Refused, request_problem
+from app.send_back import send_back as send_the_claim_back
 from app.reference import Reference
 from app.scoring import evaluation_report, list_evaluations
 from app.improvement import get_round as get_round_row, list_rounds as list_round_rows, round_report, stop_round as stop_round_row, version_scores
@@ -74,6 +76,10 @@ class DecisionIn(BaseModel):
 
 class PaymentIn(BaseModel):
     amount: float
+
+
+class SendBack(BaseModel):
+    note: str = Field(min_length=1, max_length=1000)  # what the handler wants the agent to look at again
 
 
 class SettingValue(BaseModel):
@@ -185,6 +191,20 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
                     entry["lookups"].append(lookup)
         return list(files.values())
 
+    def sent_back_view(claim_id: str) -> list[dict]:
+        """Each decision sent back on a claim, newest first, with its note, who sent it back and when."""
+        with engine.connect() as conn:
+            rows = conn.execute(select(sent_back_decisions).where(sent_back_decisions.c.claim_id == claim_id)
+                                .order_by(sent_back_decisions.c.id.desc())).mappings().all()
+        out = []
+        for r in rows:
+            handler = next((h for h in ref.handlers if h["handler_id"] == r["sent_back_by"]), None)
+            out.append({"decision": r["decision"], "payout": r["payout"], "calculation": claim_records.calculation_of(r),
+                        "rationale": r["rationale"], "citations": json.loads(r["citations"]), "decided_by": r["decided_by"],
+                        "decided_at": iso(r["decided_at"]), "note": r["note"], "sent_back_by": r["sent_back_by"],
+                        "sent_back_by_name": handler["name"] if handler else r["sent_back_by"], "sent_back_at": iso(r["sent_back_at"])})
+        return out
+
     def payment_view(payment: Mapping | None) -> dict | None:
         if payment is None:
             return None
@@ -265,6 +285,8 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             "payment": payment_view(payment),
             "usage": usage,
             "context_used": context_used(steps),
+            "sent_back": sent_back_view(claim_id),
+            "waiting_for_next_dispatch": row["status"] == "sent_back",
         }
 
     @shared.get("/claims/{claim_id}/policy", operation_id="get_policy")
@@ -495,6 +517,22 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             agent_client.resume_claim(http, settings.agent_url, claim_id, settings.api_key)
         except Exception as exc:
             log.warning("could not ask the agent to resume %s: %s", claim_id, exc)
+
+    @router.post("/claims/{claim_id}/send-back", operation_id="send_back_claim")
+    def send_back_route(claim_id: str, body: SendBack, handler: Handler = Depends(signed_in)):
+        """Send a claim waiting for sign-off back to the agent with a note, and ask the agent to decide it again."""
+        try:
+            send_the_claim_back(engine, ref, claim_id, body.note, handler.handler_id)
+        except LookupError:
+            raise HTTPException(404, f"unknown claim {claim_id}")
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc))
+        except NotWaiting as exc:
+            raise HTTPException(409, str(exc))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        ask_the_agent_to_resume(claim_id)  # a send back it never receives is worked by the next dispatch
+        return get_claim(claim_id)
 
     @router.post("/payments/{payment_id}/approve", operation_id="sign_off_payment")
     def approve(payment_id: str, handler: Handler = Depends(signed_in)):

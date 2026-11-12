@@ -471,3 +471,14 @@ pre.json { margin: 10px 0 4px; padding: 14px 16px; max-height: 320px; overflow: 
 .trace .trace-refusal { margin: 6px 0 6px -12px; padding: 10px 16px 10px 12px; background: var(--no-tint); border-radius: var(--radius-md); }
 .trace .trace-refusal .kind, .trace .trace-refusal .body { color: var(--no); }
 .trace .trace-refusal::before { left: -14px; top: 17px; }
+
+/* sent back: the sign-off panel's buttons and note, and the decisions that were sent back */
+.badge-sent_back { background: var(--accent-tint); color: var(--accent-deep); }
+.badge-sent_back::before { background: var(--accent); opacity: 1; }
+.tile-sent_back .tile-n { color: var(--accent-deep); }
+.review { margin-top: 14px; display: grid; gap: 12px; }
+.send-back { display: grid; gap: 8px; max-width: 560px; }
+.send-back label { display: grid; gap: 6px; font-weight: 500; }
+.send-back textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); }
+.error-text { color: var(--no); }
+.sent-back + .sent-back { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-strong); }

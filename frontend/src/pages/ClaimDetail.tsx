@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getClaim, type ClaimDetailData } from '../api'
+import { ApiError, approvePayment, getClaim, sendBack, type ClaimDetailData } from '../api'
+import { useAuth } from '../auth/context'
 import StatusBadge from '../components/StatusBadge'
 import { capitalize, describeLookup, describeUsage, formatTime, formatUsd, humanize, stampFor } from '../format'
 import { usePolling } from '../usePolling'
@@ -8,6 +9,7 @@ import Trace from './Trace'
 import PageHeader from '../components/PageHeader'
 import { ErrorState, Loading } from '../components/States'
 
+const MAX_NOTE = 1000
 const POLL_MS = 2000
 const POLL_WORKING_MS = 1000
 
@@ -15,6 +17,21 @@ export default function ClaimDetail() {
   const { id = '' } = useParams()
   const [data, setData] = useState<ClaimDetailData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { handler } = useAuth()
+  const [sending, setSending] = useState(false) // the Send back form is open
+  const [note, setNote] = useState('')
+
+  async function answer(what: () => Promise<unknown>, failed: string) {
+    setError(null)
+    try {
+      await what()
+      setSending(false)
+      setNote('')
+      setData(await getClaim(id))
+    } catch (e) {
+      setError(e instanceof ApiError && e.status === 409 ? 'This claim is no longer waiting for a sign-off.' : failed)
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -63,7 +80,43 @@ export default function ClaimDetail() {
             ? `the Gateway refused the payment of ${formatUsd(payment.amount)}, so it waits for a handler.`
             : `the payout of ${formatUsd(payment.amount)} is above the $1,000 limit and waits for a handler.`}{' '}
           <Link to="/approvals">Go to approvals</Link>
+          {handler.can_approve_over_limit && payment && (
+            <div className="review">
+              <div className="row">
+                <button className="btn btn-accent" onClick={() => answer(() => approvePayment(payment.payment_id), 'Could not sign off the payment.')}>
+                  Sign off
+                </button>
+                <button className="btn btn-secondary" aria-expanded={sending} onClick={() => setSending(!sending)}>
+                  Send back
+                </button>
+              </div>
+              {sending && (
+                <form
+                  className="send-back"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    void answer(() => sendBack(id, note.trim()), 'Could not send the claim back.')
+                  }}
+                >
+                  <label>
+                    Note for the agent
+                    <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
+                  </label>
+                  <p className={note.length > MAX_NOTE ? 'small error-text' : 'small muted'}>
+                    {note.length > MAX_NOTE ? `${MAX_NOTE.toLocaleString('en-US')} characters at most` : `${note.length} of ${MAX_NOTE.toLocaleString('en-US')} characters`}
+                  </p>
+                  <button className="btn btn-accent" type="submit" disabled={!note.trim() || note.length > MAX_NOTE}>
+                    Send it back
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
         </div>
+      )}
+
+      {data.waiting_for_next_dispatch && (
+        <div className="notice">Sent back to the agent with a note. It is waiting for the next dispatch.</div>
       )}
 
       {payment?.status === 'paid' && payment.approved_by && (
@@ -181,6 +234,24 @@ export default function ClaimDetail() {
               <p className="muted">No decision yet.</p>
             )}
           </div>
+
+          {data.sent_back && data.sent_back.length > 0 && (
+            <div className="card pad">
+              <h3>Sent back</h3>
+              {data.sent_back.map((b, i) => (
+                <div key={i} className="sent-back">
+                  <p className="muted small">
+                    Sent back by {b.sent_back_by_name}
+                    {b.sent_back_at && <> on {formatTime(b.sent_back_at)}</>}
+                  </p>
+                  <p>{b.note}</p>
+                  <p className="muted small">
+                    The decision sent back: {b.decision} <span className="sent-back-payout">{formatUsd(b.payout)}</span>. {b.rationale}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
 
           {data.context_used && data.context_used.length > 0 && (
             <div className="card pad">

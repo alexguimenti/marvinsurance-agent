@@ -162,6 +162,14 @@ describe('Queue', () => {
     expect(await screen.findByText(/could not load/i)).toBeInTheDocument()
   })
 
+  it('shows a sent-back claim with its status, and counts it', async () => {
+    mockApi({ '/api/dispatches/latest': NO_RUN, '/api/claims': [claim('CLM-1', 'sent_back'), claim('CLM-2', 'sent_back')] })
+    renderAt(<Queue />, '/')
+    await screen.findByText('CLM-1')
+    expect(within(screen.getByRole('group', { name: 'Sent back' })).getByText(/^\d+$/).textContent).toBe('2')
+    expect(screen.getAllByText('Sent back', { selector: '.badge' })).toHaveLength(2)
+  })
+
   it('summarizes the queue in one tile per status', async () => {
     mockApi({
       '/api/dispatches/latest': NO_RUN,

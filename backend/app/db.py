@@ -49,6 +49,7 @@ claims = Table(
     Column("submitted_on", Text),  # the dispatcher works the oldest first
     Column("copy_of", Text),  # an evaluation's copy: the claim it copies. Copies never show in the queue
     Column("evaluation_id", Integer),
+    Column("resume_heard_at", DateTime(timezone=True)),  # the last word from the agent's resume of this claim
 )
 
 decisions = Table(
@@ -73,6 +74,24 @@ documents = Table(
     Column("version", Text, nullable=False),  # from the document's front matter
     Column("source", Text, nullable=False),  # JSON: the system it comes from, its owner and when it was reviewed
     Column("text", Text, nullable=False),  # the document without its front matter
+)
+
+# A decision a senior handler sent back, kept with the note, who sent it back and when. The claim's current decision is cleared.
+sent_back_decisions = Table(
+    "sent_back_decisions", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("claim_id", Text, nullable=False),
+    Column("decision", Text, nullable=False),
+    Column("payout", Float, nullable=False),
+    Column("calculation", Text, nullable=False),
+    Column("rationale", Text, nullable=False),
+    Column("citations", Text, nullable=False),
+    Column("decided_by", Text, nullable=False),
+    Column("manual_version", Text),
+    Column("decided_at", DateTime(timezone=True)),
+    Column("note", Text, nullable=False),
+    Column("sent_back_by", Text, nullable=False),
+    Column("sent_back_at", DateTime(timezone=True), server_default=func.now()),
 )
 
 payout_calculations = Table(

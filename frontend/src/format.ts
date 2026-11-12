@@ -6,6 +6,7 @@ export const STATUS_LABEL: Record<string, string> = {
   waiting: 'Waiting',
   in_progress: 'In progress',
   awaiting_approval: 'Awaiting approval',
+  sent_back: 'Sent back',
   decided: 'Decided',
   needs_handler: 'Needs a handler',
 }

@@ -15,3 +15,12 @@ def section_index(sections: dict[str, list[dict]]) -> str:
     for document, label in LABELS.items():
         lines.append(f"{label}: " + "; ".join(f"{s['section']}. {s['title']}" for s in sections[document]))
     return "\n".join(lines)
+
+
+def send_back_message(note: str, handler_name: str) -> str:
+    """What the claim agent is told when a senior handler sends its decision back. It is part of the agent's code, not its
+    instructions, so a new version of the instructions cannot drop how to treat the note."""
+    return (f"{handler_name}, a senior claims handler, sent your decision back for review with this note: \"{note}\". "
+            "Treat it as a senior handler's review of the decision: check what it asks against the policy wording and the claims "
+            "manual like everything else. If the wording does not support what the note asks, refer the claim to a handler and "
+            "give the reason. Record a new decision.")

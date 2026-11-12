@@ -178,7 +178,8 @@ class StubModel(BaseChatModel):
             del self.current[claim_id]
             raise step
         if isinstance(step, dict):
-            del self.current[claim_id]
+            if turn >= len(steps) - 1:  # the last step ends the script: a decision with steps after it is sent back and made again
+                del self.current[claim_id]
             step = tool_call("record_decision", step, f"save-{self.calls}")
         step = step.model_copy(update={
             "usage_metadata": {"input_tokens": 50, "output_tokens": 5, "total_tokens": 55,

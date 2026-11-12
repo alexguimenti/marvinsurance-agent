@@ -140,6 +140,14 @@ function Row({ event }: { event: TraceEvent }) {
         </span>
       )
       break
+    case 'sent_back':
+      body = (
+        <span className="body">
+          <span>Sent back by {c.sent_back_by_name ?? c.sent_back_by}</span>
+          <span className="muted"> — {String(c.note)}</span>
+        </span>
+      )
+      break
     case 'refusal':
       body = (
         <span className="body">

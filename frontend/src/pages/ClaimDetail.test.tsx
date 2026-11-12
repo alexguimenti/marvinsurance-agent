@@ -1,6 +1,7 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { mockApi, renderAt } from '../testUtils'
+import { MARCUS, mockApi, renderAt } from '../testUtils'
 import ClaimDetail from './ClaimDetail'
 
 const detail = (status: string, payment: unknown = null) => ({
@@ -222,5 +223,75 @@ describe('ClaimDetail', () => {
     renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
     expect(await screen.findByText('Approve')).toBeInTheDocument()
     expect(screen.queryByText('Pending sign-off')).not.toBeInTheDocument()
+  })
+
+  describe('a claim waiting for sign-off', () => {
+    const held = { payment_id: 'PAY-1', status: 'held', amount: 1150, hold_reason: 'over_limit' }
+
+    it('shows a senior handler Sign off and Send back; Marcus sees neither', async () => {
+      mockApi(routes('awaiting_approval', held))
+      const { unmount } = renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+      expect(await screen.findByRole('button', { name: 'Sign off' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Send back' })).toBeInTheDocument()
+      unmount()
+      mockApi(routes('awaiting_approval', held))
+      renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id', MARCUS)
+      await screen.findByText(/held for approval/i)
+      expect(screen.queryByRole('button', { name: 'Sign off' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Send back' })).not.toBeInTheDocument()
+    })
+
+    it('Send back needs a note, at most 1,000 characters, and posts it', async () => {
+      const { calls } = mockApi({
+        ...routes('awaiting_approval', held),
+        'POST /api/claims/CLM-1011/send-back': { ...detail('sent_back'), decision: null },
+      })
+      renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+      await userEvent.click(await screen.findByRole('button', { name: 'Send back' }))
+      const send = screen.getByRole('button', { name: 'Send it back' })
+      expect(send).toBeDisabled() // no note yet
+      const note = screen.getByLabelText(/note for the agent/i)
+      await userEvent.type(note, 'Check the per-item limit')
+      expect(send).toBeEnabled()
+      await userEvent.clear(note)
+      await userEvent.paste('x'.repeat(1001))
+      expect(screen.getByText(/1,000 characters at most/i)).toBeInTheDocument()
+      expect(send).toBeDisabled()
+      await userEvent.clear(note)
+      await userEvent.type(note, 'Check the per-item limit')
+      await userEvent.click(send)
+      await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ note: 'Check the per-item limit' }))
+    })
+
+    it('Sign off posts the sign-off', async () => {
+      const { calls } = mockApi({
+        ...routes('awaiting_approval', held),
+        'POST /api/payments/PAY-1/approve': { payment_id: 'PAY-1', status: 'paid' },
+      })
+      renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+      await userEvent.click(await screen.findByRole('button', { name: 'Sign off' }))
+      await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url === '/api/payments/PAY-1/approve')).toBe(true))
+    })
+  })
+
+  it('shows each decision that was sent back with its note, who and when, beside the current decision', async () => {
+    const sentBack = {
+      decision: 'approve', payout: 2000, calculation: { lines: [{ step: 'Tuxedo', amount: 2000 }], payout: 2000 },
+      rationale: 'Covered under section 5.', citations: [], decided_by: 'UnderCover Agent, configuration version 1',
+      decided_at: '2026-11-04T15:00:09+00:00', note: 'Check the per-item limit', sent_back_by: 'HND-01',
+      sent_back_by_name: 'Dana Whitfield', sent_back_at: '2026-11-04T16:00:00+00:00',
+    }
+    mockApi({ ...routes('decided', { payment_id: 'PAY-1', status: 'paid', amount: 1150 }), '/api/claims/CLM-1011': { ...detail('decided', { payment_id: 'PAY-1', status: 'paid', amount: 1150 }), sent_back: [sentBack] } })
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByRole('heading', { name: 'Sent back' })).toBeInTheDocument()
+    expect(screen.getByText(/Check the per-item limit/)).toBeInTheDocument()
+    expect(screen.getByText(/Sent back by Dana Whitfield/)).toBeInTheDocument()
+    expect(screen.getByText('$2,000.00', { selector: '.sent-back-payout' })).toBeInTheDocument()
+  })
+
+  it('says a sent-back claim is waiting for the next dispatch', async () => {
+    mockApi({ ...routes('sent_back'), '/api/claims/CLM-1011': { ...detail('sent_back'), decision: null, waiting_for_next_dispatch: true, sent_back: [] } })
+    renderAt(<ClaimDetail />, '/claims/CLM-1011', '/claims/:id')
+    expect(await screen.findByText(/waiting for the next dispatch/i)).toBeInTheDocument()
   })
 })

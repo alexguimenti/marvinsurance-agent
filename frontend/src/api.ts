@@ -1,4 +1,4 @@
-export type Status = 'waiting' | 'in_progress' | 'awaiting_approval' | 'decided' | 'needs_handler'
+export type Status = 'waiting' | 'in_progress' | 'awaiting_approval' | 'sent_back' | 'decided' | 'needs_handler'
 
 export interface ClaimSummary {
   claim_id: string
@@ -64,6 +64,21 @@ export interface Payment {
   hold_reason?: 'over_limit' | 'gateway_refused' | null
 }
 
+/** A decision a senior handler sent back, with the note, who sent it back and when. */
+export interface SentBack {
+  decision: 'approve' | 'decline' | 'refer'
+  payout: number
+  calculation: Calculation | null
+  rationale: string
+  citations: string[]
+  decided_by: string
+  decided_at: string | null
+  note: string
+  sent_back_by: string
+  sent_back_by_name: string
+  sent_back_at: string | null
+}
+
 export interface ClaimDetailData {
   status: Status
   claim: {
@@ -86,6 +101,8 @@ export interface ClaimDetailData {
   attempts: number
   last_error: string | null
   context_used: ContextUsed[]
+  sent_back?: SentBack[] // newest first
+  waiting_for_next_dispatch?: boolean // sent back, and the agent has not taken it yet
   copy_of?: string | null // set on an evaluation's copy: the claim it copies
   evaluation_id?: number | null
 }
@@ -225,6 +242,7 @@ export const getLatestDispatch = () => request<LatestDispatch>('/dispatches/late
 export const listApprovals = () => request<Approval[]>('/approvals')
 export const getMe = () => request<Me>('/me')
 export const approvePayment = (id: string) => request<Payment>(`/payments/${id}/approve`, post())
+export const sendBack = (claimId: string, note: string) => request<ClaimDetailData>(`/claims/${claimId}/send-back`, post({ note }))
 
 /** The scoreboard's measures for one evaluation. Shares are 0 to 1; none when there were no claims. */
 export interface Measures {

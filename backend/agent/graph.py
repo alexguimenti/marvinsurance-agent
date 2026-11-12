@@ -29,7 +29,7 @@ from agent.connection import Refused
 from agent.events import GATEWAY_REFUSAL, Usage, call_usage, emit_message, rationale_warnings
 from agent.gateway import GatewayRefused
 from agent.mcp_bridge import ToolRefused
-from agent.prompts import LABELS, claim_prompt, section_index
+from agent.prompts import LABELS, claim_prompt, section_index, send_back_message
 from agent.route import Route
 from agent.screening import screen_claim
 from agent.tools import NOT_OFFERED, PREFETCHED, build_tools, claim_data
@@ -218,6 +218,12 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         current = api.claim_state(state.claim_id)
         if (current["payment"] or {}).get("status") == "paid":
             return {"settled": "paid"}
+        note = current["sent_back"]
+        if current["decision"] is None and current["status"] == "in_progress" and note is not None:
+            # sent back: the earlier decision is forgotten first, so nothing can pay it, and the claim agent has its full
+            # allowance of model calls again. It works on until it records a new decision.
+            return {"settled": "sent_back", "proposal": None, "decision": None, "model_calls": 0,
+                    "messages": [HumanMessage(send_back_message(note["note"], note["sent_back_by_name"]))]}
         return {"settled": "held"}
 
     def after_model(state: ClaimState) -> str:
@@ -233,7 +239,7 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         return {"paid": "remember", "held": "wait_for_sign_off"}.get(state.settled, END)
 
     def after_wait(state: ClaimState) -> str:
-        return "remember" if state.settled == "paid" else "wait_for_sign_off"
+        return {"paid": "remember", "sent_back": "model"}.get(state.settled, "wait_for_sign_off")
 
     builder = StateGraph(ClaimState)
     builder.add_node("screen", screen)
@@ -253,6 +259,6 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
     builder.add_conditional_edges("tools_done", after_tools, ["model", "decide"])
     builder.add_conditional_edges("decide", after_decide, ["pay", "remember"])
     builder.add_conditional_edges("pay", after_pay, ["remember", "wait_for_sign_off", END])
-    builder.add_conditional_edges("wait_for_sign_off", after_wait, ["remember", "wait_for_sign_off"])
+    builder.add_conditional_edges("wait_for_sign_off", after_wait, ["remember", "model", "wait_for_sign_off"])
     builder.add_edge("remember", END)
     return builder.compile(checkpointer=checkpointer)

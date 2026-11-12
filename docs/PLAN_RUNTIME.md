@@ -159,7 +159,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
 
   > "{handler_name}, a senior claims handler, sent your decision back for review with this note: \"{note}\". Treat it as a senior handler's review of the decision: check what it asks against the policy wording and the claims manual like everything else. If the wording does not support what the note asks, refer the claim to a handler and give the reason. Record a new decision."
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_send_back_refusals`, parametrized:
     - a blank note gets 422;
     - a note of 1,001 characters gets 422;
@@ -175,9 +175,9 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - `test_a_send_back_the_agent_never_received_is_worked_by_the_next_dispatch`: send back with the agent's call failing, then `dispatch(env, run_id, 1)`. The claim is decided again.
   - `test_a_claim_can_be_sent_back_twice`
   - `test_the_note_is_in_code_not_in_the_versioned_instructions`
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** In `instructions_claim.md`, change only the sentence that says a decision cannot be changed: a decision can be sent back by a senior handler.
-- [ ] **Step 4: Run them again,** with the tests of the graph, the worker, the dispatcher, the API and payments. Expected: PASS.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** In `instructions_claim.md`, change only the sentence that says a decision cannot be changed: a decision can be sent back by a senior handler.
+- [x] **Step 4: Run them again,** with the tests of the graph, the worker, the dispatcher, the API and payments. Expected: PASS.
 
 ### Task 4: The dashboard: Sign off and Send back; sent-back decisions on the claim page
 
@@ -191,7 +191,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - `backend/app/api.py`: `GET /claims/{id}` adds `sent_back: [...]`, newest first, and `waiting_for_next_dispatch: bool`, which is True when the status is `sent_back`.
 - Test: `frontend/src/pages/ClaimDetail.test.tsx`, `frontend/src/pages/Queue.test.tsx`, `frontend/src/pages/TraceSteps.test.tsx`, `backend/tests/test_send_back.py`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `a senior handler sees Sign off and Send back on a claim waiting for sign-off; Marcus sees neither`
   - `Send back needs a note and posts it`: the button is disabled while the note is blank; typing 1,001 characters shows "1,000 characters at most"; the POST body is `{note}`.
   - `the claim page shows each sent-back decision with its note, who and when, beside the current one`
@@ -199,8 +199,8 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - In Queue: `shows a sent-back claim with its status`.
   - In Trace: `a sent_back step shows the note`.
   - In the backend: `test_claim_detail_lists_sent_back_decisions_newest_first`.
-- [ ] **Step 2: Run them, implement, run them again.** Run `npx vitest run src/pages`, `npx tsc -b` and `npx oxlint --deny-warnings src`. Expected: PASS and clean.
-- [ ] **Step 3: Run the whole backend suite and the e2e.** Then commit the phase: `feat: a senior handler signs off or sends back a large approval`.
+- [x] **Step 2: Run them, implement, run them again.** Run `npx vitest run src/pages`, `npx tsc -b` and `npx oxlint --deny-warnings src`. Expected: PASS and clean.
+- [x] **Step 3: Run the whole backend suite and the e2e.** Then commit the phase: `feat: a senior handler signs off or sends back a large approval`.
 
 ---
 

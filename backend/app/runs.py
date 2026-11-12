@@ -87,14 +87,20 @@ def _queue_claims():
 
 
 def claims_to_dispatch(engine: Engine) -> list[str]:
-    """Every claim left in progress, then every waiting claim, each oldest submitted first."""
+    """Every claim left in progress (leaving out one a resume has told the app, in the last five minutes, that it is
+    working), then every sent-back claim (a send back the agent never received), then every waiting claim, each oldest
+    submitted first."""
+    from app.send_back import held_by_a_resume
+
     order = (claims.c.submitted_on, claims.c.claim_id)
     with engine.connect() as conn:
         in_progress = conn.execute(
-            _queue_claims().where(claims.c.status == "in_progress", claims.c.thread_id.is_not(None)).order_by(*order)
-        ).scalars().all()
+            select(claims.c.claim_id, claims.c.resume_heard_at)
+            .where(claims.c.copy_of.is_(None), claims.c.status == "in_progress", claims.c.thread_id.is_not(None)).order_by(*order)
+        ).all()
+        sent_back = conn.execute(_queue_claims().where(claims.c.status == "sent_back").order_by(*order)).scalars().all()
         waiting = conn.execute(_queue_claims().where(claims.c.status == "waiting").order_by(*order)).scalars().all()
-    return [*in_progress, *waiting]
+    return [*(c for c, heard in in_progress if not held_by_a_resume(heard)), *sent_back, *waiting]
 
 
 def add_run_claims(engine: Engine, run_id: int, claim_ids: list[str]) -> None:
