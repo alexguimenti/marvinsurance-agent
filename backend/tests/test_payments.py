@@ -7,7 +7,7 @@ from app.db import init_schema
 from app.payments import get_payment, pay, sign_off
 from app.reference import Reference
 from app.seed import seed_claims
-from tests.fakes import record_decision, MINT, TEST_KEY, api_client, approve, connect
+from tests.fakes import RawDb, record_decision, MINT, TEST_KEY, api_client, approve, connect
 
 
 @pytest.fixture
@@ -30,6 +30,7 @@ def test_exactly_the_limit_is_paid_without_a_sign_off(engine, ref):
 
 
 def test_a_cent_over_the_limit_waits(engine, ref):
+    RawDb(engine).execute("UPDATE claims SET status = 'in_progress' WHERE claim_id = 'CLM-1001'")
     record_decision(engine, ref, "CLM-1001", approve(1000.01), "m")
     hold_for_sign_off(engine, ref, "CLM-1001")
     assert get_payment(engine, "CLM-1001").status == "held"

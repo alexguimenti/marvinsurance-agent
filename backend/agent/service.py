@@ -16,7 +16,7 @@ from agent import api, improver
 from agent.connection import Refused, call
 from agent import improver_api as rounds
 from agent.dispatcher import dispatch
-from agent.worker import AgentEnv, open_env
+from agent.worker import AgentEnv, open_env, resume, resume_refusal
 from app.config import Settings, get_settings
 from app.auth import key_matches
 
@@ -203,6 +203,16 @@ def create_service(settings: Settings, inline: bool = False) -> FastAPI:
 
         in_background(f"decision on round {round_id}", go)
         return {"status": "decided", "round_id": round_id}
+
+    @guarded.post("/claims/{claim_id}/resume", status_code=202, operation_id="resume_claim")
+    def resume_claim(claim_id: str):
+        """Resume a claim paused for a sign-off, with the handler's answer from the app's record, beside any run."""
+        env = holder["env"]
+        reason = resume_refusal(env, claim_id)
+        if reason:
+            raise HTTPException(409, reason)
+        in_background(f"resume {claim_id}", resume, env, claim_id)  # never takes the one-at-a-time lock
+        return {"status": "resuming", "claim_id": claim_id}
 
     app.include_router(guarded)
     return app

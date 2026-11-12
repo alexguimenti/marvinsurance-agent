@@ -35,3 +35,9 @@ def start(http, url: str, path: str, body: dict, key: str | None) -> dict:
             detail = answer.text or "the agent refused the run"
         raise AgentRefused(answer.status_code, str(detail))
     return answer.json()
+
+
+def resume_claim(http, url: str, claim_id: str, key: str | None) -> dict:
+    """Ask the service to resume a claim paused for a sign-off. It answers at once. A refusal or an unreachable service is
+    raised as `start` raises it: the caller logs it and goes on."""
+    return start(http, url, f"/claims/{claim_id}/resume", {}, key)

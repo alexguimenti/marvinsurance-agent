@@ -87,10 +87,14 @@ def test_nothing_is_saved_for_an_evaluations_copy(db_path, data_dir, monkeypatch
 
 
 def test_a_restarted_claim_saves_once(worked):
+    from agent.worker import resume
+
     store = FakeMemoryStore()
-    worked_line, env, _ = worked(BIG, approve(2000.0), store)  # over the limit: held for a sign-off, paused after remembering
-    assert len(store.puts) == 2
+    worked_line, env, _ = worked(BIG, approve(2000.0), store)  # over the limit: held for a sign-off, paused
+    assert store.puts == []  # the work has not ended: it is remembered when it does
     sign_off(env.engine, env.ref, f"PAY-{BIG}", "HND-01")
+    resume(env, BIG)
+    assert len(store.puts) == 2
     carry_on(env, BIG)
     assert len(store.puts) == 2
 

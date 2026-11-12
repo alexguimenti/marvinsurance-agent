@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -28,7 +29,7 @@ from app.db import (
     warm_up,
 )
 from app.documents import Documents
-from app.payments import OverLimit, SignOffRequired, pay_claim as pay_the_claim, sign_off
+from app.payments import NotWaiting, OverLimit, SignOffRequired, pay_claim as pay_the_claim, sign_off
 from app.payout import LineItem, calculate_payout
 from app.section14 import Section14Refused, request_problem
 from app.reference import Reference
@@ -43,6 +44,9 @@ from app.usage import claim_totals, run_totals
 GATEWAY_OPERATIONS = frozenset({
     "get_claim", "get_policy", "get_claim_history", "calculate_payout", "record_decision", "pay_claim",
 })
+
+log = logging.getLogger(__name__)
+
 
 class PayoutBody(BaseModel):
     items: list[LineItem]
@@ -484,6 +488,14 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         """Say who is signed in and whether they can sign off payouts over the limit."""
         return handler_view(handler)
 
+    def ask_the_agent_to_resume(claim_id: str) -> None:
+        """Ask the agent to resume a claim whose answer the app has just recorded. Whatever happens to the call, what was
+        recorded stands: a failure is logged, and the claim waits for the agent's next dispatch or a resume."""
+        try:
+            agent_client.resume_claim(http, settings.agent_url, claim_id, settings.api_key)
+        except Exception as exc:
+            log.warning("could not ask the agent to resume %s: %s", claim_id, exc)
+
     @router.post("/payments/{payment_id}/approve", operation_id="sign_off_payment")
     def approve(payment_id: str, handler: Handler = Depends(signed_in)):
         """Record a handler's sign-off and pay the claim, once."""
@@ -493,7 +505,10 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
             raise HTTPException(404, f"unknown payment {payment_id}")
         except PermissionError as exc:
             raise HTTPException(403, str(exc))
-        return asdict(payment)
+        except NotWaiting as exc:
+            raise HTTPException(409, str(exc))
+        ask_the_agent_to_resume(payment.claim_id)
+        return {**asdict(payment), "claim": get_claim(payment.claim_id)}
 
     app.include_router(public)
     app.include_router(agent_only)

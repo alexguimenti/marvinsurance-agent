@@ -99,6 +99,7 @@ Notes:
 - After a reseed, thread names repeat, so an old Langfuse session gains new traces.
 - `AGENT_MODEL` is still read, from the field's name, but `MODEL_NAME` wins over it.
 - Stopping `npm run dev` with Ctrl-C was not exercised by a real keypress; stopping when one part dies was.
+- A sign-off or a send back the agent never heard of (the call failed or timed out) stands, but the claim's thread stays paused, and a signed-off claim is not saved to memory. A sent-back claim is worked by the next dispatch; a signed-off one is not resumed by anything, since nothing is left to decide.
 
 ## Not built
 

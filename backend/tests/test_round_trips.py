@@ -3,9 +3,10 @@ seconds. These tests keep the path from the sign-off to the payment short."""
 from contextlib import contextmanager
 
 import pytest
+from langgraph.types import Command
 from sqlalchemy import event
 
-from agent.worker import invoke, work_claim
+from agent.worker import RESUME, invoke, work_claim
 from app.claims import needs_sign_off
 from app.config import Settings
 from app.db import make_engine, warm_up
@@ -53,18 +54,18 @@ def test_a_sign_off_pays_in_three_statements(held):
     with statements(held.engine) as seen:
         payment = sign_off(held.engine, held.ref, f"PAY-{CLAIM}", "HND-01")
     assert payment.status == "paid" and len(seen) == 3
-    assert "UPDATE payments" in seen[0]
+    assert "UPDATE claims" in seen[0]  # the claim's one conditional update comes first: it decides who may sign off
 
 
 def test_a_paused_claim_saves_no_checkpoint_before_it_is_paid(held):
-    """A saved step is several more trips: waiting and paying are one step, so nothing is saved in between."""
+    """A saved step is several more trips: the pause is a node of its own and saves nothing while it waits."""
     config = {"configurable": {"thread_id": f"{CLAIM}-1"}}
-    assert held.graph.get_state(config).next == ("pay",)
+    assert held.graph.get_state(config).next == ("wait_for_sign_off",)
     before = len(list(held.graph.checkpointer.list(config)))
     sign_off(held.engine, held.ref, f"PAY-{CLAIM}", "HND-01")
-    invoke(held, CLAIM, f"{CLAIM}-1", None, None)  # the agent resumed: it finds the claim paid
+    invoke(held, CLAIM, f"{CLAIM}-1", Command(resume=RESUME), None)  # the agent resumed: it finds the claim paid
     assert held.graph.get_state(config).next == ()
-    assert len(list(held.graph.checkpointer.list(config))) == before + 1  # only the one after the node
+    assert len(list(held.graph.checkpointer.list(config))) == before + 2  # the pause's node, then remember
 
 
 def test_warm_up_opens_every_connection(db_path):

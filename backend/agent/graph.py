@@ -3,7 +3,7 @@
 Nodes record every step on the claim and hand refusals back to the model. The graph pays every approval, and
 asks the backend whether a sign-off is needed: it never applies the limit itself.
 
-    screen -> prepare -> model <-> tools -> tools_done -> decide -> remember -> pay
+    screen -> prepare -> model <-> tools -> tools_done -> decide -> pay -> (wait_for_sign_off) -> remember
 
 The security check comes first, outside the versioned configuration: a claim it flags is referred and never reaches the
 claim agent's model.
@@ -50,6 +50,7 @@ class ClaimState(BaseModel):
     decision: dict | None = None
     model_calls: int = 0
     usage: dict = Field(default_factory=dict)
+    settled: str | None = None  # where the payment stands: paid, held (waiting for a sign-off) or copy_held
 
 
 def _tool_refused(error: Exception) -> str:
@@ -181,16 +182,14 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
         return {}
 
     def pay_node(state: ClaimState) -> dict:
-        """Pay the approval, straight away or after a sign-off. The backend says whether one is needed, and refuses
-        any payment over the limit without it, so the node never applies the limit itself. A sign-off pays the claim
-        in the backend: after a wait, a paid claim ends the node with no call. The node runs again from the top on
-        resume, so an early resume finds the claim still unsigned and waits again. Waiting and paying are one step on
-        purpose: saving a step in between would be several more trips to the backend for a handler to wait through."""
+        """Pay the approval straight away, or hold it for a handler's sign-off. The backend says whether a sign-off is
+        needed, and refuses any payment over the limit without it, so the node never applies the limit itself. A sign-off
+        pays the claim in the backend, so a claim already paid ends the node with no call."""
         claim_id = state.claim_id
         trace = recorder(claim_id)
         current = api.claim_state(claim_id)
         if (current["payment"] or {}).get("status") == "paid":
-            return {}
+            return {"settled": "paid"}
         if not current["needs_sign_off"]:
             try:
                 paid_now = route.app("pay_claim", {"claim_id": claim_id, "amount": state.decision["payout"]})["paid_now"]
@@ -205,12 +204,21 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
                 if paid_now:
                     payment = api.claim_state(claim_id)["payment"]
                     trace("status", {"status": "paid", "amount": payment["amount"], "approved_by": payment["approved_by"]})
-                return {}
+                return {"settled": "paid"}
         if api.hold(claim_id):
             trace("status", {"status": "awaiting_approval"})
-        while (api.claim_state(claim_id)["payment"] or {}).get("status") != "paid":
-            interrupt({"claim_id": claim_id, "payout": state.decision["payout"], "waiting_for": "sign-off"})
-        return {}
+        # nobody signs off an evaluation's copy: its work ends here, held, and its saved progress goes
+        return {"settled": "copy_held" if current["copy_of"] is not None else "held"}
+
+    def wait_for_sign_off(state: ClaimState) -> dict:
+        """Pause until a handler answers. The place is saved on the claim's thread. On a resume LangGraph runs this node
+        again from the top, so nothing goes before the interrupt: the answer is read from the app's record. An early resume
+        finds the claim still waiting, and pauses again."""
+        interrupt({"claim_id": state.claim_id, "payout": state.decision["payout"], "waiting_for": "sign-off"})
+        current = api.claim_state(state.claim_id)
+        if (current["payment"] or {}).get("status") == "paid":
+            return {"settled": "paid"}
+        return {"settled": "held"}
 
     def after_model(state: ClaimState) -> str:
         return "tools" if state.messages[-1].tool_calls else "decide"
@@ -218,8 +226,14 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
     def after_tools(state: ClaimState) -> str:
         return "decide" if state.proposal is not None else "model"
 
-    def after_remember(state: ClaimState) -> str:
-        return "pay" if state.decision["decision"] == "approve" else END
+    def after_decide(state: ClaimState) -> str:
+        return "pay" if state.decision["decision"] == "approve" else "remember"
+
+    def after_pay(state: ClaimState) -> str:
+        return {"paid": "remember", "held": "wait_for_sign_off"}.get(state.settled, END)
+
+    def after_wait(state: ClaimState) -> str:
+        return "remember" if state.settled == "paid" else "wait_for_sign_off"
 
     builder = StateGraph(ClaimState)
     builder.add_node("screen", screen)
@@ -228,15 +242,17 @@ def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int
     builder.add_node("tools", ToolNode(offered, handle_tool_errors=_tool_refused))
     builder.add_node("tools_done", tools_done)
     builder.add_node("decide", decide)
-    builder.add_node("remember", remember)
     builder.add_node("pay", pay_node)
+    builder.add_node("wait_for_sign_off", wait_for_sign_off)
+    builder.add_node("remember", remember)
     builder.add_edge(START, "screen")
     builder.add_conditional_edges("screen", lambda state: END if state.decision else "prepare", ["prepare", END])
     builder.add_edge("prepare", "model")
     builder.add_conditional_edges("model", after_model, ["tools", "decide"])
     builder.add_edge("tools", "tools_done")
     builder.add_conditional_edges("tools_done", after_tools, ["model", "decide"])
-    builder.add_edge("decide", "remember")
-    builder.add_conditional_edges("remember", after_remember, ["pay", END])
-    builder.add_edge("pay", END)
+    builder.add_conditional_edges("decide", after_decide, ["pay", "remember"])
+    builder.add_conditional_edges("pay", after_pay, ["remember", "wait_for_sign_off", END])
+    builder.add_conditional_edges("wait_for_sign_off", after_wait, ["remember", "wait_for_sign_off"])
+    builder.add_edge("remember", END)
     return builder.compile(checkpointer=checkpointer)

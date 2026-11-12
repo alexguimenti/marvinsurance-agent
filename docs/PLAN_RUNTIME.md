@@ -74,7 +74,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - neither paid nor sent back: it returns `Command(goto="wait_for_sign_off")` and pauses again.
 - **Produces:** `worker.claim_paused(env, claim_id) -> bool`, which is True when the claim's thread has `get_state(...).interrupts`.
 
-- [ ] **Step 1: Write the failing tests** in `test_pause.py`, using `agent_env`, a stub model and `FakeMemoryStore`.
+- [x] **Step 1: Write the failing tests** in `test_pause.py`, using `agent_env`, a stub model and `FakeMemoryStore`.
   - `test_an_approval_over_the_limit_pauses_with_its_place_saved`: CLM-1003, `approve(2000.0)`.
     - `claim_paused` is True and the status is `awaiting_approval`.
     - `get_state(...).next == ("wait_for_sign_off",)`.
@@ -86,9 +86,9 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
     - The store has 2 puts.
     - There is exactly one `paid` status step.
   - `test_an_early_resume_pauses_again`: resume without a sign-off; `claim_paused` is still True.
-- [ ] **Step 2: Run them.** Run `.venv\Scripts\python -m pytest tests/test_pause.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement** to the interfaces. Then update the existing tests that expect `remember` before `pay` (the memory tests for a held claim) to the new order.
-- [ ] **Step 4: Run them again,** with `test_graph.py`, `test_worker.py` and `test_memory.py`. Expected: all PASS.
+- [x] **Step 2: Run them.** Run `.venv\Scripts\python -m pytest tests/test_pause.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement** to the interfaces. Then update the existing tests that expect `remember` before `pay` (the memory tests for a held claim) to the new order.
+- [x] **Step 4: Run them again,** with `test_graph.py`, `test_worker.py` and `test_memory.py`. Expected: all PASS.
 
 ### Task 2: `resume_claim` in the service, and the sign-off asks for it
 
@@ -104,7 +104,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
 - **The sign-off (`payments.sign_off`):** the gate is now a conditional update of the claim from `awaiting_approval` to `decided`, checked by row count, and it runs before the payment update, in the same transaction. A claim that is no longer waiting answers 409 (`AlreadySettled`).
 - **The approve route:** after the sign-off it calls `agent_client.resume_claim(http, settings, claim_id)`. If that call fails or times out, it logs `log.warning("could not ask the agent to resume %s: %s", ...)` and still returns the payment.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_resume_claim_refuses_a_claim_that_is_not_paused`: a waiting claim and a decided decline each get 409 with the reason.
   - `test_a_sign_off_asks_the_agent_to_resume_and_the_work_ends`: use `service_client` and the backend in process.
     - Approve 2000 on CLM-1003 (paused), then post the sign-off as Dana.
@@ -114,11 +114,11 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
     - The claim is still paused on the agent's side, and nothing is saved to memory.
   - `test_a_resume_runs_beside_a_dispatch`: the service's lock is held by a dispatch, and resume still answers 202.
   - `test_two_resumes_of_one_claim_pay_once`, from Review Focus 3: resume twice. The second gets 409 because the claim is not paused, and there is one payment.
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Add the known gap to `docs/STATUS.md`: a sign-off the agent never heard of leaves the thread paused, and that claim is not saved to memory.
-- [ ] **Step 4: Run them again,** with `test_service.py`, `test_payments.py` and `test_api.py`. Expected: PASS.
-- [ ] **Step 5: Check by hand.** With `npm run dev` running, approve a claim over the limit; it pauses. Sign it off on the dashboard; it is paid, and the agent's log shows the resume ending the work.
-- [ ] **Step 6: Commit the phase:** `feat: an approval waiting for sign-off pauses, and the sign-off resumes it`.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** Add the known gap to `docs/STATUS.md`: a sign-off the agent never heard of leaves the thread paused, and that claim is not saved to memory.
+- [x] **Step 4: Run them again,** with `test_service.py`, `test_payments.py` and `test_api.py`. Expected: PASS.
+- [ ] **Step 5: Check by hand.** (Done with the live checks, Task 10.) With `npm run dev` running, approve a claim over the limit; it pauses. Sign it off on the dashboard; it is paid, and the agent's log shows the resume ending the work.
+- [x] **Step 6: Commit the phase:** `feat: an approval waiting for sign-off pauses, and the sign-off resumes it`.
 
 ---
 

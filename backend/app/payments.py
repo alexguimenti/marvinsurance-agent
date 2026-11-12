@@ -17,6 +17,10 @@ class SignOffRequired(Exception):
     """A payout over the limit that no handler has signed off. The system refuses it, whatever the agent does."""
 
 
+class NotWaiting(Exception):
+    """The claim is not waiting for a handler's sign-off (it was settled, sent back or never held)."""
+
+
 @dataclass
 class Payment:
     payment_id: str
@@ -40,38 +44,41 @@ def _payment(row) -> Payment:
 
 
 def sign_off(engine: Engine, ref: Reference, payment_id: str, handler_id: str) -> Payment:
-    """Pay a held payout on a handler's sign-off: held to paid in one conditional update that records who and when, then
-    the claim is decided and the paid step is added to its trace. The agent is not needed. A repeat changes nothing."""
+    """Pay a held payout on a handler's sign-off. It goes through only while the claim is waiting for sign-off: the claim's
+    one conditional update from awaiting_approval to decided is what decides between a sign-off and a send back made at the
+    same moment, and the loser changes nothing. Then the payment is recorded with who and when, and the paid step is added to
+    the claim's trace. The agent is not needed. A repeat changes nothing, and one that stopped halfway is finished."""
     handler = next((h for h in ref.handlers if h["handler_id"] == handler_id), None)
     if handler is None or not handler["can_approve_over_limit"]:
         raise PermissionError(f"{handler_id} cannot approve payments over the limit")
-    queue_claims = select(claims.c.claim_id).where(claims.c.copy_of.is_(None))  # nobody signs off a copy
+    owner = select(payments.c.claim_id).where(payments.c.payment_id == payment_id).scalar_subquery()
     with engine.begin() as conn:
-        row = conn.execute(
-            update(payments)
-            .where(payments.c.payment_id == payment_id, payments.c.status == "held", payments.c.claim_id.in_(queue_claims))
-            .values(status="paid", approved_by=handler_id, approved_at=func.now(), paid_at=func.now(), updated_at=func.now())
-            .returning(payments)
-        ).mappings().first()
-        if row is None:  # already paid, an evaluation's copy, or no such payment
-            row = conn.execute(
-                select(payments, claims.c.copy_of)
+        taken = conn.execute(
+            update(claims).where(claims.c.claim_id == owner, claims.c.status == "awaiting_approval", claims.c.copy_of.is_(None))
+            .values(status="decided").returning(claims.c.claim_id)
+        ).scalar()
+        if taken is None:  # this call did not take the claim: say why, or finish what an earlier call left
+            found = conn.execute(
+                select(payments, claims.c.copy_of, claims.c.status.label("claim_status"))
                 .select_from(payments.join(claims, payments.c.claim_id == claims.c.claim_id))
                 .where(payments.c.payment_id == payment_id)
             ).mappings().first()
-            if row is None:
+            if found is None:
                 raise LookupError(payment_id)
-            if row["copy_of"] is not None:
+            if found["copy_of"] is not None:
                 raise PermissionError("an evaluation's copy cannot be signed off")
-            if row["status"] == "held":  # only a paid one is left to explain: a held one would have been taken above
-                raise LookupError(payment_id)
-        else:
-            conn.execute(
-                update(claims).where(claims.c.claim_id == row["claim_id"], claims.c.status.in_(("in_progress", "awaiting_approval")))
-                .values(status="decided")
-            )
-            add_trace_event(conn, row["claim_id"], "status",
-                            {"status": "paid", "amount": row["amount"], "approved_by": handler_id})
+            if found["status"] == "paid":
+                return _payment(found)
+            if found["claim_status"] != "decided":
+                raise NotWaiting(f"{found['claim_id']} is not waiting for a sign-off")
+        row = conn.execute(
+            update(payments).where(payments.c.payment_id == payment_id, payments.c.status == "held")
+            .values(status="paid", approved_by=handler_id, approved_at=func.now(), paid_at=func.now(), updated_at=func.now())
+            .returning(payments)
+        ).mappings().first()
+        if row is None:
+            raise LookupError(payment_id)
+        add_trace_event(conn, row["claim_id"], "status", {"status": "paid", "amount": row["amount"], "approved_by": handler_id})
     return _payment(row)
 
 

@@ -118,6 +118,7 @@ def test_a_decline_has_no_calculation_and_a_referral_by_the_security_check_names
 
 
 def test_a_sign_off_adds_who_signed_off_and_when(client):
+    client.post("/agent/claims/CLM-1003/take", json={"run_id": None}, headers=KEY)
     record_approval(client, "CLM-1003", 2000.0)
     client.post("/agent/claims/CLM-1003/hold", headers=KEY)
     assert detail(client, "CLM-1003")["decision"]["signed_off_by"] is None

@@ -9,6 +9,7 @@ from typing import Callable, Iterator
 
 import httpx
 from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
+from langgraph.types import Command
 
 from agent import api
 from agent.checkpoints import Checkpoints, make_checkpoints
@@ -22,6 +23,9 @@ from app.reference import Reference
 # Worth waiting out: the caller retries, and the claim carries on from its last saved step as the same attempt.
 # A transport error is the backend restarting or out of reach: no attempt is used up.
 RETRYABLE = (ModelRateLimitError, ModelTimeoutError, httpx.TransportError)
+# What a paused graph is resumed with. The node reads the handler's answer from the app's record; the value only has to be one
+# LangGraph takes as an answer, and an empty one it does not.
+RESUME = {"resumed": True}
 CREDIT_OUT = "OpenRouter's credit limit for the key was reached. Raise the key's limit, then start again: nothing is lost."
 
 
@@ -180,6 +184,15 @@ def invoke(env: AgentEnv, claim_id: str, thread_id: str, graph_input, run_id: in
         flush_traces()
 
 
+def claim_paused(env: AgentEnv, claim_id: str) -> bool:
+    """A claim is paused when its thread has an interrupt waiting for an answer."""
+    thread_id = api.claim_state(claim_id)["thread_id"]
+    if thread_id is None:
+        return False
+    with env.claim_graph() as graph:
+        return bool(graph.get_state({"configurable": {"thread_id": thread_id}}).interrupts)
+
+
 def _report(env: AgentEnv, claim_id: str) -> str:
     """The claim's outcome in one line, from the records."""
     state = api.claim_state(claim_id)
@@ -214,7 +227,7 @@ def _drive(env: AgentEnv, claim_id: str, thread_id: str, run_id: int | None, att
     try:
         result = invoke(env, claim_id, thread_id, graph_input, run_id)
         if result.get("__interrupt__") and (api.claim_state(claim_id)["payment"] or {}).get("status") == "paid":
-            invoke(env, claim_id, thread_id, None, run_id)  # signed off while the graph was pausing
+            invoke(env, claim_id, thread_id, Command(resume=RESUME), run_id)  # signed off while the graph was pausing
     except RETRYABLE as exc:  # not settled here: the claim stays in progress on its thread, for the retry
         api.add_step(claim_id, "error", {"message": f"{type(exc).__name__}: {exc}. The agent waits and will carry on from here."})
         raise
@@ -272,6 +285,26 @@ def carry_on(env: AgentEnv, claim_id: str, run_id: int | None = None) -> str:
         api.add_step(claim_id, "status", {"status": "in_progress", "note": "carried on"})
         attempt = claim["attempts"] + 1
         return _drive(env, claim_id, thread_id, run_id, attempt, env.settings.agent_max_attempts, graph_input)
+
+
+def resume_refusal(env: AgentEnv, claim_id: str) -> str | None:
+    """Why a claim cannot be resumed, or None when it can: only a claim whose thread is paused, waiting for an answer."""
+    try:
+        paused = claim_paused(env, claim_id)
+    except LookupError:
+        return f"there is no claim {claim_id}"
+    return None if paused else f"{claim_id} is not waiting for a handler's answer"
+
+
+def resume(env: AgentEnv, claim_id: str) -> str:
+    """Resume a paused claim with the handler's answer, read from the app's record, outside any run. The node that paused
+    finds the claim paid and the work ends; a claim still waiting pauses again."""
+    claim = api.claim_state(claim_id)
+    with env.working(claim_id) as free:
+        if not free:
+            return f"{claim_id}: not worked, it is already being worked."
+        return _drive(env, claim_id, claim["thread_id"], None, claim["attempts"] + 1, env.settings.agent_max_attempts,
+                      Command(resume=RESUME))
 
 
 def work(env: AgentEnv, claim_id: str, run_id: int | None) -> str:

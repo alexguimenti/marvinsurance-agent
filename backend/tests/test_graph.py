@@ -69,7 +69,7 @@ def test_approval_over_limit_pauses_before_paying(run):
     assert result["__interrupt__"]
     assert status(env) == "awaiting_approval"
     assert get_payment(env.engine, CLAIM).status == "held"
-    assert env.graph.get_state(config()).next == ("pay",)
+    assert env.graph.get_state(config()).next == ("wait_for_sign_off",)
 
 
 def test_resume_before_a_sign_off_stays_paused(run):
