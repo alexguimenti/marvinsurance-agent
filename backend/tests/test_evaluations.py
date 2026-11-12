@@ -131,16 +131,18 @@ def test_an_unknown_set_is_refused(env):
         start_evaluation(env.engine, env.ref, "harder", False, 5, "m", None)
 
 
-def test_service_starts_an_evaluation_and_refuses_one_during_a_dispatch(db_path, data_dir):
+def test_the_app_starts_an_evaluation_and_refuses_one_during_a_dispatch(db_path, data_dir):
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
     with service_client(create_service(settings, inline=True)) as service:
-        body = {"eval_set": "held_out", "tiny": True, "workers": 5}
-        assert service.invoke({"operation": "start_evaluation", **body}).json()["accepted"] is True
-        raw = RawDb(make_engine(settings, max_connections=1))
-        assert tuple(raw.execute("SELECT kind, status, eval_set FROM runs").fetchone()) == ("evaluation", "finished", "held_out")
-        raw.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
-        assert "already running" in service.invoke({"operation": "start_evaluation", **body}).json()["refused"]
-        assert service.invoke({"operation": "start_evaluation", **{**body, "eval_set": "harder"}}).status_code == 400
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as backend:
+            body = {"eval_set": "held_out", "tiny": True, "workers": 5}
+            assert backend.post("/evaluations", json=body).status_code == 202
+            raw = RawDb(make_engine(settings, max_connections=1))
+            assert tuple(raw.execute("SELECT kind, status, eval_set FROM runs").fetchone()) == ("evaluation", "finished", "held_out")
+            raw.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
+            refused = backend.post("/evaluations", json=body)
+            assert refused.status_code == 409 and "a dispatch is already running" in refused.json()["detail"]
+            assert backend.post("/evaluations", json={**body, "eval_set": "harder"}).status_code == 422
 
 
 def test_backend_forwards_an_evaluation_and_hides_copies(db_path, data_dir):

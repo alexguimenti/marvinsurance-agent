@@ -120,11 +120,6 @@ def ask(method: str, path: str, **kwargs) -> Any:
 
 # --- runs ----------------------------------------------------------------------------------------
 
-def start_dispatch(workers: int, model: str, effort: str | None, config_version: int | None) -> int:
-    return ask("POST", "/dispatches", json={"workers": workers, "model": model, "reasoning_effort": effort,
-                                             "config_version": config_version})["run_id"]
-
-
 def start_evaluation(eval_set: str, tiny: bool, workers: int, model: str, effort: str | None,
                      config_version: int | None = None, round_id: int | None = None) -> int:
     return ask("POST", "/evaluations", json={
@@ -136,8 +131,9 @@ def running_run() -> dict | None:
     return ask("GET", "/runs/running")
 
 
-def stop_running() -> list[int]:
-    return ask("POST", "/runs/stop-running")
+def heard_run(run_id: int) -> None:
+    """Say that the agent is still working a run."""
+    ask("POST", f"/runs/{run_id}/heard")
 
 
 def get_run(run_id: int) -> dict:

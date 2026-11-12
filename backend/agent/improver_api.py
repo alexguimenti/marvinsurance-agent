@@ -46,12 +46,14 @@ def keep_or_roll_back(after: dict, before: dict, settings: dict) -> tuple[bool, 
 
 # --- rounds --------------------------------------------------------------------------------------
 
-def start_round(handler_id: str) -> int:
-    return _ask("POST", "/rounds", json={"handler_id": handler_id})["round_id"]
+def heard_round(round_id: int) -> None:
+    """Say that the agent is still working a round, its running evaluation too."""
+    _ask("POST", f"/rounds/{round_id}/heard")
 
 
-def stop_working_rounds() -> list[int]:
-    return _ask("POST", "/rounds/stop-working")
+def stop_round(round_id: int, reason: str) -> None:
+    """Stop a round whose work failed, and its running evaluation, with the reason. Nothing else is stopped."""
+    _ask("POST", f"/rounds/{round_id}/stop", json={"error": reason})
 
 
 def get_round(round_id: int) -> dict:
@@ -76,10 +78,6 @@ def add_proposal(round_id: int, kind: str, payload: dict, reason: str) -> int:
 
 def get_proposal(proposal_id: int) -> dict:
     return _ask("GET", f"/proposals/{proposal_id}")
-
-
-def decide_proposal(proposal_id: int, approve: bool, reason: str, handler_id: str) -> dict:
-    return _ask("POST", f"/proposals/{proposal_id}/decision", json={"approve": approve, "reason": reason, "handler_id": handler_id})
 
 
 def record_verdict(round_id: int, kept: bool, why: str, before: dict, after: dict) -> None:

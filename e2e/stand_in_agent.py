@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from agent.entrypoint import app as agent_app
 
 received: dict[str, list] = {"starts": []}
-STARTS = ("start_dispatch", "start_evaluation")
+STARTS = ("work_run", "work_round")
 app = FastAPI(title="Stand-in for the agent")
 
 

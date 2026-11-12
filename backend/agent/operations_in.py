@@ -4,37 +4,25 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-MAX_WORKERS = 25
-
 
 class Health(BaseModel):
     operation: Literal["health"]
 
 
-class StartDispatch(BaseModel):
-    operation: Literal["start_dispatch"]
-    workers: int = Field(ge=1, le=MAX_WORKERS)  # claim agents at once
+class WorkRun(BaseModel):
+    operation: Literal["work_run"]
+    run_id: int  # a dispatch or an evaluation the app created
 
 
-class StartEvaluation(BaseModel):
-    operation: Literal["start_evaluation"]
-    eval_set: Literal["evaluation", "held_out"]
-    tiny: bool  # only the set's five tiny claims
-    workers: int = Field(ge=1, le=MAX_WORKERS)
+class WorkRound(BaseModel):
+    operation: Literal["work_round"]
+    round_id: int  # a round the app opened
 
 
-class StartImproverRound(BaseModel):
-    operation: Literal["start_improver_round"]
-    handler_id: str  # who started the round
-
-
-class DecideRoundProposal(BaseModel):
-    operation: Literal["decide_round_proposal"]
+class CarryRoundOn(BaseModel):
+    operation: Literal["carry_round_on"]
     round_id: int
-    proposal_id: int
-    approve: bool
-    reason: str  # a rejection's reason goes back to the improver
-    handler_id: str
+    proposal_id: int  # the proposal whose review the app recorded
 
 
 class ResumeClaim(BaseModel):
@@ -43,10 +31,10 @@ class ResumeClaim(BaseModel):
 
 
 Payload = Annotated[
-    Health | StartDispatch | StartEvaluation | StartImproverRound | DecideRoundProposal | ResumeClaim,
+    Health | WorkRun | WorkRound | CarryRoundOn | ResumeClaim,
     Field(discriminator="operation"),
 ]
-OPERATIONS = ("health", "start_dispatch", "start_evaluation", "start_improver_round", "decide_round_proposal", "resume_claim")
+OPERATIONS = ("health", "work_run", "work_round", "carry_round_on", "resume_claim")
 _adapter = TypeAdapter(Payload)
 
 

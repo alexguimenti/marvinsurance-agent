@@ -176,6 +176,11 @@ def test_a_dispatch_the_agent_refused_is_a_409_with_its_reason(backend):
 def test_a_dispatch_the_agent_may_have_started_says_to_reload_the_page(backend):
     with backend(Http(error=httpx.ReadTimeout("slow"))) as client:
         answer = client.post("/dispatches", json={"workers": 3})
-    assert answer.status_code == 504 and "Reload the page" in answer.json()["detail"]
+        assert answer.status_code == 504 and "Reload the page" in answer.json()["detail"]
+        assert client.get("/dispatches/latest").json()["run"]["status"] == "running"  # a timeout changes nothing
+
+
+def test_a_dispatch_the_agent_never_received_is_503_and_the_run_is_undone(backend):
     with backend(Http(error=httpx.ConnectError("refused"))) as client:
         assert client.post("/dispatches", json={"workers": 3}).status_code == 503
+        assert client.get("/dispatches/latest").json()["run"]["status"] == "stopped"

@@ -69,6 +69,19 @@ def finish_run(engine: Engine, run_id: int, error: str | None = None, settings: 
         ))
 
 
+def stop_run(engine: Engine, run_id: int, reason: str) -> bool:
+    """Stop one run that is running, with the reason. Nothing else is touched. False if it was not running."""
+    with engine.begin() as conn:
+        return bool(conn.execute(update(runs).where(runs.c.run_id == run_id, runs.c.status == "running").values(
+            status="stopped", error=reason, finished_at=func.now())).rowcount)
+
+
+def hear_run(engine: Engine, run_id: int) -> bool:
+    """The agent says it is still working the run. False if the run is not running."""
+    with engine.begin() as conn:
+        return bool(conn.execute(update(runs).where(runs.c.run_id == run_id, runs.c.status == "running").values(heard_at=func.now())).rowcount)
+
+
 def stop_running(engine: Engine) -> list[int]:
     """The service has just started, so whatever still says running lost its process. Its claims carry on in the
     next dispatch."""

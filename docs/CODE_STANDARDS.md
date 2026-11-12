@@ -3,8 +3,10 @@
 ## The backend and the agent
 
 - `backend/app/` holds the records and the API. `backend/agent/` holds the agent. `app` never imports LangGraph or LangChain; it imports from `agent` only the loaders in `agent.prompts` (the first instructions and the first recipe, which seed version 1).
-- The agent reaches the backend only over HTTP, with the API key in `X-API-Key`, through one client, `agent/connection.py`. `agent/api.py` (the claim agent's bookkeeping, the worker, the dispatcher and the service) and `agent/improver_api.py` (the improver) are the only modules that call it, apart from the model's tools, which go by a route; `backend/app/` owns every record. The agent's one connection to the database is LangGraph's checkpoints.
+- The agent reaches the backend only over HTTP, with the API key in `X-API-Key`, through one client, `agent/connection.py`. `agent/api.py` (the claim agent's bookkeeping, the worker, the dispatcher and the entrypoint) and `agent/improver_api.py` (the improver) are the only modules that call it, apart from the model's tools, which go by a route; `backend/app/` owns every record. The agent's one connection to the database is LangGraph's checkpoints.
 - The model's tools and the payment reach the app and the context layer by one of two routes, one module each, chosen when a claim graph is built: `agent/direct.py` (the app with the key, the context layer over unsigned MCP) and `agent/gateway.py` (the Gateway's MCP tools, signed with SigV4). Both sit on `agent/mcp_bridge.py`, which runs each async MCP call on a loop of its own and never takes the main thread's loop away. The agent's bookkeeping always goes direct. The context layer (`backend/context/`) imports nothing from `app` or `agent`, and `app` and `agent` import nothing from `context`.
+- The agent imports nothing from `app` or `context` (`tests/test_agent_boundaries.py` reads the imports, and imports `agent/` alone), so `runtime/` with `agent/` beside it is a package on its own. It has its own settings (`agent/settings.py`) with the app's names and defaults.
+- The app keeps one piece of the agent's work going at a time (`app/work.py`): it creates the run, the round or the review, under one lock row, then asks the agent by id. A request uses one database connection at a time. The agent keeps no one-at-a-time rule of its own, tells the app every minute that it is working (`agent/heartbeat.py`), and when its work fails stops only that run or round.
 - Our code, not the model, enforces the rules: the $1,000 limit, which claims a run works, attempts, and one decision and one payment per claim.
 - The graph never applies the limit. It asks the backend whether a sign-off is needed, and the backend refuses a payment over the limit with a 403 (`pay_claim`) before it looks at the claim. A sign-off pays the claim in the backend.
 
@@ -13,7 +15,7 @@
 1. **Prompts** (`prompts.py`, `instructions_*.md`, `recipe_v1.md`): what it is told. Never a claim id, and nothing from the handlers' decisions in `data/evals/`. Instructions are written as goals, what the agent is for and what good looks like, around the recipe where there is one; a list of steps to follow goes in the recipe, which a handler can change.
 2. **Tools** (`tools.py`, and those in `queue.py`): what it can do. Customer text reaches the model only inside tool results. Tools take the claim from the graph's state, not from the model. A refusal is text returned to the model.
 3. **The run loop**: the nodes of the claim agent's hand-written graph in `graph.py`, which record every step and its cost, return refusals to the model and allow at most 30 model calls.
-4. **The service** (`service.py`, `__main__.py`): its entry points. `worker.py` says what working a claim means, whichever entry point asks; `worker.work` is the one way in.
+4. **The entry points** (`entrypoint.py`, the AgentCore app, and `__main__.py`): `worker.py` says what working a claim means, whichever entry point asks; `worker.work` is the one way in.
 6. **The improver** (`improver.py`, `improver_backend.py`, `improver_instructions.md`): an agent of its own whose four tools reach the records only through `improver_backend.py`. It proposes; code keeps or rolls back, and a handler decides.
 5. **The dispatcher** (`dispatcher.py`): a graph with no model that works a run's claims, up to N at once, through `worker.work` only, so it could later point at the agent in the cloud. Each claim keeps its own thread, never a shared one or a subgraph, and the dispatcher saves no progress of its own.
 
@@ -35,13 +37,13 @@
 
 ## The API
 
-Every operation has an `operation_id`, a one-line docstring and no optional inputs. `test_every_operation_follows_the_api_rules` checks the backend and the service.
+Every operation has an `operation_id`, a one-line docstring and no optional inputs. `test_every_operation_of_the_app_follows_the_api_rules` checks the backend, and `test_no_operation_has_an_optional_input` the agent's payloads.
 
 ## Tests
 
 - Backend behavior is tested on a stub model through the real graph, the real dispatcher and real SQLite files. Tests name what should happen.
 - `tests/fakes.py` holds the stub model and helpers. `RawDb` lets a test arrange or inspect tables in plain SQL; production code does not use it.
-- The front end has component tests with a mocked API. End-to-end tests run the whole app on the scripted model, with a stand-in for the agent's service on port 8003 that writes down each start. The backend and the stand-in share a fixed API key.
+- The front end has component tests with a mocked API. End-to-end tests run the whole app on the scripted model, with the real agent app on the scripted model on port 8003, behind a wrapper that writes down each run it is asked to work. The backend and the stand-in share a fixed API key.
 
 ## Style
 

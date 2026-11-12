@@ -140,13 +140,22 @@ runs = Table(
     Column("tiny", Boolean),
     Column("config_version", Integer),  # the configuration the run used
     Column("round_id", Integer),  # set on the evaluations an improver round asked for
-    Column("error", Text),
+    Column("error", Text),  # why it stopped
     _timestamp("started_at"),
     _timestamp("finished_at", default=False),
+    Column("heard_at", DateTime(timezone=True)),  # the agent's last word that it is still working the run
 )
 # One run at a time holds across processes, whoever asks.
 Index("one_running_run", runs.c.status, unique=True,
       sqlite_where=runs.c.status == "running", postgresql_where=runs.c.status == "running")
+
+# The one row that two starts at the same moment take turns on (see app/work.py).
+work_lock = Table(
+    "work_lock", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("holder", Text),
+    Column("taken_at", DateTime(timezone=True)),
+)
 
 settings_table = Table(
     "settings", metadata,
@@ -216,9 +225,10 @@ rounds = Table(
     Column("after", Text),  # JSON: the held-out scores after
     Column("started_by", Text, nullable=False),
     Column("stopped_by", Text),
-    Column("error", Text),
+    Column("error", Text),  # why it ended or was stopped
     _timestamp("started_at"),
     _timestamp("finished_at", default=False),
+    Column("heard_at", DateTime(timezone=True)),  # the agent's last word, or when a handler's review was recorded
 )
 Index("one_open_round", rounds.c.open, unique=True, sqlite_where=rounds.c.open, postgresql_where=rounds.c.open)
 
@@ -233,6 +243,8 @@ proposals = Table(
     Column("decided_by", Text),
     Column("decided_at", DateTime(timezone=True)),
     Column("decision_reason", Text),  # a rejection's reason goes back to the improver
+    Column("created_version", Integer),  # the version an approval made, so a review the agent never took can be undone
+    Column("previous_recipe", Integer),  # the recipe that was current before an approved recipe took its place
     _timestamp("created_at"),
 )
 

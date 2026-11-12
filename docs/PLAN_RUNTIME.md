@@ -353,7 +353,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - An approved change: the version it created is deleted, and `rounds.version_tried` and `reason` are cleared.
   - An approved recipe: the version it created is deleted, and `previous_recipe` becomes current again.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_a_second_start_is_refused_while_a_dispatch_an_evaluation_or_a_working_round_is_going`: parametrized. The 409 names what is going. A round that is waiting for a review does not block.
   - `test_two_starts_at_the_same_moment_only_one_goes_ahead`: two threads with a barrier, on a file SQLite. Exactly one run is created.
   - `test_a_start_after_five_quiet_minutes_stops_the_old_work_with_its_reason`: set `started_at` back 6 minutes. The old run is stopped with `"The agent stopped answering"`; a round's evaluation is stopped with its round.
@@ -362,7 +362,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - `test_a_review_the_agent_did_not_take_is_cleared`: both the change and the recipe cases; the version is gone and the earlier recipe is current.
   - `test_a_request_uses_one_connection_at_a_time`: on a pool of one with `pool_timeout=1`, as in `test_section14`.
   - `test_a_resume_starts_beside_a_dispatch`
-- [ ] **Step 2: Run them, implement, run them again.**
+- [x] **Step 2: Run them, implement, run them again.**
 
 ### Task 9: The agent works what it is given, reports every minute, and stops only its own work
 
@@ -384,16 +384,16 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
 - **On failure:** a run's work that fails calls `stop_run(run_id, "<Error>: <message>")`, and a round's calls `stop_round(round_id, ...)`. Nothing else is stopped.
 - **The heartbeat:** a daemon thread calls `send()` every `every_s` seconds until the block exits, and logs and ignores any error. It is used around a run's work, a round's work (whose word covers its evaluation), and a resume.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_work_run_refuses_a_run_that_is_not_running`
   - `test_a_failed_run_stops_only_itself`: start a run, then fail it; another round's evaluation stays running.
   - `test_stopping_a_round_stops_its_running_evaluation`
   - `test_the_heartbeat_reports_every_interval_and_stops_with_the_block`: with `every_s=0.01`, there are at least 3 calls, and none once the block has exited.
   - `test_carry_round_on_reads_the_review_from_the_app`
   - In the frontend: `a stopped run shows its reason`.
-- [ ] **Step 2: Run them, implement, run them again.** Then run the whole backend suite, the frontend checks and the e2e (`cd e2e; npm test`). Expected: all PASS, with the app creating runs, rounds and reviews.
-- [ ] **Step 3: Check by hand.** With `npm run dev` running, start a dispatch at N=25; a second "Start dispatch" is refused on the dashboard with "a dispatch is already going".
-- [ ] **Step 4: Commit the phase:** `feat: the app keeps one piece of the agent's work going at a time`.
+- [x] **Step 2: Run them, implement, run them again.** Then run the whole backend suite, the frontend checks and the e2e (`cd e2e; npm test`). Expected: all PASS, with the app creating runs, rounds and reviews.
+- [ ] **Step 3: Check by hand.** (Done with the live checks, Task 10.) With `npm run dev` running, start a dispatch at N=25; a second "Start dispatch" is refused on the dashboard with "a dispatch is already going".
+- [x] **Step 4: Commit the phase:** `feat: the app keeps one piece of the agent's work going at a time`.
 
 ---
 

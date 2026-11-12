@@ -77,7 +77,7 @@ def test_backend_forwards_n_to_the_service(db_path, data_dir):
 
     with api_client(create_app(make_settings(db_path, data_dir), http=Recorder(), jwks=MINT), headers=MINT.header()) as backend:
         assert backend.post("/dispatches", json={"workers": 3}).status_code == 202
-    assert Recorder.calls == [("http://127.0.0.1:8080/invocations", {"operation": "start_dispatch", "workers": 3})]
+    assert Recorder.calls == [("http://127.0.0.1:8080/invocations", {"operation": "work_run", "run_id": 1})]
 
 
 @pytest.mark.parametrize("workers", [0, 26])

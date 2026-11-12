@@ -51,13 +51,23 @@ def no_first_evaluations(monkeypatch):
     monkeypatch.setattr(improver, "first_evaluations", lambda env, round_id: True)
 
 
+def begin(env, handler_id):
+    """What the app does when a handler starts a round: open it, to the settings as they stand and the current recipe."""
+    return improvement.start_round(env.engine, handler_id, configs.current(env.engine, "recipe")["version"], get_settings(env.engine))
+
+
+def review(env, proposal_id, approve, reason):
+    """What the app does when a handler reviews a proposal: record it. The agent is then asked to carry the round on."""
+    improvement.decide_proposal(env.engine, proposal_id, approve, reason, DANA)
+
+
 def waiting(env, round_id):
     return improvement.waiting_proposal(env.engine, round_id)
 
 
 def run_round(env, model):
     env.improver_model = model
-    round_id = improver.begin(env, "HND-01")
+    round_id = begin(env, "HND-01")
     improver.work_round(env, round_id)
     return round_id
 
@@ -77,7 +87,7 @@ def test_an_approved_change_becomes_a_version_and_the_improver_carries_on(db_pat
     with open_env(db_path, data_dir) as env:
         model = script(change(), AIMessage(content="Done."))
         round_id = run_round(env, model)
-        improver.record_decision(env, round_id, waiting(env, round_id)["id"], True, "", "HND-01")
+        review(env, waiting(env, round_id)["id"], True, "")
         assert [v["version"] for v in configs.list_versions(env.engine, "config")] == [1, 2]
         improver.resume_round(env, round_id, True, "")
         assert improvement.get_round(env.engine, round_id)["stage"] == "finished"
@@ -90,7 +100,7 @@ def test_a_rejections_reason_reaches_the_improver_which_may_propose_again(db_pat
         model = script(change(call_id="c1"), change(instructions="Narrower rules.\n", call_id="c2"))
         round_id = run_round(env, model)
         first = waiting(env, round_id)["id"]
-        improver.record_decision(env, round_id, first, False, "Too broad: name the section.", "HND-01")
+        review(env, first, False, "Too broad: name the section.")
         improver.resume_round(env, round_id, False, "Too broad: name the section.")
         assert "Too broad: name the section." in " ".join(str(m.content) for m in model.seen[-1])
         second = waiting(env, round_id)
@@ -146,7 +156,7 @@ def test_a_round_waiting_for_a_handler_survives_a_restart(db_path, data_dir, no_
         proposal_id = waiting(before, round_id)["id"]
     with open_env(db_path, data_dir, improver_model=script(AIMessage(content="Done."))) as after:  # a new process
         assert improvement.get_round(after.engine, round_id)["stage"] == "awaiting_change"
-        improver.record_decision(after, round_id, proposal_id, True, "", "HND-01")
+        review(after, proposal_id, True, "")
         improver.resume_round(after, round_id, True, "")
         assert improvement.get_round(after.engine, round_id)["stage"] == "finished"
         assert configs.get_version(after.engine, "config", 2)["approved_by"] == "HND-01"
@@ -179,7 +189,7 @@ def a_version_tried(env, limit):
 
 def test_a_round_runs_the_first_evaluations_it_is_owed(db_path, data_dir):
     with open_env(db_path, data_dir, improver_model=script(AIMessage(content="Nothing to improve."))) as env:
-        round_id = improver.begin(env, "HND-01")
+        round_id = begin(env, "HND-01")
         improver.work_round(env, round_id)
         done = RawDb(env.engine).execute(
             "SELECT eval_set, config_version, round_id, status FROM runs WHERE round_id = ? ORDER BY run_id", (round_id,)).fetchall()
@@ -369,18 +379,18 @@ def test_a_decision_is_refused_while_a_dispatch_runs_and_nothing_is_recorded(db_
 
     monkeypatch.setattr(service_module, "dispatch", slow_dispatch)
     with service_client(create_service(settings)) as svc:  # real threads: the dispatch is running while we ask
-        engine = RawDb(make_engine(settings, 1)).engine
-        round_id = improvement.start_round(engine, "HND-01", 1, get_settings(engine))
-        pid = improvement.add_proposal(engine, round_id, "change", {"instructions": "x", "model": OK_MODEL, "reasoning_effort": "low"}, "r")
-        assert svc.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
-        assert started.wait(10)
-        answer = svc.invoke({"operation": "decide_round_proposal", "round_id": round_id, "proposal_id": pid, "approve": True,
-                             "reason": "", "handler_id": "HND-01"})
-        assert "a dispatch is already running" in answer.json()["refused"]
-        assert improvement.get_proposal(engine, pid)["status"] == "waiting"  # nothing recorded
-        assert [v["version"] for v in configs.list_versions(engine, "config")] == [1]
-        release.set()
-        assert finished.wait(10)  # the dispatch ends before the backend it records through goes away
+        with api_client(create_app(settings, http=svc, jwks=MINT), headers=MINT.header("HND-01")) as client:
+            engine = RawDb(make_engine(settings, 1)).engine
+            round_id = improvement.start_round(engine, "HND-01", 1, get_settings(engine))
+            pid = improvement.add_proposal(engine, round_id, "change", {"instructions": "x", "model": OK_MODEL, "reasoning_effort": "low"}, "r")
+            assert client.post("/dispatches", json={"workers": 3}).status_code == 202
+            assert started.wait(10)
+            answer = client.post(f"/rounds/{round_id}/decision", json={"proposal_id": pid, "approve": True, "reason": ""})
+            assert answer.status_code == 409 and "a dispatch is already running" in answer.json()["detail"]
+            assert improvement.get_proposal(engine, pid)["status"] == "waiting"  # nothing recorded
+            assert [v["version"] for v in configs.list_versions(engine, "config")] == [1]
+            release.set()
+            assert finished.wait(10)  # the dispatch ends before the backend it records through goes away
 
 
 def test_dispatches_and_evaluations_can_run_while_a_round_waits_for_a_handler(backend):

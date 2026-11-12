@@ -70,10 +70,6 @@ class Finish(BaseModel):
     error: str | None
 
 
-class RoundStartIn(BaseModel):
-    handler_id: str
-
-
 class Stage(BaseModel):
     stage: str
     progress: str | None
@@ -83,12 +79,6 @@ class ProposalIn(BaseModel):
     kind: str
     payload: dict[str, Any]
     reason: str
-
-
-class ProposalDecision(BaseModel):
-    approve: bool
-    reason: str
-    handler_id: str
 
 
 class Verdict(BaseModel):
@@ -234,11 +224,6 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
         except runs.RunActive as exc:
             raise conflict("run_active", exc)
 
-    @router.post("/dispatches", status_code=201, operation_id="start_agent_dispatch")
-    def start_dispatch(body: DispatchIn):
-        """Create a dispatch's run, or refuse while another run is going."""
-        return start_run(lambda: runs.start_dispatch(engine, body.workers, body.model, body.reasoning_effort, body.config_version))
-
     @router.post("/evaluations", status_code=201, operation_id="start_agent_evaluation")
     def start_evaluation(body: EvaluationIn):
         """Create an evaluation's run and its copies, or refuse while another run is going."""
@@ -255,10 +240,10 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
         row = runs.running_run(engine)
         return None if row is None else plain(row)
 
-    @router.post("/runs/stop-running", operation_id="stop_running_runs")
-    def stop_running():
-        """Stop every run that says it is running: the service that worked them has just started."""
-        return runs.stop_running(engine)
+    @router.post("/runs/{run_id}/heard", operation_id="hear_from_run")
+    def hear_run_route(run_id: int):
+        """Say that the agent is still working a run: work the app has not heard about for five minutes counts as stopped."""
+        return {"heard": runs.hear_run(engine, run_id)}
 
     @router.get("/claims-to-dispatch", operation_id="get_claims_to_dispatch")
     def claims_to_dispatch():
@@ -318,21 +303,15 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
         except LookupError as exc:
             raise HTTPException(404, str(exc))
 
-    @router.post("/rounds", status_code=201, operation_id="round_start")
-    def round_start(body: RoundStartIn):
-        """Open a round for a handler, working to the settings as they stand and the current recipe."""
-        if next((h for h in ref.handlers if h["handler_id"] == body.handler_id), None) is None:
-            raise HTTPException(404, f"unknown handler {body.handler_id}")
-        try:
-            return {"round_id": improvement.start_round(engine, body.handler_id, configs.current(engine, "recipe")["version"],
-                                                        stored_settings(engine))}
-        except improvement.RoundOpen as exc:
-            raise conflict("round_open", exc)
+    @router.post("/rounds/{round_id}/heard", operation_id="hear_from_round")
+    def hear_round_route(round_id: int):
+        """Say that the agent is still working a round, its running evaluation too."""
+        return {"heard": improvement.hear_round(engine, round_id)}
 
-    @router.post("/rounds/stop-working", operation_id="round_stop_working")
-    def round_stop_working():
-        """End the rounds that lost their process; one waiting for a handler is still waiting."""
-        return improvement.stop_working_rounds(engine)
+    @router.post("/rounds/{round_id}/stop", operation_id="round_stop_with_reason")
+    def round_stop_with_reason(round_id: int, body: Finish):
+        """Stop a round that failed, with the reason, and its running evaluation. Nothing else is stopped."""
+        return {"stopped": improvement.stop_round_with_reason(engine, round_id, body.error or "the agent's work on it failed")}
 
     @router.get("/rounds/{round_id}", operation_id="round_one")
     def round_get(round_id: int):
@@ -377,22 +356,6 @@ def agent_routes(engine: Engine, ref: Reference, docs: Documents, guards: Guards
         """Get one proposal."""
         try:
             return plain(improvement.get_proposal(engine, proposal_id))
-        except LookupError as exc:
-            raise HTTPException(404, str(exc))
-
-    @router.post("/proposals/{proposal_id}/decision", operation_id="round_decide_proposal")
-    def decide_proposal(proposal_id: int, body: ProposalDecision):
-        """Record a handler's approval or rejection of a proposal."""
-        row = next((h for h in ref.handlers if h["handler_id"] == body.handler_id), None)
-        if row is None:
-            raise HTTPException(404, f"unknown handler {body.handler_id}")
-        handler = Handler(row["handler_id"], row["name"], row["role"], row["email"], bool(row["can_approve_over_limit"]))
-        try:
-            return improvement.decide_proposal(engine, proposal_id, body.approve, body.reason, handler)
-        except improvement.RoundStopped as exc:
-            raise conflict("round_stopped", exc)
-        except improvement.AlreadyDecided as exc:
-            raise conflict("already_decided", exc)
         except LookupError as exc:
             raise HTTPException(404, str(exc))
 

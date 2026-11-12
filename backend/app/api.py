@@ -13,7 +13,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 
-from app import agent_client, claims as claim_records, configs, runs
+from app import agent_client, claims as claim_records, configs, evaluations as evaluation_runs, improvement, runs
+from app.work import WorkGoing, start_work
 from app.agent_routes import agent_routes
 from app.auth import Handler, handler_view, make_guards, make_jwks
 from app.config import Settings
@@ -38,7 +39,7 @@ from app.reference import Reference
 from app.scoring import evaluation_report, list_evaluations
 from app.improvement import get_round as get_round_row, list_rounds as list_round_rows, round_report, stop_round as stop_round_row, version_scores
 from app.seed import seed_claims
-from app.settings_store import approval_limit, change_setting, models_allowed, setting_history
+from app.settings_store import approval_limit, change_setting, get_settings as stored_settings, models_allowed, setting_history
 from app.usage import claim_totals, run_totals
 
 # The operations the claim agent's tools are made of. The Gateway makes a tool of every operation in the document it is
@@ -215,20 +216,38 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         """A version's scores per set, the averages of its rounds' whole-set evaluations. None until a round has run one."""
         return version_scores(engine, version)
 
-    def forward_run(payload: dict) -> dict:
-        """Ask the agent to start work, and answer as the handler is told: a refusal as a 409 with its reason, an agent that was not
+    def hand_over(payload: dict, undo, **ids) -> dict:
+        """Ask the agent to work what the app has just created. When the agent did not take it (it refused, or the request never
+        got there, or the agent answered with an error) the app undoes it; when the call may have started it (a timeout, an answer
+        cut off) the app changes nothing. The handler is told as they were before: a refusal as a 409, an agent that was not
         reached as a 503, and a call that may have started the work as a 504 that says to reload the page."""
         try:
-            answer = agent_client.send(settings, payload, http)
+            agent_client.send(settings, payload, http)
         except agent_client.AgentRefused as exc:
+            undo(exc.reason)
             raise HTTPException(409, exc.reason)
         except agent_client.AgentNotReached as exc:
+            undo(str(exc))
             if exc.status:  # the agent answered, with an error: the handler is told what it said
                 raise HTTPException(exc.status, str(exc))
             raise HTTPException(503, "the agent is not running")
         except agent_client.AgentMaybe:
             raise HTTPException(504, "The agent did not answer in time. Reload the page to see whether it went through.")
-        return {"status": "started", **{k: answer[k] for k in ("run_id", "round_id") if k in answer}}
+        return {"status": "started", **ids}
+
+    def begin(create) -> int:
+        """Create a piece of the agent's work if nothing is going: a 409 names what is."""
+        try:
+            return start_work(engine, create)
+        except WorkGoing as exc:
+            raise HTTPException(409, str(exc))
+
+    def current_label() -> tuple[int, str, str]:
+        """The configuration version a new run uses, and the model and reasoning effort it runs with."""
+        config = configs.config_for_run(engine, None)
+        if settings.agent_provider == "scripted":  # no model is called: the scripted one answers for every version
+            return config["version"], "scripted", "default"
+        return config["version"], config["model"], config["reasoning_effort"]
 
     @public.get("/health", operation_id="get_health")
     def health():
@@ -355,18 +374,31 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
 
     @router.post("/dispatches", status_code=202, operation_id="start_dispatch")
     def start_dispatch(body: DispatchBody, handler: Handler = Depends(signed_in)):
-        """Ask the agent to work every claim in progress and every waiting claim, with N claim agents at once."""
-        return forward_run({"operation": "start_dispatch", "workers": body.workers})
+        """Start a dispatch of every claim in progress and every waiting claim, with N claim agents at once."""
+        version, model, effort = current_label()
+        run_id = begin(lambda: runs.start_dispatch(engine, body.workers, model, effort, version))
+        return hand_over({"operation": "work_run", "run_id": run_id}, lambda why: runs.stop_run(engine, run_id, why), run_id=run_id)
 
     @router.post("/evaluations", status_code=202, operation_id="start_evaluation")
     def start_evaluation(body: EvaluationBody, handler: Handler = Depends(signed_in)):
-        """Ask the agent to evaluate copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
-        return forward_run({"operation": "start_evaluation", **body.model_dump()})
+        """Start an evaluation on copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
+        version, model, effort = current_label()
+        run_id = begin(lambda: evaluation_runs.start_evaluation(engine, ref, body.eval_set, body.tiny, body.workers, model, effort,
+                                                            config_version=version))
+        return hand_over({"operation": "work_run", "run_id": run_id}, lambda why: runs.stop_run(engine, run_id, why), run_id=run_id)
 
     @router.post("/rounds", status_code=202, operation_id="start_round")
     def start_round(handler: Handler = Depends(senior)):
-        """Ask the agent to start an improvement round. Only a handler who can sign off over the limit may."""
-        return forward_run({"operation": "start_improver_round", "handler_id": handler.handler_id})
+        """Start an improvement round. Only a handler who can sign off over the limit may."""
+        def create() -> int:
+            try:
+                return improvement.start_round(engine, handler.handler_id, configs.current(engine, "recipe")["version"], stored_settings(engine))
+            except improvement.RoundOpen as exc:
+                raise WorkGoing(str(exc).removesuffix(" is already open")) from exc
+
+        round_id = begin(create)
+        return hand_over({"operation": "work_round", "round_id": round_id},
+                         lambda why: improvement.stop_round_with_reason(engine, round_id, why), round_id=round_id)
 
     @router.post("/rounds/{round_id}/stop", operation_id="stop_round")
     def stop_round(round_id: int, handler: Handler = Depends(senior)):
@@ -381,8 +413,21 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
 
     @router.post("/rounds/{round_id}/decision", status_code=202, operation_id="decide_proposal")
     def decide_proposal_route(round_id: int, body: DecisionBody, handler: Handler = Depends(senior)):
-        """Approve or reject the proposal a round waits on, as the signed-in handler."""
-        return forward_run({"operation": "decide_round_proposal", "round_id": round_id, **body.model_dump(), "handler_id": handler.handler_id})
+        """Approve or reject the proposal a round waits on, as the signed-in handler, and ask the agent to carry the round on."""
+        def record() -> int:
+            try:
+                if improvement.get_proposal(engine, body.proposal_id)["round_id"] != round_id:
+                    raise LookupError(f"proposal {body.proposal_id} is not in round {round_id}")
+                improvement.decide_proposal(engine, body.proposal_id, body.approve, body.reason, handler)
+            except LookupError as exc:
+                raise HTTPException(404, str(exc))
+            except (improvement.RoundStopped, improvement.AlreadyDecided) as exc:
+                raise HTTPException(409, str(exc))
+            return body.proposal_id
+
+        proposal_id = begin(record)
+        return hand_over({"operation": "carry_round_on", "round_id": round_id, "proposal_id": proposal_id},
+                         lambda why: improvement.clear_review(engine, proposal_id), round_id=round_id)
 
     @router.get("/rounds", operation_id="list_rounds")
     def rounds_list():

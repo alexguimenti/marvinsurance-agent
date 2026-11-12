@@ -48,6 +48,7 @@ export default function Evaluation() {
         title={<>Evaluation {run.run_id}</>}
         lede={<>{RUN_LABEL[run.status]} · {run.model} · effort {run.reasoning_effort} · {run.workers} claim agents at once</>}
       />
+      {run.error && <p className="error small">Stopped: {run.error}</p>}
       <div className="tiles">
         {[
           ['Decision accuracy', formatShare(m.decision_accuracy)],

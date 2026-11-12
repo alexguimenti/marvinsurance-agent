@@ -306,6 +306,8 @@ def decide_proposal(engine: Engine, proposal_id: int, approve: bool, reason: str
         raise AlreadyDecided(f"proposal {proposal_id} was already {found[0]}")
     out = plain(row)
     out["payload"] = json.loads(row["payload"])
+    with engine.begin() as conn:  # the review is work: the round is working again, and the agent's clock starts
+        conn.execute(update(rounds).where(rounds.c.round_id == row["round_id"]).values(stage="improving", heard_at=func.now()))
     if not approve:
         return out
     payload = out["payload"]
@@ -317,9 +319,51 @@ def decide_proposal(engine: Engine, proposal_id: int, approve: bool, reason: str
     else:
         version = configs.add_version(engine, "recipe", {**payload, "reason": row["reason"], "proposed_by": "improver"},
                                       approved_by=handler.handler_id, round_id=row["round_id"])
+        before = configs.current(engine, "recipe")["version"]
         configs.make_current(engine, "recipe", version)
+        with engine.begin() as conn:
+            conn.execute(update(proposals).where(proposals.c.id == proposal_id).values(previous_recipe=before))
+    with engine.begin() as conn:
+        conn.execute(update(proposals).where(proposals.c.id == proposal_id).values(created_version=version))
     out["version"] = version
     return out
+
+
+def clear_review(engine: Engine, proposal_id: int) -> None:
+    """Undo a review the agent did not take: the proposal waits for a review again, the version an approval made is gone, and a
+    recipe an approval made current gives way to the one that was current before it."""
+    row = get_proposal(engine, proposal_id)
+    if row["status"] == "waiting":
+        return
+    if row["created_version"] is not None:
+        table = configs.TABLES["config" if row["kind"] == "change" else "recipe"]
+        if row["kind"] == "recipe" and row["previous_recipe"] is not None:
+            configs.make_current(engine, "recipe", row["previous_recipe"])
+        with engine.begin() as conn:
+            conn.execute(table.delete().where(table.c.version == row["created_version"]))
+    with engine.begin() as conn:
+        conn.execute(update(proposals).where(proposals.c.id == proposal_id).values(
+            status="waiting", decided_by=None, decided_at=None, decision_reason=None, created_version=None, previous_recipe=None))
+        conn.execute(update(rounds).where(rounds.c.round_id == row["round_id"]).values(
+            stage="awaiting_change" if row["kind"] == "change" else "awaiting_recipe", version_tried=None if row["kind"] == "change" else rounds.c.version_tried,
+            reason=None if row["kind"] == "change" else rounds.c.reason, heard_at=None))
+
+
+def hear_round(engine: Engine, round_id: int) -> bool:
+    """The agent says it is still working the round (its evaluation too). False if the round has ended."""
+    with engine.begin() as conn:
+        return bool(conn.execute(update(rounds).where(_open(round_id)).values(heard_at=func.now())).rowcount)
+
+
+def stop_round_with_reason(engine: Engine, round_id: int, reason: str) -> bool:
+    """Stop a round that is open, with the reason, and its evaluation that is running. False if the round had ended."""
+    with engine.begin() as conn:
+        stopped = bool(conn.execute(update(rounds).where(_open(round_id)).values(
+            stage="stopped", open=False, progress=None, error=reason, finished_at=datetime.now(timezone.utc))).rowcount)
+        if stopped:
+            conn.execute(update(runs).where(runs.c.round_id == round_id, runs.c.status == "running").values(
+                status="stopped", error=reason, finished_at=func.now()))
+    return stopped
 
 
 def record_verdict(engine: Engine, round_id: int, kept: bool, why: str, before: dict, after: dict) -> None:

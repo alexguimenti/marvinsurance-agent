@@ -39,6 +39,22 @@ def engine_for(db_path):
     return make_engine(Settings(_env_file=None, db_path=db_path), max_connections=2)
 
 
+def new_run(db_path, data_dir, kind="dispatch", workers=3) -> int:
+    """What the app does before it asks the agent: create the run."""
+    engine = engine_for(db_path)
+    init_schema(engine)
+    seed_claims(engine, Reference(data_dir))
+    if kind == "evaluation":
+        from app.evaluations import start_evaluation
+
+        return start_evaluation(engine, Reference(data_dir), "held_out", True, workers, "scripted", "default", config_version=1)
+    return runs.start_dispatch(engine, workers, "scripted", "default", 1)
+
+
+def work(run_id: int) -> dict:
+    return {"operation": "work_run", "run_id": run_id}
+
+
 def ping(service) -> str:
     return service.get("/ping").json()["status"]
 
@@ -63,20 +79,21 @@ def test_health_answers_healthy_once_ready_without_the_key(db_path, data_dir):
 
 
 def test_off_runtime_a_request_without_the_key_is_refused_but_health_is_not(db_path, data_dir):
-    work = {"operation": "start_dispatch", "workers": 1}
+    run_id = new_run(db_path, data_dir)
     with service_client(create_service(make_settings(db_path, data_dir), inline=True), keyed=False) as keyless:
-        assert keyless.post("/invocations", json=work).status_code == 401
-        assert keyless.post("/invocations", json=work, headers=WRONG).status_code == 401
+        assert keyless.post("/invocations", json=work(run_id)).status_code == 401
+        assert keyless.post("/invocations", json=work(run_id), headers=WRONG).status_code == 401
         assert keyless.post("/invocations", json={"operation": "health"}).status_code == 200
-        assert keyless.post("/invocations", json=work, headers=BEARER).json()["accepted"] is True
+        assert keyless.post("/invocations", json=work(run_id), headers=BEARER).json()["accepted"] is True
 
 
 def test_on_runtime_no_key_is_asked_for(db_path, data_dir, monkeypatch):
     monkeypatch.setenv("AGENTCORE_CREDENTIAL_OPENROUTER_API_KEY_NAME", "provider-of-openrouter")
     monkeypatch.setenv("OPENROUTER_API_KEY", "placeholder")  # the fetch sets it: this makes the test put it back
     monkeypatch.setattr("bedrock_agentcore.identity.auth.requires_api_key", fake_identity([]))
+    run_id = new_run(db_path, data_dir)
     with service_client(create_service(make_settings(db_path, data_dir), inline=True), keyed=False) as service:
-        answer = service.post("/invocations", json={"operation": "start_dispatch", "workers": 1})
+        answer = service.post("/invocations", json=work(run_id))
     assert answer.status_code == 200 and answer.json()["accepted"] is True
 
 
@@ -106,8 +123,6 @@ def test_on_runtime_the_first_request_fetches_each_credential_into_its_setting_o
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "placeholder")
     monkeypatch.setattr("bedrock_agentcore.identity.auth.requires_api_key", fake_identity(calls))
     monkeypatch.setattr(entrypoint, "open_env", lambda settings: __import__("contextlib").nullcontext(object()))  # no database here
-    monkeypatch.setattr(entrypoint.api, "stop_running", lambda: [])
-    monkeypatch.setattr(entrypoint.rounds, "stop_working_rounds", lambda: [])
     with service_client(create_service(make_settings(db_path, data_dir), inline=True), keyed=False) as service:
         for _ in range(2):
             assert service.post("/invocations", json={"operation": "health"}).json() == {"healthy": True}
@@ -116,18 +131,18 @@ def test_on_runtime_the_first_request_fetches_each_credential_into_its_setting_o
 
 
 def test_getting_ready_that_fails_answers_the_error_and_the_next_request_tries_again(db_path, data_dir, monkeypatch):
-    real, tries = entrypoint.wait_for_backend, []
+    real, tries = entrypoint.open_env, []
 
     def flaky(*args, **kwargs):
         tries.append(1)
         if len(tries) == 1:
-            raise RuntimeError("the backend did not answer")
+            raise RuntimeError("the checkpoint pool did not open")
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(entrypoint, "wait_for_backend", flaky)
+    monkeypatch.setattr(entrypoint, "open_env", flaky)
     with service_client(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as service:
         failed = service.post("/invocations", json={"operation": "health"})
-        assert failed.status_code == 500 and "the backend did not answer" in failed.text
+        assert failed.status_code == 500 and "the checkpoint pool did not open" in failed.text
         assert service.post("/invocations", json={"operation": "health"}).json() == {"healthy": True}
 
 
@@ -138,14 +153,11 @@ def test_ready_without_the_key_answers_the_error(db_path, data_dir, monkeypatch)
     assert answer.status_code == 500 and "UNDERCOVER_API_KEY" in answer.text
 
 
-def test_getting_ready_marks_a_running_run_stopped(db_path, data_dir):
-    engine = engine_for(db_path)
-    init_schema(engine)
-    RawDb(engine).execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
+def test_getting_ready_stops_nothing_a_run_left_running_is_the_apps_to_judge(db_path, data_dir):
+    run_id = new_run(db_path, data_dir)
     with service_client(create_service(make_settings(db_path, data_dir), inline=True)) as service:
         service.post("/invocations", json={"operation": "health"})
-        assert runs.get_run(engine, 1)["status"] == "stopped"
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
+        assert runs.get_run(engine_for(db_path), run_id)["status"] == "running"  # on Runtime another session may be working it
 
 
 def test_getting_ready_leaves_stopped_claims_alone(db_path, data_dir):
@@ -161,40 +173,72 @@ def test_getting_ready_leaves_stopped_claims_alone(db_path, data_dir):
 
 # --- the operations -----------------------------------------------------------------------------------------------
 
-def test_a_dispatch_is_accepted_and_works_the_queue(service, db_path):
-    assert service.invoke({"operation": "start_dispatch", "workers": 4}).json()["accepted"] is True
+def test_work_run_is_accepted_and_works_the_queue(service, db_path, data_dir):
+    run_id = new_run(db_path, data_dir, workers=4)
+    assert service.invoke(work(run_id)).json() == {"accepted": True}
     engine = engine_for(db_path)
-    row = runs.latest_run(engine, "dispatch")
+    row = runs.get_run(engine, run_id)
     assert (row["status"], row["workers"], row["model"], row["reasoning_effort"]) == ("finished", 4, "scripted", "default")
     assert RawDb(engine).execute("SELECT COUNT(*) FROM claims WHERE status = 'waiting'").fetchone()[0] == 0
 
 
-def test_a_dispatch_while_one_runs_is_refused_with_the_reason(service, db_path):
-    RawDb(engine_for(db_path)).execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
-    # ready marks a leftover running run stopped, so this one goes in after the agent is ready
-    service.post("/invocations", json={"operation": "health"})
-    RawDb(engine_for(db_path)).execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
-    answer = service.invoke({"operation": "start_dispatch", "workers": 3})
-    assert answer.status_code == 200 and "already running" in answer.json()["refused"]
+def test_work_run_works_an_evaluation_too(service, db_path, data_dir):
+    run_id = new_run(db_path, data_dir, "evaluation", workers=5)
+    assert service.invoke(work(run_id)).json() == {"accepted": True}
+    row = runs.get_run(engine_for(db_path), run_id)
+    assert (row["kind"], row["status"], row["eval_set"]) == ("evaluation", "finished", "held_out")
 
 
-def test_an_evaluation_is_accepted_and_refused_during_a_dispatch(service, db_path):
-    body = {"operation": "start_evaluation", "eval_set": "held_out", "tiny": True, "workers": 5}
-    assert service.invoke(body).json()["accepted"] is True
-    raw = RawDb(engine_for(db_path))
-    assert tuple(raw.execute("SELECT kind, status, eval_set FROM runs").fetchone()) == ("evaluation", "finished", "held_out")
-    raw.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
-    assert "already running" in service.invoke(body).json()["refused"]
+def test_work_run_refuses_a_run_that_is_not_running_or_does_not_exist(service, db_path, data_dir):
+    run_id = new_run(db_path, data_dir)
+    runs.finish_run(engine_for(db_path), run_id)
+    assert service.invoke(work(run_id)).json() == {"refused": f"run {run_id} is not running"}
+    assert "no run 99" in service.invoke(work(99)).json()["refused"]
 
 
-def test_a_round_is_accepted_and_a_second_is_refused(service, db_path):
-    assert service.invoke({"operation": "start_improver_round", "handler_id": "HND-01"}).json()["accepted"] is True
-    assert "already open" in service.invoke({"operation": "start_improver_round", "handler_id": "HND-01"}).json()["refused"]
+def test_a_failed_run_stops_only_itself(db_path, data_dir, monkeypatch):
+    from app import improvement
+    from app.settings_store import get_settings
+
+    run_id = new_run(db_path, data_dir)
+    engine = engine_for(db_path)
+    round_id = improvement.start_round(engine, "HND-01", 1, get_settings(engine))
+
+    def broken(env, run, workers):
+        raise RuntimeError("the dispatcher broke")
+
+    monkeypatch.setattr(entrypoint, "dispatch", broken)
+    with service_client(create_service(make_settings(db_path, data_dir), inline=True)) as service:
+        assert service.invoke(work(run_id)).json() == {"accepted": True}
+    row = runs.get_run(engine, run_id)
+    assert row["status"] == "stopped" and row["error"] == "RuntimeError: the dispatcher broke"
+    assert improvement.get_round(engine, round_id)["open"]  # the round is another piece of work: untouched
 
 
-def test_a_decision_on_a_proposal_that_does_not_exist_is_refused(service):
-    answer = service.invoke({"operation": "decide_round_proposal", "round_id": 1, "proposal_id": 99, "approve": True, "reason": "", "handler_id": "HND-01"})
-    assert "refused" in answer.json()
+def test_work_round_works_the_round_the_app_opened_and_refuses_one_that_is_not_open(service, db_path, data_dir):
+    from app import improvement
+    from app.settings_store import get_settings
+
+    engine = engine_for(db_path)
+    init_schema(engine)
+    round_id = improvement.start_round(engine, "HND-01", 1, get_settings(engine))
+    assert service.invoke({"operation": "work_round", "round_id": round_id}).json() == {"accepted": True}
+    improvement.finish_round(engine, round_id)
+    assert service.invoke({"operation": "work_round", "round_id": round_id}).json() == {"refused": f"round {round_id} is not open"}
+    assert "refused" in service.invoke({"operation": "work_round", "round_id": 99}).json()
+
+
+def test_carry_round_on_needs_a_review_the_app_recorded(service, db_path, data_dir):
+    from app import improvement
+    from app.settings_store import get_settings
+
+    engine = engine_for(db_path)
+    init_schema(engine)
+    round_id = improvement.start_round(engine, "HND-01", 1, get_settings(engine))
+    payload = {"instructions": "x", "model": "deepseek/deepseek-v4.1-flash", "reasoning_effort": "low"}
+    proposal = improvement.add_proposal(engine, round_id, "change", payload, "r")
+    refused = service.invoke({"operation": "carry_round_on", "round_id": round_id, "proposal_id": proposal}).json()
+    assert "has no review" in refused["refused"]  # still waiting for a handler
 
 
 def test_resume_claim_is_refused_for_a_claim_that_is_not_paused(service):
@@ -203,11 +247,12 @@ def test_resume_claim_is_refused_for_a_claim_that_is_not_paused(service):
 
 
 @pytest.mark.parametrize("payload,says", [
-    ({"operation": "start_dispatch"}, "start_dispatch: workers"),
-    ({"operation": "start_dispatch", "workers": 0}, "start_dispatch: workers"),
-    ({"operation": "start_dispatch", "workers": 26}, "start_dispatch: workers"),
-    ({"operation": "start_evaluation", "eval_set": "harder", "tiny": True, "workers": 3}, "start_evaluation: eval_set"),
+    ({"operation": "work_run"}, "work_run: run_id"),
+    ({"operation": "work_run", "run_id": "x"}, "work_run: run_id"),
+    ({"operation": "work_round"}, "work_round: round_id"),
+    ({"operation": "carry_round_on", "round_id": 1}, "carry_round_on: proposal_id"),
     ({"operation": "resume_claim"}, "resume_claim: claim_id"),
+    ({"operation": "start_dispatch", "workers": 3}, "unknown operation 'start_dispatch'"),  # the app creates runs now
     ({"operation": "dance"}, "unknown operation 'dance'"),
     ({}, "unknown operation None"),
 ])
@@ -219,10 +264,10 @@ def test_a_payload_with_an_input_missing_or_wrong_is_a_400_that_says_what(servic
 def test_no_operation_has_an_optional_input():
     from agent import operations_in
 
-    for model in (operations_in.Health, operations_in.StartDispatch, operations_in.StartEvaluation,
-                  operations_in.StartImproverRound, operations_in.DecideRoundProposal, operations_in.ResumeClaim):
+    for model in (operations_in.Health, operations_in.WorkRun, operations_in.WorkRound, operations_in.CarryRoundOn,
+                  operations_in.ResumeClaim):
         assert all(field.is_required() for field in model.model_fields.values()), model.__name__
-    assert set(OPERATIONS) == {"health", "start_dispatch", "start_evaluation", "start_improver_round", "decide_round_proposal", "resume_claim"}
+    assert set(OPERATIONS) == {"health", "work_run", "work_round", "carry_round_on", "resume_claim"}
 
 
 # --- work on a thread, and the ping ------------------------------------------------------------------------------
@@ -239,9 +284,10 @@ def test_the_ping_is_busy_while_work_is_going_and_healthy_once_it_has_finished_o
             raise RuntimeError("the work failed")
 
     monkeypatch.setattr(entrypoint, "dispatch", gated)
+    first = new_run(db_path, data_dir)
     with service_client(create_service(make_settings(db_path, data_dir))) as service:  # real threads
         assert ping(service) == "Healthy"
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
+        assert service.invoke(work(first)).json()["accepted"] is True
         assert started.wait(10) and ping(service) == "HealthyBusy"
         release.set()
         deadline = time.monotonic() + 10
@@ -251,7 +297,7 @@ def test_the_ping_is_busy_while_work_is_going_and_healthy_once_it_has_finished_o
         # and the same when the work fails
         release.clear(), started.clear()
         outcomes.append(1)
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
+        assert service.invoke(work(new_run(db_path, data_dir))).json()["accepted"] is True
         assert started.wait(10) and ping(service) == "HealthyBusy"
         release.set()
         deadline = time.monotonic() + 10
@@ -299,7 +345,7 @@ def test_a_dispatch_with_no_agent_is_503(db_path, data_dir):
     with api_client(create_app(make_settings(db_path, data_dir), http=Down(), jwks=MINT), headers=MINT.header()) as backend:
         answer = backend.post("/dispatches", json={"workers": 3})
         assert answer.status_code == 503 and "not running" in answer.json()["detail"]
-        assert backend.get("/dispatches/latest").json()["run"] is None
+        assert backend.get("/dispatches/latest").json()["run"]["status"] == "stopped"  # the app undid what it had created
 
 
 def test_every_operation_of_the_app_follows_the_api_rules(db_path, data_dir):
@@ -324,31 +370,21 @@ def test_every_operation_of_the_app_follows_the_api_rules(db_path, data_dir):
         assert set(model.get("required", [])) == set(model.get("properties", {})), f"{name}: an optional input"
 
 
-def test_a_database_error_before_a_start_does_not_lock_the_agent(db_path, data_dir, monkeypatch):
-    real, calls = entrypoint.api.running_run, []
+def test_a_database_error_before_a_start_does_not_lock_the_app(db_path, data_dir, monkeypatch):
+    real, calls = runs.start_dispatch, []
 
-    def flaky():
+    def flaky(*args, **kwargs):
         calls.append(1)
         if len(calls) == 1:
             raise RuntimeError("the pooler closed the connection")
-        return real()
+        return real(*args, **kwargs)
 
-    monkeypatch.setattr(entrypoint.api, "running_run", flaky)
-    with service_client(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as service:
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).status_code == 500
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
-
-
-def test_a_start_that_fails_to_create_its_run_says_so(db_path, data_dir, monkeypatch):
-    def broken(*args, **kwargs):
-        raise RuntimeError("could not write the run")
-
-    real = entrypoint.api.start_dispatch
-    monkeypatch.setattr(entrypoint.api, "start_dispatch", broken)
-    with service_client(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as service:
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).status_code == 500
-        monkeypatch.setattr(entrypoint.api, "start_dispatch", real)
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
+    monkeypatch.setattr(runs, "start_dispatch", flaky)
+    settings = make_settings(db_path, data_dir)
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header(), raise_server_exceptions=False) as backend:
+            assert backend.post("/dispatches", json={"workers": 3}).status_code == 500
+            assert backend.post("/dispatches", json={"workers": 3}).status_code == 202  # the lock went back
 
 
 def test_an_evaluation_half_made_ends_stopped_and_frees_the_next_start(db_path, data_dir, monkeypatch):
@@ -359,12 +395,13 @@ def test_an_evaluation_half_made_ends_stopped_and_frees_the_next_start(db_path, 
 
     real = evaluations_module.runs.add_run_claims
     monkeypatch.setattr(evaluations_module.runs, "add_run_claims", broken)
-    with service_client(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as service:
-        body = {"operation": "start_evaluation", "eval_set": "evaluation", "tiny": True, "workers": 3}
-        assert service.invoke(body).status_code == 500
-        assert runs.get_run(engine_for(db_path), 1)["status"] == "stopped"
-        monkeypatch.setattr(evaluations_module.runs, "add_run_claims", real)
-        assert service.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
+    settings = make_settings(db_path, data_dir)
+    with service_client(create_service(settings, inline=True)) as service:
+        with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header(), raise_server_exceptions=False) as backend:
+            assert backend.post("/evaluations", json={"eval_set": "evaluation", "tiny": True, "workers": 3}).status_code == 500
+            assert runs.get_run(engine_for(db_path), 1)["status"] == "stopped"
+            monkeypatch.setattr(evaluations_module.runs, "add_run_claims", real)
+            assert backend.post("/dispatches", json={"workers": 3}).status_code == 202
 
 
 def test_an_agent_error_with_a_plain_text_body_reaches_the_dashboard(db_path, data_dir):

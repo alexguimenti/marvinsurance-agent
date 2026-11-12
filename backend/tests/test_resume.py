@@ -4,6 +4,7 @@ import logging
 import httpx
 import pytest
 
+from app import runs
 from app.api import create_app
 from app.claims import get_claim
 from app.config import Settings
@@ -22,6 +23,14 @@ def settings_for(db_path, data_dir):
 def service(db_path, data_dir):
     with service_client(create_service(settings_for(db_path, data_dir), inline=True)) as c:
         yield c
+
+
+def dispatch_all(service, db_path):
+    """What the app does for a dispatch: create the run. The agent is then asked to work it."""
+    engine = make_engine(Settings(_env_file=None, db_path=db_path), max_connections=1)
+    run_id = runs.start_dispatch(engine, 25, "scripted", "default", 1)
+    engine.dispose()
+    return service.invoke({"operation": "work_run", "run_id": run_id})
 
 
 def thread_state(db_path, claim_id=BIG):
@@ -56,18 +65,18 @@ def backend(db_path, data_dir, http):
     return api_client(create_app(settings_for(db_path, data_dir), http=http, jwks=MINT))
 
 
-def test_resume_claim_refuses_a_claim_that_is_not_paused(service):
+def test_resume_claim_refuses_a_claim_that_is_not_paused(service, db_path):
     def resume(claim_id):
         return service.invoke({"operation": "resume_claim", "claim_id": claim_id}).json()
 
     assert "not waiting for a handler's answer" in resume("CLM-1001")["refused"]  # waiting
-    service.invoke({"operation": "start_dispatch", "workers": 25})
+    dispatch_all(service, db_path)
     assert "refused" in resume("CLM-1001")  # decided and paid
     assert "refused" in resume("CLM-0000")
 
 
 def test_a_resume_after_a_sign_off_ends_the_work(service, db_path, data_dir):
-    service.invoke({"operation": "start_dispatch", "workers": 25})
+    dispatch_all(service, db_path)
     assert thread_state(db_path).next == ("wait_for_sign_off",)  # paused, its place saved
     with backend(db_path, data_dir, Recorder()) as app:  # the sign-off: pays, and asks the agent to resume
         signed = app.post("/payments/PAY-CLM-1003/approve", headers=MINT.header("HND-01"))
@@ -81,7 +90,7 @@ def test_a_resume_after_a_sign_off_ends_the_work(service, db_path, data_dir):
 
 
 def test_two_resumes_of_one_claim_pay_once(service, db_path, data_dir):
-    service.invoke({"operation": "start_dispatch", "workers": 25})
+    dispatch_all(service, db_path)
     with backend(db_path, data_dir, Recorder()) as app:
         app.post("/payments/PAY-CLM-1003/approve", headers=MINT.header("HND-01"))
     assert service.invoke({"operation": "resume_claim", "claim_id": "CLM-1003"}).json() == {"accepted": True}
@@ -98,20 +107,22 @@ def test_a_resume_runs_beside_a_dispatch(db_path, data_dir, monkeypatch):
 
     settings = settings_for(db_path, data_dir)
     with service_client(create_service(settings, inline=True)) as first:
-        first.invoke({"operation": "start_dispatch", "workers": 25})  # three claims over the limit pause
+        dispatch_all(first, db_path)  # three claims over the limit pause
     with backend(db_path, data_dir, Recorder()) as app:
         app.post("/payments/PAY-CLM-1003/approve", headers=MINT.header("HND-01"))
     release = threading.Event()
     monkeypatch.setattr(service_module, "dispatch", lambda env, run_id, workers: release.wait(30))
     with service_client(create_service(settings, inline=False)) as second:
-        assert second.invoke({"operation": "start_dispatch", "workers": 1}).json()["accepted"] is True  # holds the agent's lock
-        assert "already running" in second.invoke({"operation": "start_dispatch", "workers": 1}).json()["refused"]
-        assert second.invoke({"operation": "resume_claim", "claim_id": "CLM-1003"}).json() == {"accepted": True}  # beside it
+        engine = make_engine(settings, max_connections=1)
+        run_id = runs.start_dispatch(engine, 1, "scripted", "default", 1)
+        assert second.invoke({"operation": "work_run", "run_id": run_id}).json() == {"accepted": True}  # a dispatch is going
+        assert second.invoke({"operation": "resume_claim", "claim_id": "CLM-1003"}).json() == {"accepted": True}  # a resume goes beside it
         deadline = time.monotonic() + 30
         while thread_state(db_path).next and time.monotonic() < deadline:
             time.sleep(0.2)
         assert not thread_state(db_path).next  # it finished while the dispatch was still going
         release.set()
+        engine.dispose()
 
 
 def test_a_sign_off_asks_the_agent_to_resume_with_the_key(db_path, data_dir):

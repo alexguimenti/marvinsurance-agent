@@ -22,7 +22,7 @@ async function queueCounts(page: Page) {
   }
 }
 
-test('an evaluation started on the dashboard reaches the service with N, and shows on the scoreboard', async ({ page }) => {
+test('an evaluation started on the dashboard is created by the app and handed to the agent by id, and shows on the scoreboard', async ({ page }) => {
   const before = await queueCounts(page)
 
   await page.goto('/scoreboard')
@@ -32,7 +32,7 @@ test('an evaluation started on the dashboard reaches the service with N, and sho
   await page.getByLabel('Claim agents at once').fill('5')
   await page.getByRole('button', { name: 'Start evaluation' }).click()
 
-  await expect.poll(() => received(page)).toContainEqual({ operation: 'start_evaluation', eval_set: 'held_out', tiny: true, workers: 5 })
+  await expect.poll(() => received(page)).toContainEqual({ operation: 'work_run', run_id: 1 })
   const row = page.locator('tbody tr').first()
   await expect(row).toContainText('Finished', { timeout: 60_000 })
   await expect(row).toContainText('Held-out set, tiny')

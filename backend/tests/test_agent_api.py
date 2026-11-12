@@ -7,6 +7,7 @@ import pytest
 from langgraph.types import RetryPolicy
 
 from agent import api, connection
+from app import runs
 from agent.dispatcher import dispatch
 from agent.worker import work_claim
 from tests.fakes import TEST_KEY, RawDb, agent_env, approve, decline, stub
@@ -117,7 +118,7 @@ def test_a_backend_restart_uses_up_no_attempt_and_the_claim_carries_on(db_path, 
             return real(*args)
 
         monkeypatch.setattr(api, "record_model_call", flaky)
-        run_id = api.start_dispatch(1, "stub/model", None, None)
+        run_id = runs.start_dispatch(env.engine, 1, "stub/model", None, None)  # the app creates the run
         dispatch(env, run_id, 1, RetryPolicy(initial_interval=0.01, max_interval=0.02, max_attempts=3, retry_on=(httpx.TransportError,)))
         db = RawDb(env.engine)
         assert db.execute("SELECT COUNT(*) FROM claims WHERE attempts > 0 OR status = 'needs_handler'").fetchone()[0] == 0
@@ -125,22 +126,11 @@ def test_a_backend_restart_uses_up_no_attempt_and_the_claim_carries_on(db_path, 
         assert not db.execute("SELECT 1 FROM trace_events WHERE kind = 'error' AND content LIKE '%failed%'")
 
 
-def test_a_review_is_recorded_for_the_handler_with_the_key(db_path, data_dir, monkeypatch):
-    from agent import improver_api
-
-    payload = {"instructions": "Decide carefully.", "model": "openai/gpt-6-luna", "reasoning_effort": "low"}
-    with agent_env(db_path, data_dir, stub()):
-        round_id = improver_api.start_round("HND-01")
-        proposal = improver_api.add_proposal(round_id, "change", payload, "a reason")
-        monkeypatch.delenv("UNDERCOVER_API_KEY")  # without the key nothing is recorded, whoever is named
-        with pytest.raises(connection.Refused) as caught:
-            improver_api.decide_proposal(proposal, True, "", "HND-01")
-        assert caught.value.status_code == 401
-        monkeypatch.setenv("UNDERCOVER_API_KEY", TEST_KEY)
-        decided = improver_api.decide_proposal(proposal, True, "", "HND-01")
-        assert decided["decided_by"] == "HND-01" and decided["version"] == 2
-        with pytest.raises(LookupError):  # the name must be a handler's
-            improver_api.start_round("HND-99")
+def test_the_agents_key_cannot_record_a_review_the_handler_does_through_the_app(backend):
+    key = {"X-API-Key": TEST_KEY}
+    assert backend.post("/agent/proposals/1/decision", json={"approve": True, "reason": "", "handler_id": "HND-01"}, headers=key).status_code in (404, 405)
+    assert backend.post("/agent/rounds", json={"handler_id": "HND-01"}, headers=key).status_code in (404, 405)  # nor open a round
+    assert backend.post("/agent/dispatches", json={"workers": 1, "model": "m", "reasoning_effort": None, "config_version": None}, headers=key).status_code in (404, 405)
 
 
 # --- the Gateway refused a payment: the app's bookkeeping for it ---------------------------------

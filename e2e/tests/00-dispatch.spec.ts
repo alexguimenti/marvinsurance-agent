@@ -2,7 +2,7 @@ import { expect, test } from './fixtures'
 
 // Specs share one backend and database and run in file order. This one runs first, on a queue
 // where all 26 claims are waiting, and dispatches the whole queue on the scripted model.
-test('a dispatch started on the dashboard reaches the agent service with N, and works every claim', async ({ page, request }) => {
+test('a dispatch started on the dashboard is created by the app, handed to the agent by id, and works every claim', async ({ page, request }) => {
   await page.goto('/')
   await expect(page.locator('.badge-waiting')).toHaveCount(26)
   await expect(page.getByText(/No dispatch yet/)).toBeVisible()
@@ -13,7 +13,7 @@ test('a dispatch started on the dashboard reaches the agent service with N, and 
 
   await expect
     .poll(async () => (await (await request.get('http://127.0.0.1:8003/received')).json()).starts)
-    .toContainEqual({ operation: 'start_dispatch', workers: 5 })
+    .toContainEqual({ operation: 'work_run', run_id: 1 })
   const summary = page.locator('.run-summary')
   await expect(summary).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText(/Dispatch 1 · Finished · 5 claim agents at once · 26 of 26 done/)).toBeVisible()

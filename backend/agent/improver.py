@@ -236,11 +236,6 @@ def _problem(env: AgentEnv, request: dict) -> str | None:
     return None
 
 
-def begin(env: AgentEnv, handler_id: str) -> int:
-    """Open a round, working to the settings as they stand and following the current recipe."""
-    return backend.start_round(handler_id)
-
-
 def work_round(env: AgentEnv, round_id: int, resume: dict | None = None) -> None:
     """One stretch of a round: its first evaluations and the improver's work, or the improver carrying on after a
     decision. It ends where the improver waits for a handler, or finishes. A round that has been stopped ends quietly."""
@@ -275,13 +270,6 @@ def work_round(env: AgentEnv, round_id: int, resume: dict | None = None) -> None
             backend.finish_round(round_id, error=CREDIT_OUT if out_of_credit(exc) else f"{type(exc).__name__}: {exc}")
         except Exception:
             log.exception("could not record how round %s ended", round_id)
-
-
-def record_decision(env: AgentEnv, round_id: int, proposal_id: int, approve: bool, reason: str, handler_id: str) -> dict:
-    """A handler's decision on the proposal the round is waiting on: recorded, with who, before the improver carries on."""
-    if backend.get_proposal(proposal_id)["round_id"] != round_id:
-        raise LookupError(f"proposal {proposal_id} is not in round {round_id}")
-    return backend.decide_proposal(proposal_id, approve, reason, handler_id)
 
 
 def resume_round(env: AgentEnv, round_id: int, approve: bool, reason: str) -> None:

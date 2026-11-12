@@ -28,12 +28,12 @@ This starts the four parts, with `.env` in their environment:
 |---|---|---|
 | Backend | http://127.0.0.1:8000 | Yes |
 | The context layer | http://127.0.0.1:8006/mcp (`UNDERCOVER_CONTEXT` to change where the agent looks) | No |
-| The agent's service | http://127.0.0.1:8002 (`UNDERCOVER_AGENT` to change where the backend looks) | No: a reload would stop the claim it is working on |
+| The agent (an AgentCore app) | http://127.0.0.1:8080 (`UNDERCOVER_AGENT` to change where the backend looks) | Yes: a reload stops the work it is doing, and the next run carries on |
 | Dashboard | http://localhost:5173 | Yes |
 
 Ctrl-C stops all four. If one dies, the others stop too and the output says which. Everything `npm run dev` starts must work on Windows.
 
-`cd backend; uv run -m agent CLM-1001` works one claim in its own process, with no run. Dispatches and evaluations start from the dashboard, through the service.
+`cd backend; uv run -m agent CLM-1001` works one claim in its own process, with no run. Dispatches and evaluations start from the dashboard: the app creates the run and asks the agent to work it.
 
 ## Building the dashboard
 
@@ -43,13 +43,23 @@ npm run build
 
 This writes the dashboard to `dashboard/dist` (see `TECH_STACK.md`, Deployment). With that folder in place the backend serves it at `http://127.0.0.1:8000`: `uvicorn backend.main:app --port 8000` from the repo root, with `.env` in its environment.
 
+## The agent on port 8080
+
+The agent listens on 8080, the port AgentCore apps use. Lab 1's `agentcore dev` serves on 8080 too: stop it before `npm run dev`. With `npm run dev` stopped, the agent can be served on its own, as Runtime starts it, from the repository root:
+
+```powershell
+$env:PYTHONPATH = "backend"; uv run --project backend --env-file .env --isolated --only-group runtime python -m runtime.main
+```
+
+Posting `{"operation": "health"}` to `http://127.0.0.1:8080/invocations` answers `{"healthy": true}` (the health check needs no key). Every other operation needs `Authorization: Bearer <UNDERCOVER_API_KEY>`.
+
 ## The context layer and the Gateway
 
 `npm run dev` starts the context layer beside the others, and `cd backend; uv run -m context` starts it alone. With no `UNDERCOVER_GATEWAY_URL` and no `UNDERCOVER_MEMORY_ID` in `.env` the agent calls the app direct and the context layer at 8006, with no memory tool. With them set (the deployment writes both into `.env`) it needs the AWS CLI's credentials and region, calls its tools through the Gateway and remembers each customer. `npm run seed` loads the documents from `backend/context/`.
 
 ## The agent's key
 
-`UNDERCOVER_API_KEY` in `.env` is the agent's key to the backend, at least 32 random characters (`python -c "import secrets; print(secrets.token_urlsafe(32))"`). `npm run dev` passes it to the backend and the service, and `uv run -m agent CLM-1001` loads it from `.env`; the backend must be running. `UNDERCOVER_BACKEND` says where the backend is (`http://127.0.0.1:8000` by default).
+`UNDERCOVER_API_KEY` in `.env` is the agent's key to the backend, at least 32 random characters (`python -c "import secrets; print(secrets.token_urlsafe(32))"`). `npm run dev` passes it to the backend and the agent, and `uv run -m agent CLM-1001` loads it from `.env`; the backend must be running. `UNDERCOVER_BACKEND` says where the backend is (`http://127.0.0.1:8000` by default).
 
 ## Live runs
 

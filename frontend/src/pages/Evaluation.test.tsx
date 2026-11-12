@@ -91,6 +91,13 @@ describe('Evaluation', () => {
     expect(await tile('Cost of mistakes')).toBe('$1,550.00')
   })
 
+  it('says why an evaluation was stopped', async () => {
+    const stopped = { ...report, run: { ...report.run, status: 'stopped', error: 'The agent stopped answering' } }
+    mockApi({ '/api/evaluations/7': stopped })
+    renderAt(<Evaluation />, '/scoreboard/7', '/scoreboard/:id')
+    expect(await screen.findByText(/Stopped: The agent stopped answering/)).toBeInTheDocument()
+  })
+
   it('says so when there is no such evaluation', async () => {
     mockApi({ '/api/evaluations/7': { status: 404, body: { detail: 'no evaluation 7' } } })
     renderAt(<Evaluation />, '/scoreboard/7', '/scoreboard/:id')

@@ -102,7 +102,7 @@ def service(db_path, data_dir):
 
 
 def test_the_agent_refuses_a_call_without_the_key(service):
-    work = {"operation": "start_dispatch", "workers": 1}
+    work = {"operation": "work_run", "run_id": 1}
     assert service.post("/invocations", json=work).status_code == 401
     assert service.post("/invocations", json=work, headers=WRONG_BEARER).status_code == 401
     assert service.post("/invocations", json=work, headers={"X-API-Key": TEST_KEY}).status_code == 401  # it takes a bearer token
