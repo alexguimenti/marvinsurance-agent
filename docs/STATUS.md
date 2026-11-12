@@ -130,3 +130,31 @@ And one found on the way: saved progress that had ended with no decision on reco
 
 The dispatch's page shows the *previous* dispatch's summary until the new one finishes, so `e2e/live_security.mjs dispatch` returns at once when an earlier run exists; its runs are followed in the database instead.
 
+## Sending claims back and the agent on AgentCore Runtime (2026-11-12)
+
+Built in four phases (`docs/plans/PLAN_RUNTIME.md`). Checks, with `.env` moved away: backend 703 passed and 1 skipped; the three import checks (the app on the `server` group, the context layer on `context`, and `runtime.main` from `runtime/` and `agent/` alone on `runtime`); front end 154 tests with the type check and lint clean; end to end 14 passed. Live checks on Supabase and the default model, direct route, memory off, signed in as Dana Whitfield by a script (`e2e/live_security.mjs`), so the password never passed through a tool call: **about $0.063 on OpenRouter in all**, from the `model_calls` table.
+
+| Check | Result |
+|---|---|
+| One `npm run seed`, then `npm run dev` with the agent on 8080 | 26 claims waiting; the four parts up |
+| A dispatch at N=25 on the whole queue | Finished in 8 min 20 s: 14 approved, 5 declined, 7 referred; CLM-1003, 1008, 1011 and 1021 waiting for a sign-off. No timeouts, no stuck claim |
+| A second start while it ran | The dashboard's Start dispatch button was off, and a request past it got **409 "a dispatch is already running"** |
+| CLM-1003 ($3,750) sent back with a note | The agent took it once, read the note as Dana's, and decided again: it first tried to record without a new calculation and the app **refused it under claims manual section 14**, it calculated again and recorded $3,750 with a new reason, and the claim paused for sign-off again. The page shows both decisions, the note, who and when, and the refusal in red |
+| CLM-1011 ($1,500) signed off | Paid, "signed off by Dana Whitfield"; the agent resumed it (7 s) and its work ended with one paid step |
+| An evaluation of the evaluation set's five tiny claims | Finished: decision accuracy 100%, accuracy 80%, grade 1.56, mistakes $228, straight-through 80%, $0.0016 and 59.9 s per claim |
+| `{"operation": "health"}` through `runtime/main.py` with `npm run dev` stopped | `{"healthy": true}` (the agent opened its checkpoint pool on Supabase to answer) |
+| What the runs spent | The dispatch $0.053 (129 calls), the evaluation $0.008 (21 calls), the resume of CLM-1003 and the rest $0.001. 154 calls, $0.0628 |
+
+The claim pages were read back through a browser driven by a script, with screenshots, not through the Playwright MCP server, which would have needed the password in a tool call.
+
+### What did not go as the platform team wrote it
+
+- **The deployment package cannot package our agent as `agentcore/cdk/lib/cdk-stack.ts` is written.** It stages `agent/` from the repository root and runs `uv export --only-group runtime` there; ours are `backend/agent/` and `backend/pyproject.toml`. The stack needs to stage `backend/agent` and run the export in `backend`, or the Python root has to move. Nothing here deploys, so nothing is changed in `agentcore/` or `runtime/`.
+- **The `runtime` group needed `langgraph-checkpoint-sqlite`.** The agent's checkpoint module imports it at the top, and Runtime never uses it: the check found this when it imported the agent with only the group installed.
+- **`agentcore/cdk` stages `runtime/`'s files at the folder's top, so the entry point there is `main`, not `runtime.main`.** The check stages them beside `agent/` instead, which imports the same.
+
+### Known limits of this change
+
+- A sign-off or a send back the agent never heard of stands, but the claim's thread stays paused; a signed-off claim is not saved to memory, and a sent-back one waits for the next dispatch, which resumes it with the note.
+- The send back's resume and an old claim's saved progress: if a thread has ended with no decision on record, carrying on it fails the attempt instead of crashing; the next attempt starts afresh.
+

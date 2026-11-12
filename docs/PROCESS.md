@@ -48,7 +48,7 @@ This writes the dashboard to `dashboard/dist` (see `TECH_STACK.md`, Deployment).
 The agent listens on 8080, the port AgentCore apps use. Lab 1's `agentcore dev` serves on 8080 too: stop it before `npm run dev`. With `npm run dev` stopped, the agent can be served on its own, as Runtime starts it, from the repository root:
 
 ```powershell
-$env:PYTHONPATH = "backend"; uv run --project backend --env-file .env --isolated --only-group runtime python -m runtime.main
+$env:PYTHONPATH = "backend"; uv run --directory . --project backend --env-file .env --isolated --only-group runtime python -m runtime.main
 ```
 
 Posting `{"operation": "health"}` to `http://127.0.0.1:8080/invocations` answers `{"healthy": true}` (the health check needs no key). Every other operation needs `Authorization: Bearer <UNDERCOVER_API_KEY>`.

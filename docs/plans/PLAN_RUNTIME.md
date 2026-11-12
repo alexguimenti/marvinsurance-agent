@@ -117,7 +117,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
 - [x] **Step 2: Run them.** Expected: FAIL.
 - [x] **Step 3: Implement.** Add the known gap to `docs/STATUS.md`: a sign-off the agent never heard of leaves the thread paused, and that claim is not saved to memory.
 - [x] **Step 4: Run them again,** with `test_service.py`, `test_payments.py` and `test_api.py`. Expected: PASS.
-- [ ] **Step 5: Check by hand.** (Done with the live checks, Task 10.) With `npm run dev` running, approve a claim over the limit; it pauses. Sign it off on the dashboard; it is paid, and the agent's log shows the resume ending the work.
+- [x] **Step 5: Check by hand.** (Done with the live checks, Task 10.) With `npm run dev` running, approve a claim over the limit; it pauses. Sign it off on the dashboard; it is paid, and the agent's log shows the resume ending the work.
 - [x] **Step 6: Commit the phase:** `feat: an approval waiting for sign-off pauses, and the sign-off resumes it`.
 
 ---
@@ -392,7 +392,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - `test_carry_round_on_reads_the_review_from_the_app`
   - In the frontend: `a stopped run shows its reason`.
 - [x] **Step 2: Run them, implement, run them again.** Then run the whole backend suite, the frontend checks and the e2e (`cd e2e; npm test`). Expected: all PASS, with the app creating runs, rounds and reviews.
-- [ ] **Step 3: Check by hand.** (Done with the live checks, Task 10.) With `npm run dev` running, start a dispatch at N=25; a second "Start dispatch" is refused on the dashboard with "a dispatch is already going".
+- [x] **Step 3: Check by hand.** (Done with the live checks, Task 10.) With `npm run dev` running, start a dispatch at N=25; a second "Start dispatch" is refused on the dashboard with "a dispatch is already going".
 - [x] **Step 4: Commit the phase:** `feat: the app keeps one piece of the agent's work going at a time`.
 
 ---
@@ -410,12 +410,12 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - `docs/STATUS.md`.
   - Move this plan to `docs/plans/` when it is ticked off.
 
-- [ ] **Step 1: Write the docs.** Then run `npm run check` piecewise with `.env` moved away (backend, the four import checks, vitest, tsc, lint, e2e). Expected: green.
-- [ ] **Step 2: Run the live checks.** Run `npm run seed`, then `npm run dev` on the default model, on the direct route, with memory off.
+- [x] **Step 1: Write the docs.** Then run `npm run check` piecewise with `.env` moved away (backend, the four import checks, vitest, tsc, lint, e2e). Expected: green.
+- [x] **Step 2: Run the live checks.** Run `npm run seed`, then `npm run dev` on the default model, on the direct route, with memory off.
   - Dispatch at N=25 and follow the run in the database until it finishes.
   - Signed in as Dana by a script (the password never passes through a tool call), send one claim over the limit back with a note. The agent decides it again; check its page shows both decisions and the note.
   - Sign another off; it is paid and its work ends.
   - Evaluate the evaluation set's five tiny claims.
   - Check the claim pages, and report what the runs spent from `model_calls` in `docs/STATUS.md`.
-- [ ] **Step 3: Check the health on the laptop.** Stop `npm run dev`, run the `runtime.main` health check from Task 7 Step 4, and record its answer.
-- [ ] **Step 4: Commit:** `docs: the send back and the agent on AgentCore Runtime`.
+- [x] **Step 3: Check the health on the laptop.** Stop `npm run dev`, run the `runtime.main` health check from Task 7 Step 4, and record its answer.
+- [x] **Step 4: Commit:** `docs: the send back and the agent on AgentCore Runtime`.

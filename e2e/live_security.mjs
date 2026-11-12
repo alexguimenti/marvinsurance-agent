@@ -1,5 +1,6 @@
 // The live checks of docs/PLAN_SECURE.md, as Dana Whitfield through the dashboard on 5173. Reads the password from .env in
-// this process only.   node live_security.mjs <dispatch|evaluate|signoff|queue|show:CLAIM> [screens dir]
+// this process only.   node live_security.mjs <dispatch|refuse|evaluate|signoff|queue|show:CLAIM|signoff:CLAIM|sendback:CLAIM> [screens dir]
+// NOTE is the send back's note (sendback:CLAIM).
 // WORKERS sets the dispatch's claim agents at once (5 by default); DASHBOARD the address (http://127.0.0.1:5173).
 import { createRequire } from 'node:module'
 import { mkdirSync } from 'node:fs'
@@ -48,6 +49,37 @@ if (step === 'dispatch') {
   log(`${claim} steps: ${steps.length}`)
   steps.forEach((t, i) => log(`  ${i + 1}. ` + t.replace(/\s+/g, ' ').slice(0, 260)))
   await page.screenshot({ path: `${shots}/${claim}.png`, fullPage: true })
+} else if (step === 'refuse') {
+  // a second start while one is going: the dashboard's button is off, and the app refuses a request that gets past it
+  await page.waitForTimeout(1000)
+  log('the Start dispatch button is disabled: ' + (await page.getByRole('button', { name: 'Start dispatch' }).isDisabled()))
+  const answer = await page.evaluate(async () => {
+    const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))
+    const token = JSON.parse(localStorage.getItem(key)).access_token
+    const r = await fetch('/api/dispatches', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ workers: 3 }) })
+    return { status: r.status, body: await r.text() }
+  })
+  log(`a second start through the API: ${answer.status} ${answer.body}`)
+  await page.screenshot({ path: `${shots}/refused.png`, fullPage: true })
+} else if (step.startsWith('signoff:')) {
+  const claim = step.slice(8)
+  await page.goto(`${base}/claims/${claim}`)
+  await page.getByRole('button', { name: 'Sign off', exact: true }).click()
+  await page.getByText(/Paid .* signed off by/).waitFor({ timeout: 60_000 })
+  log(`${claim}: ` + (await page.getByText(/Paid .* signed off by/).first().innerText()).replace(/\s+/g, ' '))
+  await page.screenshot({ path: `${shots}/${claim}-signed-off.png`, fullPage: true })
+} else if (step.startsWith('sendback:')) {
+  const claim = step.slice(9)
+  await page.goto(`${base}/claims/${claim}`)
+  await page.getByRole('button', { name: 'Send back', exact: true }).click()
+  await page.getByLabel(/Note for the agent/i).fill(process.env.NOTE ?? 'Please check the amounts against the plan limits again.')
+  await page.getByRole('button', { name: 'Send it back' }).click()
+  // the agent decides again: the claim leaves "Sent back" and shows a decision again
+  await page.waitForFunction(() => /Awaiting approval|Decided/.test(document.querySelector('main')?.innerText ?? '') && /Sent back by/.test(document.querySelector('main')?.innerText ?? ''), null, { timeout: 5 * 60_000 })
+  await page.waitForTimeout(1500)
+  const text = (await page.locator('main').innerText()).replace(/\s+/g, ' ')
+  log(`${claim} after the send back: ` + text.slice(0, 900))
+  await page.screenshot({ path: `${shots}/${claim}-sent-back.png`, fullPage: true })
 } else if (step === 'evaluate') {
   await page.goto(`${base}/scoreboard`)
   await page.getByLabel('Set').selectOption('evaluation')
