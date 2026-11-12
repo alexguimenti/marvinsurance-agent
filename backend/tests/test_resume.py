@@ -4,13 +4,12 @@ import logging
 import httpx
 import pytest
 
-from agent.service import create_service
 from app.api import create_app
 from app.claims import get_claim
 from app.config import Settings
 from app.db import make_engine
 from app.payments import get_payment
-from tests.fakes import MINT, TEST_KEY, RawDb, api_client, service_client
+from tests.fakes import MINT, TEST_KEY, RawDb, api_client, create_service, service_client
 
 BIG = "CLM-1003"  # the scripted model approves $3,750: over the limit
 
@@ -41,7 +40,7 @@ def thread_state(db_path, claim_id=BIG):
 
 
 class Recorder:
-    """The httpx the app calls the agent with, writing down each post, or failing as a service that is down does."""
+    """The httpx the app calls the agent with, writing down each post, or failing as an agent that is down does."""
 
     def __init__(self, fail: Exception | None = None):
         self.posts, self.fail = [], fail
@@ -50,7 +49,7 @@ class Recorder:
         self.posts.append((url, json, headers))
         if self.fail:
             raise self.fail
-        return httpx.Response(202, json={"status": "resuming"}, request=httpx.Request("POST", url))
+        return httpx.Response(200, json={"accepted": True}, request=httpx.Request("POST", url))
 
 
 def backend(db_path, data_dir, http):
@@ -58,20 +57,22 @@ def backend(db_path, data_dir, http):
 
 
 def test_resume_claim_refuses_a_claim_that_is_not_paused(service):
-    assert service.post("/claims/CLM-1001/resume").status_code == 409  # waiting
-    assert "not waiting for a handler's answer" in service.post("/claims/CLM-1001/resume").json()["detail"]
-    service.post("/dispatches", json={"workers": 25})
-    assert service.post("/claims/CLM-1001/resume").status_code == 409  # decided and paid
-    assert service.post("/claims/CLM-0000/resume").status_code == 409
+    def resume(claim_id):
+        return service.invoke({"operation": "resume_claim", "claim_id": claim_id}).json()
+
+    assert "not waiting for a handler's answer" in resume("CLM-1001")["refused"]  # waiting
+    service.invoke({"operation": "start_dispatch", "workers": 25})
+    assert "refused" in resume("CLM-1001")  # decided and paid
+    assert "refused" in resume("CLM-0000")
 
 
 def test_a_resume_after_a_sign_off_ends_the_work(service, db_path, data_dir):
-    service.post("/dispatches", json={"workers": 25})
+    service.invoke({"operation": "start_dispatch", "workers": 25})
     assert thread_state(db_path).next == ("wait_for_sign_off",)  # paused, its place saved
     with backend(db_path, data_dir, Recorder()) as app:  # the sign-off: pays, and asks the agent to resume
         signed = app.post("/payments/PAY-CLM-1003/approve", headers=MINT.header("HND-01"))
         assert signed.status_code == 200
-    assert service.post("/claims/CLM-1003/resume").status_code == 202
+    assert service.invoke({"operation": "resume_claim", "claim_id": "CLM-1003"}).json() == {"accepted": True}
     saved = thread_state(db_path)
     assert not saved.next and not saved.interrupts  # the work ended
     engine = make_engine(settings_for(db_path, data_dir), max_connections=1)
@@ -80,11 +81,11 @@ def test_a_resume_after_a_sign_off_ends_the_work(service, db_path, data_dir):
 
 
 def test_two_resumes_of_one_claim_pay_once(service, db_path, data_dir):
-    service.post("/dispatches", json={"workers": 25})
+    service.invoke({"operation": "start_dispatch", "workers": 25})
     with backend(db_path, data_dir, Recorder()) as app:
         app.post("/payments/PAY-CLM-1003/approve", headers=MINT.header("HND-01"))
-    assert service.post("/claims/CLM-1003/resume").status_code == 202
-    assert service.post("/claims/CLM-1003/resume").status_code == 409  # no longer paused
+    assert service.invoke({"operation": "resume_claim", "claim_id": "CLM-1003"}).json() == {"accepted": True}
+    assert "refused" in service.invoke({"operation": "resume_claim", "claim_id": "CLM-1003"}).json()  # no longer paused
     engine = make_engine(settings_for(db_path, data_dir), max_connections=1)
     assert RawDb(engine).execute("SELECT COUNT(*) FROM payments WHERE claim_id = ?", (BIG,)).fetchone()[0] == 1
 
@@ -93,19 +94,19 @@ def test_a_resume_runs_beside_a_dispatch(db_path, data_dir, monkeypatch):
     import threading
     import time
 
-    import agent.service as service_module
+    import agent.entrypoint as service_module
 
     settings = settings_for(db_path, data_dir)
     with service_client(create_service(settings, inline=True)) as first:
-        first.post("/dispatches", json={"workers": 25})  # three claims over the limit pause
+        first.invoke({"operation": "start_dispatch", "workers": 25})  # three claims over the limit pause
     with backend(db_path, data_dir, Recorder()) as app:
         app.post("/payments/PAY-CLM-1003/approve", headers=MINT.header("HND-01"))
     release = threading.Event()
     monkeypatch.setattr(service_module, "dispatch", lambda env, run_id, workers: release.wait(30))
     with service_client(create_service(settings, inline=False)) as second:
-        assert second.post("/dispatches", json={"workers": 1}).status_code == 202  # a dispatch holds the service's lock
-        assert second.post("/dispatches", json={"workers": 1}).status_code == 409
-        assert second.post("/claims/CLM-1003/resume").status_code == 202  # and a resume goes ahead beside it
+        assert second.invoke({"operation": "start_dispatch", "workers": 1}).json()["accepted"] is True  # holds the agent's lock
+        assert "already running" in second.invoke({"operation": "start_dispatch", "workers": 1}).json()["refused"]
+        assert second.invoke({"operation": "resume_claim", "claim_id": "CLM-1003"}).json() == {"accepted": True}  # beside it
         deadline = time.monotonic() + 30
         while thread_state(db_path).next and time.monotonic() < deadline:
             time.sleep(0.2)
@@ -123,8 +124,9 @@ def test_a_sign_off_asks_the_agent_to_resume_with_the_key(db_path, data_dir):
         app.post(f"/agent/claims/{BIG}/hold", headers={"X-API-Key": TEST_KEY})
         answer = app.post("/payments/PAY-CLM-1003/approve", headers=MINT.header("HND-01"))
     assert answer.status_code == 200 and answer.json()["status"] == "paid" and answer.json()["claim"]["status"] == "decided"
-    url, _, headers = recorder.posts[0]
-    assert url.endswith("/claims/CLM-1003/resume") and headers == {"X-API-Key": TEST_KEY}
+    url, payload, headers = recorder.posts[0]
+    assert url.endswith("/invocations") and payload == {"operation": "resume_claim", "claim_id": "CLM-1003"}
+    assert headers == {"Authorization": f"Bearer {TEST_KEY}"}
 
 
 def test_the_sign_off_stands_when_the_agent_cannot_be_reached(db_path, data_dir, caplog):

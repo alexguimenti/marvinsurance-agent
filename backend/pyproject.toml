@@ -24,6 +24,7 @@ dependencies = [
   "boto3>=1.43.127",
   "pyyaml>=6.0.3",
   "langgraph-checkpoint-aws>=1.2.7",
+  "bedrock-agentcore>=1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -42,12 +43,34 @@ server = [
   "pyjwt[crypto]>=2.15.1",
   "openrouter>=1.3.142",
   "pyyaml>=6.0.3",
+  "boto3>=1.43.127",
 ]
 
 # What the context layer imports on Lambda, and nothing else: its package installs exactly this group.
 context = [
   "mcp<2",
   "mangum",
+  "pyyaml>=6.0.3",
+]
+
+# What the agent imports on Runtime, and nothing of the app's: the deployment installs exactly this group, at uv.lock's versions.
+runtime = [
+  "bedrock-agentcore",
+  "langchain",
+  "langchain-core",
+  "langchain-openai",
+  "langgraph",
+  "langgraph-checkpoint-postgres",
+  "langgraph-checkpoint-sqlite",
+  "langgraph-checkpoint-aws",
+  "langfuse",
+  "psycopg[binary,pool]",
+  "httpx",
+  "pydantic-settings",
+  "python-dotenv",
+  "mcp<2",
+  "boto3>=1.43.127",
+  "openrouter>=1.3.142",
   "pyyaml>=6.0.3",
 ]
 

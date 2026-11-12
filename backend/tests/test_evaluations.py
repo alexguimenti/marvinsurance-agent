@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from agent.dispatcher import dispatch
 from agent.scripted import ScriptedChatModel
-from agent.service import create_service
+from tests.fakes import create_service
 from app.api import create_app
 from app.claims import get_claim
 from app.config import Settings
@@ -32,7 +32,7 @@ def evaluate(env, eval_set="evaluation", tiny=False, workers=5):
 
 def queue_counts(env):
     """The queue page's counts, as the backend gives them."""
-    with api_client(create_app(Settings(_env_file=None, db_path=str(env.settings.db_path), data_dir=env.settings.data_dir), jwks=MINT), headers=MINT.header()) as client:
+    with api_client(create_app(Settings(_env_file=None, db_path=str(env.settings.db_path), data_dir=str(env.ref.data_dir)), jwks=MINT), headers=MINT.header()) as client:
         statuses = [c["status"] for c in client.get("/claims").json()]
     return {s: statuses.count(s) for s in set(statuses)}, len(statuses)
 
@@ -135,12 +135,12 @@ def test_service_starts_an_evaluation_and_refuses_one_during_a_dispatch(db_path,
     settings = Settings(_env_file=None, agent_provider="scripted", db_path=db_path, data_dir=data_dir)
     with service_client(create_service(settings, inline=True)) as service:
         body = {"eval_set": "held_out", "tiny": True, "workers": 5}
-        assert service.post("/evaluations", json=body).status_code == 202
+        assert service.invoke({"operation": "start_evaluation", **body}).json()["accepted"] is True
         raw = RawDb(make_engine(settings, max_connections=1))
         assert tuple(raw.execute("SELECT kind, status, eval_set FROM runs").fetchone()) == ("evaluation", "finished", "held_out")
         raw.execute("INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
-        assert service.post("/evaluations", json=body).status_code == 409
-        assert service.post("/evaluations", json={**body, "eval_set": "harder"}).status_code == 422
+        assert "already running" in service.invoke({"operation": "start_evaluation", **body}).json()["refused"]
+        assert service.invoke({"operation": "start_evaluation", **{**body, "eval_set": "harder"}}).status_code == 400
 
 
 def test_backend_forwards_an_evaluation_and_hides_copies(db_path, data_dir):

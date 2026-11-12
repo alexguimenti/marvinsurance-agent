@@ -10,10 +10,10 @@ from langchain_core.messages import AIMessage
 
 import agent.dispatcher as dispatcher_module
 import agent.improver as improver
-import agent.service as service_module
+import agent.entrypoint as service_module
 import app.judge as judge_module
 from agent.scripted import ScriptedChatModel
-from agent.service import create_service
+from tests.fakes import create_service
 from agent.tracing import improver_trace_config, trace_config
 from app import configs, improvement
 from app.api import create_app
@@ -372,10 +372,11 @@ def test_a_decision_is_refused_while_a_dispatch_runs_and_nothing_is_recorded(db_
         engine = RawDb(make_engine(settings, 1)).engine
         round_id = improvement.start_round(engine, "HND-01", 1, get_settings(engine))
         pid = improvement.add_proposal(engine, round_id, "change", {"instructions": "x", "model": OK_MODEL, "reasoning_effort": "low"}, "r")
-        assert svc.post("/dispatches", json={"workers": 3}).status_code == 202
+        assert svc.invoke({"operation": "start_dispatch", "workers": 3}).json()["accepted"] is True
         assert started.wait(10)
-        answer = svc.post(f"/rounds/{round_id}/decision", json={"proposal_id": pid, "approve": True, "reason": "", "handler_id": "HND-01"})
-        assert answer.status_code == 409 and "a dispatch is already running" in answer.json()["detail"]
+        answer = svc.invoke({"operation": "decide_round_proposal", "round_id": round_id, "proposal_id": pid, "approve": True,
+                             "reason": "", "handler_id": "HND-01"})
+        assert "a dispatch is already running" in answer.json()["refused"]
         assert improvement.get_proposal(engine, pid)["status"] == "waiting"  # nothing recorded
         assert [v["version"] for v in configs.list_versions(engine, "config")] == [1]
         release.set()

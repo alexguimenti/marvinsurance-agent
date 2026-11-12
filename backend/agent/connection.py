@@ -49,7 +49,7 @@ def use(client: httpx.Client) -> Iterator[None]:
 
 
 def backend_url() -> str:
-    return (os.environ.get("UNDERCOVER_BACKEND") or DEFAULT_BACKEND).rstrip("/")
+    return (os.environ.get("UNDERCOVER_API") or os.environ.get("UNDERCOVER_BACKEND") or DEFAULT_BACKEND).rstrip("/")
 
 
 def call(method: str, path: str, json: dict | None = None, params: dict | None = None) -> Any:

@@ -301,12 +301,15 @@ def direct_route():
 def agent_env(db_path: str, data_dir: str, model, improver_model=None, screen_model=None, route=None, memory_store=None, **settings):
     """A real AgentEnv, with its checkpoints on disk, around a stub model, and the backend it records through, in
     this process. `env.engine` looks at the records the backend keeps: the agent has no engine of its own."""
+    from agent.settings import AgentSettings
     from agent.worker import open_env
 
     with running_backend(db_path, data_dir, **settings) as config:
-        with open_env(config, model=model, model_id="stub/model", improver_model=improver_model,
+        agent_settings = AgentSettings(_env_file=None, **config.model_dump(include=set(AgentSettings.model_fields)))
+        with open_env(agent_settings, model=model, model_id="stub/model", improver_model=improver_model,
                       screen_model=screen_model or ScreenStub(), route=route or direct_route(), memory_store=memory_store) as env:
             env.engine = make_engine(config, max_connections=2)
+            env.ref = Reference(data_dir)  # the backend's reference data, for tests that sign off or read a policy
             try:
                 yield env
             finally:
@@ -403,11 +406,22 @@ def api_client(app, **kwargs):
 TEST_KEY = "test-key-" + "k" * 40  # the agent's API key in every test: conftest puts it in the environment
 
 
+def create_service(settings: Settings, inline: bool = False):
+    """The agent's AgentCore app on the settings the backend under test has. With inline, work is done before a call returns."""
+    from agent.entrypoint import build_app
+    from agent.settings import AgentSettings
+
+    agent_settings = AgentSettings(_env_file=None, **settings.model_dump(include=set(AgentSettings.model_fields)))
+    app = build_app(lambda: agent_settings, inline=inline)
+    app.state.settings = settings  # the backend a client starts beside it is made from these
+    return app
+
+
 class ServiceClient:
-    """A client for the agent's service. Starting it starts the backend the service records through, in this process,
+    """A client for the agent's AgentCore app. Starting it starts the backend the agent records through, in this process,
     on the same database, as `npm run dev` starts both."""
 
-    def __new__(cls, app, **kwargs):
+    def __new__(cls, app, keyed: bool = True, **kwargs):
         from fastapi.testclient import TestClient
 
         class Client(TestClient):
@@ -432,7 +446,9 @@ class ServiceClient:
                 finally:
                     self._backend.close()
 
-        return Client(app, headers={"X-API-Key": TEST_KEY}, **kwargs)
+        client = Client(app, headers={"Authorization": f"Bearer {TEST_KEY}"} if keyed else {}, **kwargs)  # keyed=False: a caller with no key
+        client.invoke = lambda payload, **more: client.post("/invocations", json=payload, **more)  # one operation of the agent
+        return client
 
 
 def service_client(app, **kwargs):

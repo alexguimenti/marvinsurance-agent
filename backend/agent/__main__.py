@@ -11,7 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agent.worker import open_env, work
-from app.config import Settings
+from agent.settings import AgentSettings
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -25,7 +25,7 @@ def _parse(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse(sys.argv[1:] if argv is None else argv)
     load_dotenv(ROOT / ".env")  # this entry point only: importing the agent must not read it
-    settings = Settings()
+    settings = AgentSettings()
     with open_env(settings) as env:
         line = work(env, args.claim_id, None)
     print(line)

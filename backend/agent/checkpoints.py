@@ -15,18 +15,24 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from app.config import Settings
-from app.db import CONNECTION_WAIT_S, SCHEMA, row_level_security
+from agent.settings import AgentSettings
 
+CONNECTION_WAIT_S = 600  # claim agents share a process's few connections and wait for one rather than fail
+SCHEMA = "undercover"  # set on each Postgres connection, as the app does, so the saved progress sits beside the records
 CHECKPOINT_TABLES = ("checkpoint_migrations", "checkpoints", "checkpoint_blobs", "checkpoint_writes")
 MAX_CONNECTIONS = 2  # with the agent's 2 for records, the 4 a process may use
+
+
+def row_level_security(table_names) -> list[str]:
+    """Without this, the project's public API keys could reach the tables. Our owner role is not affected."""
+    return [f"ALTER TABLE {SCHEMA}.{name} ENABLE ROW LEVEL SECURITY" for name in table_names]
 
 
 def _search_path(connection: psycopg.Connection) -> None:
     connection.execute(f"SET search_path TO {SCHEMA}")
 
 
-def checkpoint_file(settings: Settings) -> str:
+def checkpoint_file(settings: AgentSettings) -> str:
     path = Path(settings.db_path)
     return str(path.with_name(f"{path.stem}.checkpoints.db"))
 
@@ -50,7 +56,7 @@ class Checkpoints:
 
 
 @contextmanager
-def make_checkpoints(settings: Settings) -> Iterator[Checkpoints]:
+def make_checkpoints(settings: AgentSettings) -> Iterator[Checkpoints]:
     if settings.database_url:
         with ConnectionPool(
             settings.database_url,
@@ -59,7 +65,7 @@ def make_checkpoints(settings: Settings) -> Iterator[Checkpoints]:
             timeout=CONNECTION_WAIT_S,
             open=True,
             configure=_search_path,
-            kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},  # what PostgresSaver needs
+            kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": None},  # none: Supabase's transaction pooler keeps no prepared statements
         ) as pool:
             pool.wait(timeout=60)
             PostgresSaver(pool).setup()  # creates the tables the first time, and does nothing after that
@@ -77,10 +83,10 @@ def make_checkpoints(settings: Settings) -> Iterator[Checkpoints]:
         yield Checkpoints(file=file)
 
 
-def clear_checkpoints(settings: Settings) -> None:
+def clear_checkpoints(settings: AgentSettings) -> None:
     """Forget every thread, so a reseeded claim cannot pick up an old conversation."""
     if settings.database_url:
-        with psycopg.connect(settings.database_url, autocommit=True, prepare_threshold=0) as connection:
+        with psycopg.connect(settings.database_url, autocommit=True, prepare_threshold=None) as connection:
             _search_path(connection)
             for table in CHECKPOINT_TABLES[1:]:
                 if connection.execute("SELECT to_regclass(%s)", (f"{SCHEMA}.{table}",)).fetchone()[0]:

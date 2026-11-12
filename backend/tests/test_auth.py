@@ -2,7 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from agent.service import create_service
+from tests.fakes import create_service
 from app.api import create_app
 from app.auth import NotSignedIn, UnknownHandler, handler_from_token
 from app.config import Settings

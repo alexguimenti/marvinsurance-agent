@@ -1,21 +1,39 @@
 // Run every test suite, in order, stopping at the first failure: `npm run check` from the repo root.
 import { spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { cpSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { relative, resolve, sep } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 // the checks need no Supabase, Langfuse or running agent, whatever this shell has set
 for (const name of ['DATABASE_URL', 'LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_BASE_URL', 'UNDERCOVER_AGENT',
-  'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'HANDLER_PASSWORD', 'MODEL_NAME', 'OPENROUTER_DECISIONS_URL', 'UNDERCOVER_API_KEY', 'UNDERCOVER_BACKEND',
+  'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'HANDLER_PASSWORD', 'MODEL_NAME', 'OPENROUTER_DECISIONS_URL', 'UNDERCOVER_API_KEY', 'UNDERCOVER_BACKEND', 'UNDERCOVER_API',
   'UNDERCOVER_GATEWAY_URL', 'UNDERCOVER_CONTEXT', 'UNDERCOVER_MEMORY_ID', 'AWS_PROFILE', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
-  'AWS_SESSION_TOKEN']) {
+  'AWS_SESSION_TOKEN', 'UNDERCOVER_AGENT_RUNTIME']) {
   delete process.env[name]
 }
+for (const name of Object.keys(process.env)) {
+  if (/^AGENTCORE_CREDENTIAL_.+_NAME$/.test(name)) delete process.env[name] // that would make the agent think it is on Runtime
+}
 const python = resolve(root, 'backend/.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
+
+// What the deployment packs for the agent: runtime/ and agent/ beside it, without tests, in a folder of their own (the platform
+// team's stack puts runtime/'s files at the folder's top; here they sit beside agent/, which imports the same). The agent must import there with only the runtime group installed.
+const staged = mkdtempSync(resolve(tmpdir(), 'undercover-runtime-'))
+function stage() {
+  const keep = (from) => (path) => !relative(from, path).split(sep).some((part) => part === 'tests' || part === '__pycache__')
+  cpSync(resolve(root, 'runtime'), resolve(staged, 'runtime'), { recursive: true, filter: keep(resolve(root, 'runtime')) })
+  cpSync(resolve(root, 'backend/agent'), resolve(staged, 'agent'), { recursive: true, filter: keep(resolve(root, 'backend/agent')) })
+}
+stage()
+process.on('exit', () => rmSync(staged, { recursive: true, force: true }))
 
 const steps = [
   ['Backend unit tests', python, ['-m', 'pytest', '-q'], 'backend'],
   // the backend must import with only the server group installed, in a temporary environment that leaves .venv alone
   ['Backend imports on a server', 'uv', ['run', '--project', 'backend', '--isolated', '--only-group', 'server', 'python', '-c', "__import__('backend.main')"], '.'],
+  // and the agent on Runtime with only its own group, from the staged folder
+  ['Agent imports on Runtime', 'uv', ['run', '--directory', staged, '--project', resolve(root, 'backend'), '--isolated', '--only-group', 'runtime', 'python', '-c', "__import__('runtime.main')"], '.'],
   // and the context layer with only its own group, so what it packs for Lambda is all it needs
   ['Context layer imports on a server', 'uv', ['run', '--isolated', '--only-group', 'context', 'python', '-c', "__import__('context.server')"], 'backend'],
   ['Front-end unit tests', 'npx', ['vitest', 'run'], 'frontend'],

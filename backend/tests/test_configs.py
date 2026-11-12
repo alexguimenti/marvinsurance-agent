@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.configs import load_instructions
-from agent.service import create_service
+from tests.fakes import create_service
 from agent.worker import work_claim
 from app import configs
 from app.api import create_app

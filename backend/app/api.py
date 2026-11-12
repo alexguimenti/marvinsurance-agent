@@ -215,13 +215,20 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         """A version's scores per set, the averages of its rounds' whole-set evaluations. None until a round has run one."""
         return version_scores(engine, version)
 
-    def forward_run(path: str, body: dict) -> dict:
+    def forward_run(payload: dict) -> dict:
+        """Ask the agent to start work, and answer as the handler is told: a refusal as a 409 with its reason, an agent that was not
+        reached as a 503, and a call that may have started the work as a 504 that says to reload the page."""
         try:
-            return agent_client.start(http, settings.agent_url, path, body, settings.api_key)
-        except agent_client.AgentDown:
-            raise HTTPException(503, "the agent is not running")
+            answer = agent_client.send(settings, payload, http)
         except agent_client.AgentRefused as exc:
-            raise HTTPException(exc.status_code, exc.detail)
+            raise HTTPException(409, exc.reason)
+        except agent_client.AgentNotReached as exc:
+            if exc.status:  # the agent answered, with an error: the handler is told what it said
+                raise HTTPException(exc.status, str(exc))
+            raise HTTPException(503, "the agent is not running")
+        except agent_client.AgentMaybe:
+            raise HTTPException(504, "The agent did not answer in time. Reload the page to see whether it went through.")
+        return {"status": "started", **{k: answer[k] for k in ("run_id", "round_id") if k in answer}}
 
     @public.get("/health", operation_id="get_health")
     def health():
@@ -349,17 +356,17 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     @router.post("/dispatches", status_code=202, operation_id="start_dispatch")
     def start_dispatch(body: DispatchBody, handler: Handler = Depends(signed_in)):
         """Ask the agent to work every claim in progress and every waiting claim, with N claim agents at once."""
-        return forward_run("/dispatches", {"workers": body.workers})
+        return forward_run({"operation": "start_dispatch", "workers": body.workers})
 
     @router.post("/evaluations", status_code=202, operation_id="start_evaluation")
     def start_evaluation(body: EvaluationBody, handler: Handler = Depends(signed_in)):
         """Ask the agent to evaluate copies of a labelled set, whole or its tiny claims, with N claim agents at once."""
-        return forward_run("/evaluations", body.model_dump())
+        return forward_run({"operation": "start_evaluation", **body.model_dump()})
 
     @router.post("/rounds", status_code=202, operation_id="start_round")
     def start_round(handler: Handler = Depends(senior)):
         """Ask the agent to start an improvement round. Only a handler who can sign off over the limit may."""
-        return forward_run("/rounds", {"handler_id": handler.handler_id})
+        return forward_run({"operation": "start_improver_round", "handler_id": handler.handler_id})
 
     @router.post("/rounds/{round_id}/stop", operation_id="stop_round")
     def stop_round(round_id: int, handler: Handler = Depends(senior)):
@@ -375,7 +382,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     @router.post("/rounds/{round_id}/decision", status_code=202, operation_id="decide_proposal")
     def decide_proposal_route(round_id: int, body: DecisionBody, handler: Handler = Depends(senior)):
         """Approve or reject the proposal a round waits on, as the signed-in handler."""
-        return forward_run(f"/rounds/{round_id}/decision", {**body.model_dump(), "handler_id": handler.handler_id})
+        return forward_run({"operation": "decide_round_proposal", "round_id": round_id, **body.model_dump(), "handler_id": handler.handler_id})
 
     @router.get("/rounds", operation_id="list_rounds")
     def rounds_list():
@@ -514,7 +521,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         """Ask the agent to resume a claim whose answer the app has just recorded. Whatever happens to the call, what was
         recorded stands: a failure is logged, and the claim waits for the agent's next dispatch or a resume."""
         try:
-            agent_client.resume_claim(http, settings.agent_url, claim_id, settings.api_key)
+            agent_client.resume_claim(settings, claim_id, http)
         except Exception as exc:
             log.warning("could not ask the agent to resume %s: %s", claim_id, exc)
 

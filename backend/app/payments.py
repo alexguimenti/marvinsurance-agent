@@ -64,6 +64,10 @@ def sign_off(engine: Engine, ref: Reference, payment_id: str, handler_id: str) -
                 .where(payments.c.payment_id == payment_id)
             ).mappings().first()
             if found is None:
+                # a send back deletes the held payment: a sign-off that lost to it is told so, not that the payment is unknown
+                owner_claim = conn.execute(select(claims.c.status).where(claims.c.claim_id == payment_id.removeprefix("PAY-"))).scalar()
+                if owner_claim is not None and owner_claim != "decided":
+                    raise NotWaiting(f"{payment_id.removeprefix('PAY-')} is not waiting for a sign-off")
                 raise LookupError(payment_id)
             if found["copy_of"] is not None:
                 raise PermissionError("an evaluation's copy cannot be signed off")

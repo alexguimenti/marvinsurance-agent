@@ -5,7 +5,7 @@ const DB = 'e2e.db'
 // own ports, so a dev server on 8000/5173 never collides with the e2e run
 const API_PORT = 8100
 const WEB_PORT = 5273
-const AGENT_PORT = 8003 // a stand-in for the agent's service: never the one `npm run dev` starts
+const AGENT_PORT = 8003 // the agent on the scripted model: never the one `npm run dev` starts
 const CONTEXT_PORT = 8016 // the context layer, the real server: it only reads files
 const AUTH_PORT = 8004 // a stand-in for Supabase Auth: the tests never reach the real project
 const AUTH_URL = `http://127.0.0.1:${AUTH_PORT}`
@@ -56,7 +56,7 @@ export default defineConfig({
       command: `"${PYTHON}" -m uvicorn app.main:app --port ${API_PORT}`,
       cwd: '../backend',
       env: {
-        AGENT_PROVIDER: 'scripted', DB_PATH, UNDERCOVER_AGENT: `http://127.0.0.1:${AGENT_PORT}`,
+        AGENT_PROVIDER: 'scripted', DB_PATH, UNDERCOVER_AGENT: `http://127.0.0.1:${AGENT_PORT}`, UNDERCOVER_AGENT_RUNTIME: '',
         VITE_SUPABASE_URL: AUTH_URL, UNDERCOVER_API_KEY: API_KEY,
         OPENROUTER_API_KEY: 'e2e-key', OPENROUTER_DECISIONS_URL: `http://127.0.0.1:${JUDGE_PORT}`,
       },
@@ -72,7 +72,7 @@ export default defineConfig({
         AGENT_PROVIDER: 'scripted', DB_PATH, PYTHONPATH: '.', UNDERCOVER_API_KEY: API_KEY, UNDERCOVER_BACKEND: API_URL,
         UNDERCOVER_CONTEXT: `http://127.0.0.1:${CONTEXT_PORT}/mcp`,
       },
-      url: `http://127.0.0.1:${AGENT_PORT}/health`,
+      url: `http://127.0.0.1:${AGENT_PORT}/ping`,
       reuseExistingServer: false,
       timeout: 60_000,
     },

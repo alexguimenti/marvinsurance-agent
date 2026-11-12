@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.configs import load_instructions
-from agent.service import create_service
+from tests.fakes import create_service
 from agent.worker import work_claim
 from app.api import create_app
 from app.config import Settings
@@ -21,6 +21,7 @@ def client(db_path, data_dir):
     settings = make_settings(db_path, data_dir)
     with service_client(create_service(settings, inline=True)) as service:  # work is done before a call returns
         with api_client(create_app(settings, http=service, jwks=MINT), headers=MINT.header()) as c:
+            c.service = service  # for the tests that ask the agent itself
             yield c
 
 
@@ -72,11 +73,11 @@ def test_backend_forwards_n_to_the_service(db_path, data_dir):
 
         def post(self, url, json=None, timeout=None, headers=None):
             self.calls.append((url, json))
-            return httpx.Response(202, json={"status": "started"})
+            return httpx.Response(200, json={"accepted": True})
 
     with api_client(create_app(make_settings(db_path, data_dir), http=Recorder(), jwks=MINT), headers=MINT.header()) as backend:
         assert backend.post("/dispatches", json={"workers": 3}).status_code == 202
-    assert Recorder.calls == [("http://127.0.0.1:8002/dispatches", {"workers": 3})]
+    assert Recorder.calls == [("http://127.0.0.1:8080/invocations", {"operation": "start_dispatch", "workers": 3})]
 
 
 @pytest.mark.parametrize("workers", [0, 26])
@@ -85,6 +86,7 @@ def test_workers_outside_1_to_25_are_refused(client, workers):
 
 
 def test_a_second_dispatch_conflicts(client, db_path):
+    client.service.post("/invocations", json={"operation": "health"})  # the agent gets ready first: that marks leftovers stopped
     connect(db_path).execute(
         "INSERT INTO runs (kind, status, workers, model, reasoning_effort) VALUES ('dispatch', 'running', 3, 'm', 'none')")
     resp = client.post("/dispatches", json={"workers": 3})

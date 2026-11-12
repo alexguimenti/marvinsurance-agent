@@ -1,11 +1,11 @@
 from langchain_openai import ChatOpenAI
 
-from app.config import Settings
+from agent.settings import AgentSettings
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 
-def chat_model(settings: Settings, model: str | None = None, effort: str | None = None, **more) -> ChatOpenAI:
+def chat_model(settings: AgentSettings, model: str | None = None, effort: str | None = None, **more) -> ChatOpenAI:
     """An OpenRouter model: the one asked for (a configuration version's), or the configured one. Effort `default`
     sends none."""
     level = effort if effort is not None else settings.reasoning_effort

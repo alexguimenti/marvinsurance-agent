@@ -33,7 +33,6 @@ from agent.prompts import LABELS, claim_prompt, section_index, send_back_message
 from agent.route import Route
 from agent.screening import screen_claim
 from agent.tools import NOT_OFFERED, PREFETCHED, build_tools, claim_data
-from app.reference import Reference
 
 
 log = logging.getLogger(__name__)
@@ -69,7 +68,7 @@ def _needs_a_handler(exc: Exception) -> bool:
     return isinstance(exc, ToolRefused) and ("approval limit" in str(exc) or "sign-off" in str(exc))
 
 
-def build_claim_graph(ref: Reference, model, model_id: str, max_model_calls: int, checkpointer, instructions: str,
+def build_claim_graph(model, model_id: str, max_model_calls: int, checkpointer, instructions: str,
                       screen_model, screen_model_id: str, route: Route, decided_by: str, store=None):
     tools = build_tools(route, decided_by, model_id, store)
     by_name = {t.name: t for t in tools}

@@ -227,12 +227,12 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   It has the same env names, `agent.toml` table and defaults as `app.config.Settings`, and it reads `.env` the same way.
 - **`agent.settings.key_matches(header_value: str | None, key: str | None) -> bool`**, using `secrets.compare_digest`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_no_agent_module_imports_app`: walk `agent/*.py` with `ast`; no import starts with `app`.
   - `test_the_agent_package_imports_on_its_own`: copy `backend/agent` into a temp dir with nothing else, then run `python -c "import agent.entrypoint, agent.worker"` with `cwd` set to the temp dir. It exits 0. (`agent.entrypoint` exists from Task 6, so mark this test `xfail` until then.)
   - `test_the_checkpoint_pool_prepares_nothing`: `make_checkpoints` on a fake `ConnectionPool` sees `kwargs["prepare_threshold"] is None`.
   - `test_the_backend_address_reads_UNDERCOVER_API_first`
-- [ ] **Step 2: Run them, implement, run the whole backend suite.** Expected: PASS.
+- [x] **Step 2: Run them, implement, run the whole backend suite.** Expected: PASS.
 
 ### Task 6: `agent/entrypoint.py`, the AgentCore app
 
@@ -265,7 +265,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
 - **The work:** `run_in_background(name, fn)` calls `task = app.add_async_task(name)` before answering, then starts a thread whose `finally` calls `app.complete_async_task(task)`.
 - **Answers:** a refusal from the service's old 409 paths answers `{"refused": reason}`; accepted work answers `{"accepted": True}`.
 
-- [ ] **Step 1: Write the failing tests** in `test_entrypoint.py`, using `TestClient(app)` with stand-ins for the work (monkeypatch `dispatch`, `improver.work_round` and `worker.resume`) and for Identity (monkeypatch `requires_api_key`).
+- [x] **Step 1: Write the failing tests** in `test_entrypoint.py`, using `TestClient(app)` with stand-ins for the work (monkeypatch `dispatch`, `improver.work_round` and `worker.resume`) and for Identity (monkeypatch `requires_api_key`).
   - `test_importing_the_agent_opens_nothing`: in a subprocess, import `agent.entrypoint` with `DATABASE_URL` pointing at an unreachable host; it exits 0 quickly.
   - `test_on_runtime_the_first_request_fetches_each_credential_once`: set `AGENTCORE_CREDENTIAL_OPENROUTER_API_KEY_NAME=prov`. After two requests the fake was called once per credential and `os.environ["OPENROUTER_API_KEY"]` is set.
   - `test_getting_ready_that_fails_answers_the_error_and_the_next_request_tries_again`
@@ -276,9 +276,9 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - `test_off_runtime_a_request_without_the_key_is_refused_but_health_is_not`
   - `test_on_runtime_no_key_is_asked_for`
   - `test_health_answers_healthy_once_ready`
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** Run `uv add bedrock-agentcore`, edit the groups, then run `uv lock`.
-- [ ] **Step 4: Run them again; then flip Task 5's `xfail`; then run the check steps:** `node scripts/check.mjs` up to "Agent imports on Runtime". Expected: PASS.
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.** Run `uv add bedrock-agentcore`, edit the groups, then run `uv lock`.
+- [x] **Step 4: Run them again; then flip Task 5's `xfail`; then run the check steps:** `node scripts/check.mjs` up to "Agent imports on Runtime". Expected: PASS.
 
 ### Task 7: The app's two routes to the agent
 
@@ -300,7 +300,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
 - **The Runtime route:** `boto3.client("bedrock-agentcore", region_name=<session region>, config=Config(retries={"total_max_attempts": 1}, connect_timeout=5, read_timeout=20)).invoke_agent_runtime(agentRuntimeArn=arn, runtimeSessionId=uuid4().hex + uuid4().hex[:8], payload=json.dumps(payload))`, with no key. It reads `json.loads(response["response"].read())`.
 - **`resume_claim(settings, claim_id)`** is `send(settings, {"operation": "resume_claim", "claim_id": claim_id})` with every exception logged and swallowed. The sign-off and the send-back use it.
 
-- [ ] **Step 1: Write the failing tests** with an `httpx.MockTransport` and a fake boto client.
+- [x] **Step 1: Write the failing tests** with an `httpx.MockTransport` and a fake boto client.
   - `test_the_laptop_route_sends_the_key_and_the_payload_to_invocations`
   - `test_the_runtime_route_sends_a_new_session_id_of_33_characters_or_more_and_no_key`: two calls get different ids.
   - `test_an_acceptance_on_each_route`
@@ -309,10 +309,10 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
   - `test_an_error_answer_is_not_reached`
   - `test_a_timeout_or_a_cut_off_answer_is_maybe`
   - In `test_api.py`: `test_a_dispatch_the_agent_refused_is_a_409_and_a_timeout_says_to_reload`.
-- [ ] **Step 2: Run them, implement, run them again, then the whole backend suite.**
-- [ ] **Step 3: Move the e2e's agent stand-in.** In `e2e/stand_in_agent.py`, `/invocations` answers the payloads and `/ping` answers `{"status": "Healthy"}`. `playwright.config.ts` waits on `/ping` and sets `UNDERCOVER_AGENT=http://127.0.0.1:8003` and `UNDERCOVER_AGENT_RUNTIME=""` for the backend.
-- [ ] **Step 4: Run the e2e, and check by hand.** Run `cd e2e; npm test`. Then, with `npm run dev` stopped, run `PYTHONPATH=backend uv run --project backend --env-file .env --isolated --only-group runtime python -m runtime.main` from the repository root, and post `{"operation":"health"}` to `http://127.0.0.1:8080/invocations` with the key. Expected: `{"healthy": true}`.
-- [ ] **Step 5: Commit the phase:** `feat: the agent is an AgentCore app, on the laptop and on Runtime`.
+- [x] **Step 2: Run them, implement, run them again, then the whole backend suite.**
+- [x] **Step 3: Move the e2e's agent stand-in.** In `e2e/stand_in_agent.py`, `/invocations` answers the payloads and `/ping` answers `{"status": "Healthy"}`. `playwright.config.ts` waits on `/ping` and sets `UNDERCOVER_AGENT=http://127.0.0.1:8003` and `UNDERCOVER_AGENT_RUNTIME=""` for the backend.
+- [x] **Step 4: Run the e2e, and check by hand.** Run `cd e2e; npm test`. Then, with `npm run dev` stopped, run `PYTHONPATH=backend uv run --project backend --env-file .env --isolated --only-group runtime python -m runtime.main` from the repository root, and post `{"operation":"health"}` to `http://127.0.0.1:8080/invocations` with the key. Expected: `{"healthy": true}`.
+- [x] **Step 5: Commit the phase:** `feat: the agent is an AgentCore app, on the laptop and on Runtime`.
 
 ---
 

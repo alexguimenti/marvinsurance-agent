@@ -13,7 +13,7 @@ test('a dispatch started on the dashboard reaches the agent service with N, and 
 
   await expect
     .poll(async () => (await (await request.get('http://127.0.0.1:8003/received')).json()).starts)
-    .toContainEqual({ path: '/dispatches', body: { workers: 5 } })
+    .toContainEqual({ operation: 'start_dispatch', workers: 5 })
   const summary = page.locator('.run-summary')
   await expect(summary).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText(/Dispatch 1 · Finished · 5 claim agents at once · 26 of 26 done/)).toBeVisible()

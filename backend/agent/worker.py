@@ -18,8 +18,7 @@ from agent.graph import build_claim_graph
 from agent.memory import open_store
 from agent.route import make_route
 from agent.tracing import flush_traces, trace_config, warm_up_tracing
-from app.config import Settings
-from app.reference import Reference
+from agent.settings import AgentSettings
 
 # Worth waiting out: the caller retries, and the claim carries on from its last saved step as the same attempt.
 # A transport error is the backend restarting or out of reach: no attempt is used up.
@@ -46,8 +45,7 @@ def _kind_of(run_id: int) -> str | None:
 
 @dataclass
 class AgentEnv:
-    ref: Reference
-    settings: Settings
+    settings: AgentSettings
     checkpoints: Checkpoints
     model: object | None  # a fixed model (scripted, or a test's stub); None builds each version's own
     model_id: str | None
@@ -95,7 +93,7 @@ class AgentEnv:
 
     def _build(self, saver, config: dict, evaluation: bool = False):
         screen_model, screen_model_id = self.screen()
-        return build_claim_graph(self.ref, self.model_for(config), self.effective(config)[0],
+        return build_claim_graph(self.model_for(config), self.effective(config)[0],
                                  self.settings.agent_max_model_calls, saver, config["instructions"],
                                  screen_model, screen_model_id, self.route or make_route(),
                                  f"UnderCover Agent, configuration version {config['version']}",
@@ -140,7 +138,7 @@ class AgentEnv:
 
 
 @contextmanager
-def open_env(settings: Settings, model=None, model_id: str | None = None, improver_model=None, screen_model=None,
+def open_env(settings: AgentSettings, model=None, model_id: str | None = None, improver_model=None, screen_model=None,
              route=None, memory_store=None) -> Iterator[AgentEnv]:
     """Everything the agent needs in a process: its connections, its checkpoints and its graph."""
     if model is None:
@@ -153,7 +151,7 @@ def open_env(settings: Settings, model=None, model_id: str | None = None, improv
             model, model_id = None, None  # each configuration version builds its own model
     warm_up_tracing()
     with make_checkpoints(settings) as checkpoints:  # the one connection the agent keeps to the database
-        env = AgentEnv(Reference(settings.data_dir), settings, checkpoints, model, model_id, improver_model, screen_model,
+        env = AgentEnv(settings, checkpoints, model, model_id, improver_model, screen_model,
                        memory_store=memory_store, route=route)
         try:
             yield env

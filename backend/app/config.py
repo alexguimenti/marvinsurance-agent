@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, InitSettingsSource, SettingsConfigDi
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_FILE = ROOT / "agent.toml"
-DEFAULT_AGENT_URL = "http://127.0.0.1:8002"
+DEFAULT_AGENT_URL = "http://127.0.0.1:8080"  # the port AgentCore apps use
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_EFFORT = "low"
 SCREENING_MODEL = ("openai/gpt-6-luna", "none")  # the security check: quick and cheap enough to read every claim
@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     context_dir: str = str(ROOT / "backend" / "context")  # data governance's files: the app reads them only to seed
     database_url: str | None = None  # from the process environment only: see model_post_init
     agent_url: str = DEFAULT_AGENT_URL
+    agent_runtime_arn: str | None = None  # UNDERCOVER_AGENT_RUNTIME, from the process environment only: see model_post_init
     supabase_url: str | None = None  # from the process environment only: see model_post_init
     model_name: str | None = None  # MODEL_NAME, when the platform runs on one model: see model_post_init
     on_lambda: bool = False  # from AWS_LAMBDA_FUNCTION_NAME: see model_post_init
@@ -53,6 +54,7 @@ class Settings(BaseSettings):
         # `npm run dev` passes these in the environment, and the tests never do.
         self.database_url = os.environ.get("DATABASE_URL") or None
         self.agent_url = os.environ.get("UNDERCOVER_AGENT") or DEFAULT_AGENT_URL
+        self.agent_runtime_arn = os.environ.get("UNDERCOVER_AGENT_RUNTIME") or None
         self.on_lambda = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
         self.model_name = os.environ.get("MODEL_NAME") or None  # the one place MODEL_NAME is read
         self.agent_model = self.model_name or self.agent_model

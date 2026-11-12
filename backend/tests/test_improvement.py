@@ -114,7 +114,7 @@ def test_what_a_version_still_owes_its_first_evaluations(env):
 # --- what the improver sees -------------------------------------------------------------------------------
 
 def test_the_improvers_view_holds_nothing_from_the_held_out_set_but_its_scores(env):
-    held_out = json.loads((Path(env.settings.data_dir) / "evals" / "held_out_decisions.json").read_text(encoding="utf-8"))
+    held_out = json.loads((Path(env.ref.data_dir) / "evals" / "held_out_decisions.json").read_text(encoding="utf-8"))
     whole(env, "evaluation")
     whole(env, "held_out")
     whole(env, "held_out")

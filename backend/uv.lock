@@ -67,6 +67,25 @@ wheels = [
 ]
 
 [[package]]
+name = "bedrock-agentcore"
+version = "1.26.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+    { name = "uvicorn" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d4/52/b184e2a433cd2e1f7074b6b11151d17be467bc199f8611304a8a4e012d1e/bedrock_agentcore-1.26.0.tar.gz", hash = "sha256:76159e88ff7b66880d87c8a2c89bc402b446d324bf10e6bd511eebc461d5015f", size = 1324192, upload-time = "2026-11-10T19:06:27.127Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/b2/ac7598686191ce61d49e94ec5d3deb2b015ab91b401842496729a3ee12e4/bedrock_agentcore-1.26.0-py3-none-any.whl", hash = "sha256:b15ae2e08e89d9a3efa3bddc295ac9177cdc4becf061e223732f72005de5d581", size = 552915, upload-time = "2026-11-10T19:06:25.102Z" },
+]
+
+[[package]]
 name = "boto3"
 version = "1.43.127"
 source = { registry = "https://pypi.org/simple" }
@@ -982,6 +1001,7 @@ name = "marvin-agent"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "bedrock-agentcore" },
     { name = "boto3" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1017,7 +1037,27 @@ context = [
     { name = "mcp" },
     { name = "pyyaml" },
 ]
+runtime = [
+    { name = "bedrock-agentcore" },
+    { name = "boto3" },
+    { name = "httpx" },
+    { name = "langchain" },
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+    { name = "langfuse" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint-aws" },
+    { name = "langgraph-checkpoint-postgres" },
+    { name = "langgraph-checkpoint-sqlite" },
+    { name = "mcp" },
+    { name = "openrouter" },
+    { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+]
 server = [
+    { name = "boto3" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mangum" },
@@ -1032,6 +1072,7 @@ server = [
 
 [package.metadata]
 requires-dist = [
+    { name = "bedrock-agentcore", specifier = ">=1.26.0" },
     { name = "boto3", specifier = ">=1.43.127" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1064,7 +1105,27 @@ context = [
     { name = "mcp", specifier = "<2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]
+runtime = [
+    { name = "bedrock-agentcore" },
+    { name = "boto3", specifier = ">=1.43.127" },
+    { name = "httpx" },
+    { name = "langchain" },
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+    { name = "langfuse" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint-aws" },
+    { name = "langgraph-checkpoint-postgres" },
+    { name = "langgraph-checkpoint-sqlite" },
+    { name = "mcp", specifier = "<2" },
+    { name = "openrouter", specifier = ">=1.3.142" },
+    { name = "psycopg", extras = ["binary", "pool"] },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+]
 server = [
+    { name = "boto3", specifier = ">=1.43.127" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mangum" },

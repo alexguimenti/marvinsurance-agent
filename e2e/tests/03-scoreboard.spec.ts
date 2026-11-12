@@ -32,7 +32,7 @@ test('an evaluation started on the dashboard reaches the service with N, and sho
   await page.getByLabel('Claim agents at once').fill('5')
   await page.getByRole('button', { name: 'Start evaluation' }).click()
 
-  await expect.poll(() => received(page)).toContainEqual({ path: '/evaluations', body: { eval_set: 'held_out', tiny: true, workers: 5 } })
+  await expect.poll(() => received(page)).toContainEqual({ operation: 'start_evaluation', eval_set: 'held_out', tiny: true, workers: 5 })
   const row = page.locator('tbody tr').first()
   await expect(row).toContainText('Finished', { timeout: 60_000 })
   await expect(row).toContainText('Held-out set, tiny')

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 import app.judge as judge_module
 from agent.dispatcher import dispatch
 from agent.scripted import ScriptedChatModel
-from agent.service import create_service
+from tests.fakes import create_service
 from app.api import create_app
 from app.config import Settings
 from app.evaluations import start_evaluation

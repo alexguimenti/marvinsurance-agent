@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agent import connection
-from agent.service import create_service
+from tests.fakes import create_service
 from app.api import create_app
 from app.config import Settings
 from tests.fakes import MINT, TEST_KEY, api_client, service_client
@@ -86,7 +86,11 @@ def test_the_backend_sends_the_key_to_the_service(db_path, data_dir):
 
     with api_client(create_app(make_settings(db_path, data_dir), http=Spy(), jwks=MINT), headers=MINT.header()) as backend:
         assert backend.post("/dispatches", json={"workers": 1}).status_code == 202
-    assert Spy.seen == [{"X-API-Key": TEST_KEY}]
+    assert Spy.seen == [{"Authorization": f"Bearer {TEST_KEY}"}]
+
+
+BEARER = {"Authorization": f"Bearer {TEST_KEY}"}
+WRONG_BEARER = {"Authorization": "Bearer not-the-key"}
 
 
 @pytest.fixture
@@ -97,15 +101,17 @@ def service(db_path, data_dir):
             yield svc
 
 
-def test_the_service_refuses_a_call_without_the_key(service):
-    assert service.post("/dispatches", json={"workers": 1}).status_code == 401
-    assert service.post("/dispatches", json={"workers": 1}, headers=WRONG).status_code == 401
-    assert service.get("/health").status_code == 200
-    assert service.post("/dispatches", json={"workers": 1}, headers=KEY).status_code == 202
+def test_the_agent_refuses_a_call_without_the_key(service):
+    work = {"operation": "start_dispatch", "workers": 1}
+    assert service.post("/invocations", json=work).status_code == 401
+    assert service.post("/invocations", json=work, headers=WRONG_BEARER).status_code == 401
+    assert service.post("/invocations", json=work, headers={"X-API-Key": TEST_KEY}).status_code == 401  # it takes a bearer token
+    assert service.post("/invocations", json={"operation": "health"}).status_code == 200
+    assert service.post("/invocations", json=work, headers=BEARER).status_code == 200
 
 
-def test_the_service_refuses_to_start_without_the_key(db_path, data_dir, monkeypatch):
+def test_the_agent_refuses_to_get_ready_without_the_key(db_path, data_dir, monkeypatch):
     monkeypatch.delenv("UNDERCOVER_API_KEY")
-    with pytest.raises(RuntimeError, match="UNDERCOVER_API_KEY"):
-        with TestClient(create_service(make_settings(db_path, data_dir), inline=True)):
-            pass
+    with TestClient(create_service(make_settings(db_path, data_dir), inline=True), raise_server_exceptions=False) as client:
+        answer = client.post("/invocations", json={"operation": "health"})
+    assert answer.status_code == 500 and "UNDERCOVER_API_KEY" in answer.text

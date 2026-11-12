@@ -103,7 +103,7 @@ def test_database_url_in_dot_env_alone_is_ignored(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     settings = Settings(_env_file=tmp_path / ".env")
     assert settings.database_url is None
-    assert settings.agent_url == "http://127.0.0.1:8002"
+    assert settings.agent_url == "http://127.0.0.1:8080"
 
 
 def test_database_url_and_agent_address_in_the_environment_are_used(monkeypatch):

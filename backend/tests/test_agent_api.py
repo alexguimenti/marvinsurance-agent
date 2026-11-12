@@ -85,7 +85,7 @@ def test_only_the_improvers_client_reaches_the_scores(path):
         module, _, name = item.partition(":")
         assert module in ALLOWED or item in ALLOWED, f"{path.name} imports {item}"
     text = path.read_text(encoding="utf-8")
-    if path.name not in ("improver.py", "improver_api.py", "service.py"):
+    if path.name not in ("improver.py", "improver_api.py", "entrypoint.py"):
         assert "improver_api" not in text, path.name
 
 

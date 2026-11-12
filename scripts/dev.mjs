@@ -21,7 +21,7 @@ const parts = [
   // no --reload: a reload would stop the claim it is working on
   // the context layer: definitions, plans, rules, reference data and documents, for the claim agent's tools
   { name: 'context', cwd: 'backend', command: python, args: ['-m', 'context'] },
-  { name: 'agent', cwd: 'backend', command: python, args: [...uvicorn, 'agent.service:app', '--port', '8002'] },
+  { name: 'agent', cwd: 'backend', command: python, args: [...uvicorn, 'agent.entrypoint:app', '--port', '8080', '--reload', '--reload-dir', 'agent'] },
   { name: 'dashboard', cwd: 'frontend', command: 'npm', args: ['run', 'dev', '--', '--host', '127.0.0.1', '--strictPort'], shell: windows },
 ]
 
