@@ -1,4 +1,4 @@
-// Start everything: `npm run dev` from the repo root. The backend, the context layer, the agent's service and the dashboard,
+// Start everything: `npm run dev` from the repo root. The backend, the context layer, the claim agent, the Copilot and the dashboard,
 // with .env in their environment. Ctrl-C stops all of them, and if one dies the others stop too.
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -22,6 +22,8 @@ const parts = [
   // the context layer: definitions, plans, rules, reference data and documents, for the claim agent's tools
   { name: 'context', cwd: 'backend', command: python, args: ['-m', 'context'] },
   { name: 'agent', cwd: 'backend', command: python, args: [...uvicorn, 'agent.entrypoint:app', '--port', '8080', '--reload', '--reload-dir', 'agent'] },
+  // the Copilot, in the sidebar: it asks for no key, since everything it does carries the handler's sign-in
+  { name: 'copilot', cwd: 'backend', command: python, args: [...uvicorn, 'agent.copilot.entrypoint:app', '--port', '8081', '--reload', '--reload-dir', 'agent'] },
   { name: 'dashboard', cwd: 'frontend', command: 'npm', args: ['run', 'dev', '--', '--host', '127.0.0.1', '--strictPort'], shell: windows },
 ]
 

@@ -9,11 +9,11 @@ const root = resolve(import.meta.dirname, '..')
 for (const name of ['DATABASE_URL', 'LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_BASE_URL', 'UNDERCOVER_AGENT',
   'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'HANDLER_PASSWORD', 'MODEL_NAME', 'OPENROUTER_DECISIONS_URL', 'UNDERCOVER_API_KEY', 'UNDERCOVER_BACKEND', 'UNDERCOVER_API',
   'UNDERCOVER_GATEWAY_URL', 'UNDERCOVER_CONTEXT', 'UNDERCOVER_MEMORY_ID', 'AWS_PROFILE', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
-  'AWS_SESSION_TOKEN', 'UNDERCOVER_AGENT_RUNTIME']) {
+  'AWS_SESSION_TOKEN', 'UNDERCOVER_AGENT_RUNTIME', 'UNDERCOVER_COPILOT', 'UNDERCOVER_COPILOT_RUNTIME', 'UNDERCOVER_COPILOT_MEMORY_ID']) {
   delete process.env[name]
 }
 for (const name of Object.keys(process.env)) {
-  if (/^AGENTCORE_CREDENTIAL_.+_NAME$/.test(name)) delete process.env[name] // that would make the agent think it is on Runtime
+  if (/^(AGENTCORE_)?CREDENTIAL_.+_NAME$/.test(name)) delete process.env[name] // that would make the agent think it is on Runtime
 }
 const python = resolve(root, 'backend/.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
 
@@ -34,6 +34,8 @@ const steps = [
   ['Backend imports on a server', 'uv', ['run', '--project', 'backend', '--isolated', '--only-group', 'server', 'python', '-c', "__import__('backend.main')"], '.'],
   // and the agent on Runtime with only its own group, from the staged folder
   ['Agent imports on Runtime', 'uv', ['run', '--directory', staged, '--project', resolve(root, 'backend'), '--isolated', '--only-group', 'runtime', 'python', '-c', "__import__('runtime.main')"], '.'],
+  // and the Copilot answers its health check through the file Runtime starts for it, from the same staged folder
+  ['Copilot answers on Runtime', 'uv', ['run', '--directory', staged, '--project', resolve(root, 'backend'), '--isolated', '--only-group', 'runtime', 'python', resolve(root, 'scripts/check_copilot_health.py')], '.'],
   // and the context layer with only its own group, so what it packs for Lambda is all it needs
   ['Context layer imports on a server', 'uv', ['run', '--isolated', '--only-group', 'context', 'python', '-c', "__import__('context.server')"], 'backend'],
   ['Front-end unit tests', 'npx', ['vitest', 'run'], 'frontend'],

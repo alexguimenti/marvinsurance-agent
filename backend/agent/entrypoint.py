@@ -11,9 +11,7 @@ Nothing happens when this module is imported or when the app starts. The agent g
 process, before it answers: on Runtime every session starts from one snapshot, so a key fetched or a connection opened earlier
 would be shared by every session."""
 import logging
-import os
 import random
-import re
 import threading
 from contextlib import ExitStack
 from typing import Callable
@@ -25,37 +23,12 @@ from agent import api, improver
 from agent import improver_api as rounds
 from agent.dispatcher import dispatch
 from agent.heartbeat import heartbeat
+from agent.identity import fetch_credentials, on_runtime
 from agent.operations_in import BadPayload, CarryRoundOn, Health, ResumeClaim, WorkRound, WorkRun, parse
 from agent.settings import AgentSettings, key_matches
 from agent.worker import AgentEnv, open_env, resume, resume_refusal
 
 log = logging.getLogger(__name__)
-# The CLI gives each credential's provider name in CREDENTIAL_<NAME>_NAME (AgentCore CLI 1.0.2) or AGENTCORE_CREDENTIAL_<NAME>_NAME (rc.5)
-_CREDENTIAL = re.compile(r"^(?:AGENTCORE_)?CREDENTIAL_(.+)_NAME$")
-
-
-def on_runtime() -> bool:
-    """On Runtime the deployment gives the agent a setting for each credential it fetches from AgentCore Identity."""
-    return any(_CREDENTIAL.match(name) for name in os.environ)
-
-
-def fetch_credentials() -> None:
-    """Put each credential from AgentCore Identity into the setting of its name, where `.env` puts it on a laptop. It reads the
-    token Runtime sends with each request, so it runs while a request is handled, never on a thread of its own."""
-    from bedrock_agentcore.identity.auth import requires_api_key
-
-    for name in list(os.environ):
-        found = _CREDENTIAL.match(name)
-        if not found:
-            continue
-
-        @requires_api_key(provider_name=os.environ[name])  # makes its client when applied: so apply it here
-        def fetch(*, api_key: str) -> str:
-            return api_key
-
-        os.environ[found[1]] = fetch()
-
-
 def build_app(make_settings: Callable[[], AgentSettings] = AgentSettings, inline: bool = False) -> BedrockAgentCoreApp:
     """With inline, work happens before a call returns, which is what tests want."""
     app = BedrockAgentCoreApp()
