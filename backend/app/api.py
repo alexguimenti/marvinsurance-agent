@@ -7,7 +7,7 @@ from dataclasses import asdict
 from typing import Any, Literal, Mapping
 
 import httpx
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
@@ -18,6 +18,7 @@ from app.work import WorkGoing, start_work
 from app.agent_routes import agent_routes
 from app.auth import Handler, handler_view, make_guards, make_jwks
 from app.config import Settings
+from app.copilot_routes import copilot_routes
 from app.db import (
     claims,
     decisions,
@@ -457,6 +458,58 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
         row = runs.latest_run(engine, "dispatch")
         return run_report(row) if row else {"run": None, "claims": [], "totals": None, "summary": None}
 
+    @router.get("/dispatches/{run_id}", operation_id="get_dispatch")
+    def get_dispatch(run_id: int):
+        """Get one dispatch by its id, with its claims, its cost and time and, once it has ended, its summary."""
+        row = runs.get_run(engine, run_id)
+        if row is None or row["kind"] != "dispatch":
+            raise HTTPException(404, f"no dispatch {run_id}")
+        return run_report(row)
+
+    @router.get("/customers", operation_id="find_customers")
+    def find_customers(name: str = Query(min_length=1)):
+        """Find customers by part of their name, or by their exact id."""
+        wanted = name.strip().lower()
+        found = [c for c in ref.read("customers.json") if wanted in c["name"].lower() or wanted == c["customer_id"].lower()]
+        return [{"customer_id": c["customer_id"], "name": c["name"], "customer_since": c["customer_since"]} for c in found]
+
+    @router.get("/customers/{customer_id}", operation_id="get_customer")
+    def get_customer(customer_id: str):
+        """Get a customer with their policies, their earlier claims and their claims in our queue."""
+        try:
+            customer = ref.customer(customer_id)
+        except LookupError:
+            raise HTTPException(404, f"unknown customer {customer_id}")
+        query = (select(claims.c.claim_id, claims.c.status, claims.c.payload, decisions.c.decision, decisions.c.payout)
+                 .select_from(claims.outerjoin(decisions, claims.c.claim_id == decisions.c.claim_id))
+                 .where(claims.c.copy_of.is_(None)).order_by(claims.c.claim_id))
+        with engine.connect() as conn:
+            rows = conn.execute(query).mappings().all()
+        queued = [{"claim_id": r["claim_id"], "status": r["status"], "decision": r["decision"], "payout": r["payout"]}
+                  for r in rows if json.loads(r["payload"])["customer_id"] == customer_id]
+        return {"customer": customer, "policies": [p for p in ref.read("policies.json") if p["customer_id"] == customer_id],
+                "previous_claims": customer["previous_claims"], "queue_claims": queued}
+
+    @router.get("/policies/{policy_id}", operation_id="get_policy_by_id")
+    def get_policy_by_id(policy_id: str):
+        """Get a policy by its id: plan, add-ons, purchase date, trip dates and travelers."""
+        try:
+            return ref.policy(policy_id)
+        except LookupError:
+            raise HTTPException(404, f"unknown policy {policy_id}")
+
+    @router.get("/payouts/over-limit", operation_id="count_payouts_over_limit")
+    def count_payouts_over_limit():
+        """Count the claims in our queue paid more than the approval limit, and how many of those carry a handler's sign-off."""
+        limit = approval_limit(engine, ref)
+        query = (select(payments.c.approved_by).select_from(payments.join(claims, payments.c.claim_id == claims.c.claim_id))
+                 .where(payments.c.status == "paid", payments.c.amount > limit, claims.c.copy_of.is_(None)))
+        with engine.connect() as conn:
+            approvers = [r[0] for r in conn.execute(query)]
+        handlers_ids = {h["handler_id"] for h in ref.handlers}
+        return {"approval_limit": limit, "paid_over_limit": len(approvers),
+                "signed_off": sum(1 for a in approvers if a in handlers_ids)}
+
     @router.get("/evaluations", operation_id="list_evaluations")
     def evaluations():
         """List the evaluations, newest first, each with its measures."""
@@ -604,6 +657,7 @@ def create_app(settings: Settings, http=httpx, jwks=None) -> FastAPI:
     app.include_router(agent_only)
     app.include_router(agent_routes(engine, ref, docs, guards, settings))
     app.include_router(shared)
+    app.include_router(copilot_routes(engine, ref, guards, settings, http))
     app.include_router(router)
 
     dist = Path(settings.dashboard_dir).resolve()

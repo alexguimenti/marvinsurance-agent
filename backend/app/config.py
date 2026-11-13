@@ -13,6 +13,8 @@ DEFAULT_AGENT_URL = "http://127.0.0.1:8080"  # the port AgentCore apps use
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_EFFORT = "low"
 SCREENING_MODEL = ("openai/gpt-6-luna", "none")  # the security check: quick and cheap enough to read every claim
+COPILOT_MODEL = ("openai/gpt-6-luna", "low")  # the Copilot: GPT-6 Luna with low reasoning effort
+DEFAULT_COPILOT_URL = "http://127.0.0.1:8081"
 
 
 def _agent_toml() -> dict:
@@ -42,6 +44,8 @@ class Settings(BaseSettings):
     database_url: str | None = None  # from the process environment only: see model_post_init
     agent_url: str = DEFAULT_AGENT_URL
     agent_runtime_arn: str | None = None  # UNDERCOVER_AGENT_RUNTIME, from the process environment only: see model_post_init
+    copilot_url: str = DEFAULT_COPILOT_URL  # UNDERCOVER_COPILOT, from the process environment only: see model_post_init
+    copilot_runtime_arn: str | None = None  # UNDERCOVER_COPILOT_RUNTIME, from the process environment only: see model_post_init
     supabase_url: str | None = None  # from the process environment only: see model_post_init
     model_name: str | None = None  # MODEL_NAME, when the platform runs on one model: see model_post_init
     on_lambda: bool = False  # from AWS_LAMBDA_FUNCTION_NAME: see model_post_init
@@ -55,6 +59,8 @@ class Settings(BaseSettings):
         self.database_url = os.environ.get("DATABASE_URL") or None
         self.agent_url = os.environ.get("UNDERCOVER_AGENT") or DEFAULT_AGENT_URL
         self.agent_runtime_arn = os.environ.get("UNDERCOVER_AGENT_RUNTIME") or None
+        self.copilot_url = (os.environ.get("UNDERCOVER_COPILOT") or DEFAULT_COPILOT_URL).rstrip("/")
+        self.copilot_runtime_arn = os.environ.get("UNDERCOVER_COPILOT_RUNTIME") or None
         self.on_lambda = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
         self.model_name = os.environ.get("MODEL_NAME") or None  # the one place MODEL_NAME is read
         self.agent_model = self.model_name or self.agent_model
@@ -72,6 +78,12 @@ class Settings(BaseSettings):
         """The model that checks each claim and its reasoning effort: Luna with none, or the one model the platform runs
         on (MODEL_NAME) with no effort set."""
         return (self.model_name, "default") if self.model_name else SCREENING_MODEL
+
+    @property
+    def copilot_model(self) -> tuple[str, str]:
+        """The Copilot's model and reasoning effort: Luna with low effort, or the one model the platform runs on (MODEL_NAME) with no
+        effort set."""
+        return (self.model_name, "default") if self.model_name else COPILOT_MODEL
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):

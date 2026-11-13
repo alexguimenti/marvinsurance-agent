@@ -13,6 +13,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    String,
     Table,
     Text,
     create_engine,
@@ -126,6 +127,52 @@ payments = Table(
     _timestamp("paid_at", default=False),
     _timestamp("created_at"),
     _timestamp("updated_at"),
+)
+
+# The Copilot's conversations belong to the handler who started them. Each turn is one message and what came of it; the steps are the
+# cards the sidebar shows. Nothing here holds the handler's sign-in.
+copilot_conversations = Table(
+    "copilot_conversations", metadata,
+    Column("conversation_id", String(100), primary_key=True),
+    Column("handler_id", Text, nullable=False),
+    Column("title", String(120)),
+    Column("open_turn_id", Integer),  # the turn working or waiting: one at a time, taken by a conditional update
+    _timestamp("created_at"),
+    _timestamp("updated_at"),
+)
+
+copilot_turns = Table(
+    "copilot_turns", metadata,
+    Column("turn_id", Integer, primary_key=True, autoincrement=True),
+    Column("conversation_id", String(100), nullable=False, index=True),
+    Column("message", Text, nullable=False),
+    Column("status", Text, nullable=False),  # working, waiting, done, failed or stopped
+    Column("answer", Text),
+    Column("error", Text),
+    Column("confirmation", Text),  # the card, as JSON, while the turn waits for the handler
+    Column("confirmation_answer", Text),
+    Column("model_calls", Integer, nullable=False, server_default="0"),
+    Column("cost_usd", Float),
+    _timestamp("started_at"),
+    _timestamp("resumed_at", default=False),
+    _timestamp("ended_at", default=False),
+)
+
+copilot_steps = Table(
+    "copilot_steps", metadata,
+    Column("step_id", Integer, primary_key=True, autoincrement=True),
+    Column("turn_id", Integer, nullable=False, index=True),
+    Column("conversation_id", String(100), nullable=False),
+    Column("kind", Text, nullable=False),  # claims, customers, context, work, memory or action
+    Column("tool", Text, nullable=False),
+    Column("main_input", Text),
+    Column("status", Text, nullable=False),  # working, done, refused or failed
+    Column("input", Text),
+    Column("output", Text),
+    Column("sources", Text),
+    Column("reason", Text),
+    _timestamp("started_at"),
+    _timestamp("ended_at", default=False),
 )
 
 runs = Table(
