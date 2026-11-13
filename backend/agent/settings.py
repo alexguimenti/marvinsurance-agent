@@ -16,6 +16,7 @@ CONFIG_FILE = ROOT / "agent.toml"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_EFFORT = "low"
 SCREENING_MODEL = ("openai/gpt-6-luna", "none")  # the security check: quick and cheap enough to read every claim
+COPILOT_MODEL = ("openai/gpt-6-luna", "low")  # the Copilot: GPT-6 Luna with low reasoning effort
 
 
 def _agent_toml() -> dict:
@@ -65,6 +66,12 @@ class AgentSettings(BaseSettings):
         """The model that checks each claim and its reasoning effort: Luna with none, or the one model the platform runs
         on (MODEL_NAME) with no effort set."""
         return (self.model_name, "default") if self.model_name else SCREENING_MODEL
+
+    @property
+    def copilot_model(self) -> tuple[str, str]:
+        """The Copilot's model and reasoning effort: Luna with low effort, or the one model the platform runs on (MODEL_NAME) with no
+        effort set."""
+        return (self.model_name, "default") if self.model_name else COPILOT_MODEL
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):

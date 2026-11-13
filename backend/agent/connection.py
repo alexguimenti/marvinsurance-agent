@@ -52,10 +52,14 @@ def backend_url() -> str:
     return (os.environ.get("UNDERCOVER_API") or os.environ.get("UNDERCOVER_BACKEND") or DEFAULT_BACKEND).rstrip("/")
 
 
-def call(method: str, path: str, json: dict | None = None, params: dict | None = None) -> Any:
-    """One request. A 404 is a LookupError; any other 4xx is Refused with the status and the backend's detail."""
-    key = os.environ.get("UNDERCOVER_API_KEY")
-    headers = {"X-API-Key": key} if key else {}
+def call(method: str, path: str, json: dict | None = None, params: dict | None = None, token: str | None = None) -> Any:
+    """One request. A 404 is a LookupError; any other 4xx is Refused with the status and the backend's detail. With a token (a
+    handler's sign-in) the request carries it and never the agent's key; without one it carries the key."""
+    if token:
+        headers = {"Authorization": f"Bearer {token}"}
+    else:
+        key = os.environ.get("UNDERCOVER_API_KEY")
+        headers = {"X-API-Key": key} if key else {}
     answer = _http().request(method, f"{backend_url()}{path}", json=json, params=params, headers=headers)
     if answer.status_code == 404:
         raise LookupError(_detail(answer))
