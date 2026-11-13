@@ -130,6 +130,23 @@ def test_on_runtime_the_first_request_fetches_each_credential_into_its_setting_o
     assert os.environ["OPENROUTER_API_KEY"] == "secret-of-provider-of-openrouter"
 
 
+def test_the_credential_names_of_both_cli_versions_are_read(db_path, data_dir, monkeypatch):
+    import os
+
+    calls = []
+    monkeypatch.setenv("CREDENTIAL_OPENROUTER_API_KEY_NAME", "provider-of-openrouter")  # AgentCore CLI 1.0.2
+    monkeypatch.setenv("AGENTCORE_CREDENTIAL_LANGFUSE_SECRET_KEY_NAME", "provider-of-langfuse")  # rc.5
+    monkeypatch.setenv("OPENROUTER_API_KEY", "placeholder")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "placeholder")
+    monkeypatch.setattr("bedrock_agentcore.identity.auth.requires_api_key", fake_identity(calls))
+    monkeypatch.setattr(entrypoint, "open_env", lambda settings: __import__("contextlib").nullcontext(object()))
+    with service_client(create_service(make_settings(db_path, data_dir), inline=True), keyed=False) as service:
+        assert service.post("/invocations", json={"operation": "health"}).json() == {"healthy": True}
+    assert sorted(calls) == ["provider-of-langfuse", "provider-of-openrouter"]
+    assert os.environ["OPENROUTER_API_KEY"] == "secret-of-provider-of-openrouter"
+    assert os.environ["LANGFUSE_SECRET_KEY"] == "secret-of-provider-of-langfuse"
+
+
 def test_getting_ready_that_fails_answers_the_error_and_the_next_request_tries_again(db_path, data_dir, monkeypatch):
     real, tries = entrypoint.open_env, []
 

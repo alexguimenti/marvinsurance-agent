@@ -65,18 +65,18 @@ function useRuntimeV2(stack: Stack): void {
 
 /**
  * Stage the runtime's code for the zip build: the entry point from runtime/, the agent from
- * agent/ without its tests, and a pyproject.toml listing pyproject.toml's runtime group at
- * uv.lock's versions, since the build installs what a pyproject.toml lists and reads no lock.
+ * backend/agent/ without its tests, and a pyproject.toml listing pyproject.toml's runtime group at
+ * backend/uv.lock's versions (this project's pyproject.toml is in backend/), since the build installs what a pyproject.toml lists and reads no lock.
  * The folder sits outside agentcore/.cache/<runtime>/, where the build installs the packages.
  */
 function stageCode(root: string): string {
   const staged = join(root, 'agentcore', '.cache', 'source');
   rmSync(staged, { recursive: true, force: true });
   copyCode(join(root, 'runtime'), staged);
-  copyCode(join(root, 'agent'), join(staged, 'agent'));
+  copyCode(join(root, 'backend', 'agent'), join(staged, 'agent'));
   const exported = execFileSync(
     'uv',
-    ['export', '--only-group', 'runtime', '--no-hashes', '--no-emit-project', '--no-header', '--no-annotate'],
+    ['export', '--project', 'backend', '--only-group', 'runtime', '--no-hashes', '--no-emit-project', '--no-header', '--no-annotate'],
     { cwd: root, encoding: 'utf8' },
   );
   const packages = exported

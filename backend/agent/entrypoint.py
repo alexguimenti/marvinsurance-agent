@@ -30,7 +30,8 @@ from agent.settings import AgentSettings, key_matches
 from agent.worker import AgentEnv, open_env, resume, resume_refusal
 
 log = logging.getLogger(__name__)
-_CREDENTIAL = re.compile(r"^AGENTCORE_CREDENTIAL_(.+)_NAME$")
+# The CLI gives each credential's provider name in CREDENTIAL_<NAME>_NAME (AgentCore CLI 1.0.2) or AGENTCORE_CREDENTIAL_<NAME>_NAME (rc.5)
+_CREDENTIAL = re.compile(r"^(?:AGENTCORE_)?CREDENTIAL_(.+)_NAME$")
 
 
 def on_runtime() -> bool:
