@@ -107,6 +107,7 @@ def test_marcus_over_the_limit_is_refused_without_a_pause(tmp_path):
         assert not saved(env).next
     assert app.sent("POST", "/api/copilot/turns/7/pause") == []
     assert app.sent("GET", "/api/approvals") == []  # refused in code, before looking at a payout
+    assert app.sent("POST", "/api/copilot/steps/11")[0]["status"] == "refused"  # the card says refused, not done
     assert "who can sign off payouts over the limit" in model.seen[1][-1].content
     assert app.sent("POST", "/api/copilot/turns/7/end")[0]["answer"].startswith("You may not")
 

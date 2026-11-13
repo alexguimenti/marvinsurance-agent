@@ -31,7 +31,7 @@ def refusal_safe(function: Callable[..., Any]) -> Callable[..., str]:
     def run(*args: Any, **kwargs: Any) -> str:
         try:
             result = function(*args, **kwargs)
-            return result if isinstance(result, Command) else as_text(result)  # a Command is the sign-off's pause
+            return result if isinstance(result, (Command, str)) else as_text(result)  # a Command is the sign-off's pause, a str a refusal
         except (Refused, LookupError) as exc:
             return f"{REFUSED}{exc}"
 

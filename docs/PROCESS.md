@@ -22,16 +22,17 @@ A change starts from a brief. The plan goes in `docs/` and is ticked off there a
 npm run dev
 ```
 
-This starts the four parts, with `.env` in their environment:
+This starts the five parts, with `.env` in their environment:
 
 | Part | Address | Reloads on a code change |
 |---|---|---|
 | Backend | http://127.0.0.1:8000 | Yes |
 | The context layer | http://127.0.0.1:8006/mcp (`UNDERCOVER_CONTEXT` to change where the agent looks) | No |
 | The agent (an AgentCore app) | http://127.0.0.1:8080 (`UNDERCOVER_AGENT` to change where the backend looks) | Yes: a reload stops the work it is doing, and the next run carries on |
+| The Copilot (an AgentCore app) | http://127.0.0.1:8081 (`UNDERCOVER_COPILOT` to change where the backend looks) | Yes: a reload stops the turn it is working on, and the handler sends a new message |
 | Dashboard | http://localhost:5173 | Yes |
 
-Ctrl-C stops all four. If one dies, the others stop too and the output says which. Everything `npm run dev` starts must work on Windows.
+Ctrl-C stops all five. If one dies, the others stop too and the output says which. Everything `npm run dev` starts must work on Windows.
 
 `cd backend; uv run -m agent CLM-1001` works one claim in its own process, with no run. Dispatches and evaluations start from the dashboard: the app creates the run and asks the agent to work it.
 
@@ -72,3 +73,13 @@ A run with the real model spends money and writes to Supabase and Langfuse. Befo
 The free plan allows 15 connections at once through the session pooler, across every process. Each of our processes uses at most 4. A notebook left open with a pool from the labs counts too, so close the labs before measuring.
 
 Handlers sign in with Supabase Auth. The live checks sign in as Dana Whitfield (and, for the rights, as Marcus Oyelaran) with `HANDLER_PASSWORD`; `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env` carry the same values as `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. `scripts/check_live.py --round N` shows a round's stages, proposals, verdict and cost, and `--session round-N` its traces in Langfuse.
+
+## The Copilot on port 8081
+
+The Copilot, the handlers' assistant in the dashboard's sidebar, is an AgentCore app of its own. On the laptop `npm run dev` serves it on 127.0.0.1:8081 and asks for no key: every call it makes to the app carries the sign-in of the handler it works for. With `UNDERCOVER_COPILOT_MEMORY_ID` unset it has no memory, and with `UNDERCOVER_GATEWAY_URL` unset it reaches the context layer direct, as the claim agent does. With `npm run dev` stopped, it can be served on its own, as Runtime starts it, from the repository root:
+
+```powershell
+$env:PYTHONPATH = "backend"; $env:PORT = "8081"; uv run --directory . --project backend --env-file .env --isolated --only-group runtime python -m runtime.copilot
+```
+
+Posting `{"operation": "health"}` to `http://127.0.0.1:8081/invocations` answers `{"healthy": true}`. `npm run check` proves the same through the staged package (`runtime/` with `agent/` beside it, only the `runtime` group installed). The live checks for the Copilot are those in `docs/COPILOT.md`: one `npm run seed`, `npm run dev` on the default model, on the direct route with memory off, signed in as Dana Whitfield through `e2e/live_security.mjs` (`copilot:<message>` and `confirm:sign_off`), so the password never passes through a tool call.

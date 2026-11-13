@@ -9,6 +9,7 @@ const AGENT_PORT = 8003 // the agent on the scripted model: never the one `npm r
 const CONTEXT_PORT = 8016 // the context layer, the real server: it only reads files
 const AUTH_PORT = 8004 // a stand-in for Supabase Auth: the tests never reach the real project
 const AUTH_URL = `http://127.0.0.1:${AUTH_PORT}`
+const COPILOT_PORT = 8093 // the Copilot on the scripted model: never the one `npm run dev` starts
 const JUDGE_PORT = 8005 // a stand-in for the judge's endpoint: the tests never call the real one
 const DB_PATH = `${process.cwd()}/.tmp/${DB}`
 // the agent's key: the backend and the stand-in service share it, and nothing else does
@@ -57,6 +58,7 @@ export default defineConfig({
       cwd: '../backend',
       env: {
         AGENT_PROVIDER: 'scripted', DB_PATH, UNDERCOVER_AGENT: `http://127.0.0.1:${AGENT_PORT}`, UNDERCOVER_AGENT_RUNTIME: '',
+        UNDERCOVER_COPILOT: `http://127.0.0.1:${COPILOT_PORT}`, UNDERCOVER_COPILOT_RUNTIME: '', UNDERCOVER_COPILOT_MEMORY_ID: '',
         VITE_SUPABASE_URL: AUTH_URL, UNDERCOVER_API_KEY: API_KEY,
         OPENROUTER_API_KEY: 'e2e-key', OPENROUTER_DECISIONS_URL: `http://127.0.0.1:${JUDGE_PORT}`,
       },
@@ -73,6 +75,18 @@ export default defineConfig({
         UNDERCOVER_CONTEXT: `http://127.0.0.1:${CONTEXT_PORT}/mcp`,
       },
       url: `http://127.0.0.1:${AGENT_PORT}/ping`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      // the real Copilot app on the scripted model: it plays a scripted turn through the backend with the handler's sign-in
+      command: `"${PYTHON}" -m uvicorn agent.copilot.entrypoint:app --port ${COPILOT_PORT}`,
+      cwd: '../backend',
+      env: {
+        AGENT_PROVIDER: 'scripted', DB_PATH, UNDERCOVER_API: API_URL, UNDERCOVER_API_KEY: '', UNDERCOVER_GATEWAY_URL: '',
+        UNDERCOVER_COPILOT_MEMORY_ID: '', UNDERCOVER_CONTEXT: `http://127.0.0.1:${CONTEXT_PORT}/mcp`,
+      },
+      url: `http://127.0.0.1:${COPILOT_PORT}/ping`,
       reuseExistingServer: false,
       timeout: 60_000,
     },

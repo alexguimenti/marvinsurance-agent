@@ -10,6 +10,7 @@ import Improvement from './pages/Improvement'
 import Queue from './pages/Queue'
 import Scoreboard from './pages/Scoreboard'
 import Settings from './pages/Settings'
+import Sidebar from './copilot/Sidebar'
 import { usePolling } from './usePolling'
 
 const POLL_MS = 3000
@@ -63,6 +64,7 @@ export default function App() {
           </button>
         </div>
       </header>
+      <div className="with-copilot">
       <main className="container">
         <Routes>
           <Route path="/" element={<Queue />} />
@@ -75,6 +77,8 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
+      <Sidebar />
+      </div>
     </>
   )
 }

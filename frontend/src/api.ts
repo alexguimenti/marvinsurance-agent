@@ -192,6 +192,8 @@ const BASE = '/api'
 
 interface Auth {
   getToken: () => Promise<string | null>
+  /** The token, renewed first when its sign-in has less than 20 minutes left: what a message to the Copilot is sent with. */
+  getFreshToken?: () => Promise<string | null>
   onUnauthorized: () => void
 }
 
@@ -202,9 +204,9 @@ export function setAuth(next: Auth | null) {
   auth = next
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit, fresh = false): Promise<T> {
   const headers = new Headers(init?.headers)
-  const token = await auth?.getToken()
+  const token = await (fresh && auth?.getFreshToken ? auth.getFreshToken() : auth?.getToken())
   if (token) headers.set('Authorization', `Bearer ${token}`)
   const res = await fetch(`${BASE}${path}`, { ...init, headers })
   if (res.status === 401) auth?.onUnauthorized()
@@ -228,7 +230,7 @@ export class ApiError extends Error {
   }
 }
 
-const post = (body?: unknown): RequestInit => ({
+export const post = (body?: unknown): RequestInit => ({
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: body === undefined ? undefined : JSON.stringify(body),

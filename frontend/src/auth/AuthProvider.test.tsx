@@ -2,12 +2,14 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { approvePayment } from '../api'
+import { sendMessage } from '../copilot/api'
 import { DANA, mockApi } from '../testUtils'
 import AuthProvider from './AuthProvider'
 import { useAuth } from './context'
 
 const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
+  refreshSession: vi.fn(),
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
   onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
@@ -31,6 +33,7 @@ beforeEach(() => {
   auth.getSession.mockReset().mockResolvedValue({ data: { session: null } })
   auth.signInWithPassword.mockReset()
   auth.signOut.mockReset().mockResolvedValue({ error: null })
+  auth.refreshSession.mockReset()
 })
 
 describe('AuthProvider', () => {
@@ -93,5 +96,42 @@ describe('AuthProvider', () => {
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(new Headers(post[1]!.headers).get('Authorization')).toBe('Bearer token-1')
     await waitFor(() => expect(auth.signOut).toHaveBeenCalled())
+  })
+
+  describe('a sign-in sent to the Copilot', () => {
+    const inMinutes = (m: number) => Math.floor(Date.now() / 1000) + m * 60
+    const authorizationOf = (fetchMock: ReturnType<typeof mockApi>['fetchMock']) =>
+      new Headers(fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')![1]!.headers).get('Authorization')
+
+    it('is renewed before sending when it has less than 20 minutes left', async () => {
+      auth.getSession.mockResolvedValue({ data: { session: { ...SESSION, expires_at: inMinutes(10) } } })
+      auth.refreshSession.mockResolvedValue({ data: { session: { ...SESSION, access_token: 'token-2', expires_at: inMinutes(60) } } })
+      const { fetchMock } = mockApi({ '/api/me': DANA, 'POST /api/copilot/conversations/c-1/messages': { turn_id: 4 } })
+      render(<AuthProvider><Inside /></AuthProvider>)
+      await screen.findByText('Hello Dana Whitfield')
+      await sendMessage('c-1', 'hello')
+      expect(auth.refreshSession).toHaveBeenCalledTimes(1)
+      expect(authorizationOf(fetchMock)).toBe('Bearer token-2')
+    })
+
+    it('is not renewed when it is fresh, and an ordinary action never renews it', async () => {
+      auth.getSession.mockResolvedValue({ data: { session: { ...SESSION, expires_at: inMinutes(50) } } })
+      const { fetchMock } = mockApi({ '/api/me': DANA, 'POST /api/copilot/conversations/c-1/messages': { turn_id: 4 } })
+      render(<AuthProvider><Inside /></AuthProvider>)
+      await screen.findByText('Hello Dana Whitfield')
+      await sendMessage('c-1', 'hello')
+      expect(auth.refreshSession).not.toHaveBeenCalled()
+      expect(authorizationOf(fetchMock)).toBe('Bearer token-1')
+    })
+
+    it('goes with the sign-in it has when renewing fails', async () => {
+      auth.getSession.mockResolvedValue({ data: { session: { ...SESSION, expires_at: inMinutes(5) } } })
+      auth.refreshSession.mockRejectedValue(new Error('offline'))
+      const { fetchMock } = mockApi({ '/api/me': DANA, 'POST /api/copilot/conversations/c-1/messages': { turn_id: 4 } })
+      render(<AuthProvider><Inside /></AuthProvider>)
+      await screen.findByText('Hello Dana Whitfield')
+      await sendMessage('c-1', 'hello')
+      expect(authorizationOf(fetchMock)).toBe('Bearer token-1')
+    })
   })
 })

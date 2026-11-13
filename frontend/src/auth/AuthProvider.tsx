@@ -6,6 +6,7 @@ import { supabase } from './supabase'
 type State = { status: 'loading' } | { status: 'out'; message: string | null } | { status: 'in'; handler: Me }
 
 const SESSION_ENDED = 'Your session ended. Please sign in again.'
+export const RENEW_BELOW_MS = 20 * 60_000 // the Copilot works for up to 20 minutes on one sign-in: renew before sending when less is left
 
 /** Keeps the Supabase session, shows the sign-in until there is one, and gives the app the handler the backend names. */
 export default function AuthProvider({ children }: { children: ReactNode }) {
@@ -27,6 +28,15 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setAuth({
       getToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
+      getFreshToken: async () => {
+        const session = (await supabase.auth.getSession()).data.session
+        if (!session) return null
+        if (session.expires_at && session.expires_at * 1000 - Date.now() < RENEW_BELOW_MS) {
+          const renewed = await supabase.auth.refreshSession().catch(() => null)
+          return renewed?.data.session?.access_token ?? session.access_token // if renewing fails, the sign-in it has may still be good
+        }
+        return session.access_token
+      },
       onUnauthorized: () => void leave(SESSION_ENDED),
     })
     void supabase.auth.getSession().then(({ data }) => {

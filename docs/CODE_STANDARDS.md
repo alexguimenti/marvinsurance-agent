@@ -19,6 +19,18 @@
 6. **The improver** (`improver.py`, `improver_backend.py`, `improver_instructions.md`): an agent of its own whose four tools reach the records only through `improver_backend.py`. It proposes; code keeps or rolls back, and a handler decides.
 5. **The dispatcher** (`dispatcher.py`): a graph with no model that works a run's claims, up to N at once, through `worker.work` only, so it could later point at the agent in the cloud. Each claim keeps its own thread, never a shared one or a subgraph, and the dispatcher saves no progress of its own.
 
+## The Copilot
+
+The Copilot is a part of its own, with the same rules as the others, in `backend/agent/copilot/`:
+
+1. **Prompts** (`instructions.md`): its goal, who it works for, what it can see and do, the success criteria and how to answer. Written as goals; they do not script its steps. Never a claim id.
+2. **Tools** (`tools.py`, `context_tools.py`): each reads who is asking from `ToolRuntime` and calls the app with that handler's sign-in. A refusal is text returned to the model; the app not answering is raised. The sign-off is checked in code before the pause.
+3. **The loop** (`graph.py`): a hand-written graph; the pause is an `interrupt()` in a node of its own with nothing before it.
+4. **The entry point** (`entrypoint.py`, `turns.py`): the AgentCore app, and the work of a turn. Nothing happens at import.
+5. **The records it keeps** go through the app (`app_api.py`), never to the database; the app builds the confirmation card from its own records.
+
+The Copilot imports nothing from `app`, never sends the agent's API key, and never saves, logs or echoes the handler's sign-in (`tests/test_copilot_graph.py` and `tests/test_copilot_routes.py` look for it).
+
 ## Clients
 
 - Each outside service has one module that talks to it, and the rest of the code asks that module: the model through `agent/models.py` (`chat_model`), the judge through `app/judge.py`, Langfuse through `agent/tracing.py`, Supabase Auth's keys through `app/auth.py` and, in the dashboard, `auth/supabase.ts`.
