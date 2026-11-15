@@ -22,6 +22,7 @@ KIND = {
     **{name: "action" for name in ACTIONS},
 }
 OUTPUT_LIMIT = 2000
+MAIN_INPUT_LIMIT = 300  # what the app accepts for a card's main input
 
 
 def kind_of(tool: str) -> str:
@@ -38,7 +39,8 @@ def main_input(tool: str, args: dict) -> str:
         return f"{args.get('kind', '')} {args.get('run_id', '')}".strip()
     for value in args.values():
         if value not in (None, ""):
-            return str(value)
+            text = str(value)
+            return text if len(text) <= MAIN_INPUT_LIMIT else text[: MAIN_INPUT_LIMIT - 3] + "..."  # the app keeps at most this much
     return ""
 
 

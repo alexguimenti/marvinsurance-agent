@@ -140,7 +140,7 @@ def copilot_routes(engine: Engine, ref: Reference, guards: Guards, settings, htt
             turn_id = copilot.answer_confirmation(engine, conversation_id, handler.handler_id, body.answer, _now())
         except LookupError as exc:
             raise HTTPException(404, str(exc))
-        except copilot.NotWaiting as exc:
+        except (copilot.NotWaiting, copilot.CardChanged) as exc:
             raise HTTPException(409, str(exc))
         payload = {"operation": "answer", "conversation_id": conversation_id, "turn_id": turn_id, "answer": body.answer, "token": token_of(credentials)}
         hand_over(payload, conversation_id, lambda why: copilot.undo_answer(engine, turn_id, body.answer))

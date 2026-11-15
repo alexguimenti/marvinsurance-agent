@@ -17,6 +17,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
 from agent.checkpoints import Checkpoints, make_checkpoints
+from agent.connection import Refused
 from agent.copilot import app_api, memory
 from agent.copilot.asker import Asker
 from agent.copilot.graph import MAX_MODEL_CALLS, answer_of, build_copilot_graph, load_instructions
@@ -89,7 +90,15 @@ def _asker(body: Turn | Answer) -> Asker | None:
     try:
         handler = app_api.who(body.token)
     except Exception as exc:
-        log.warning("turn %s: the app did not accept the sign-in (%s)", body.turn_id, type(exc).__name__)
+        if isinstance(exc, Refused) and exc.status_code in (401, 403):  # the sign-in was not accepted: nothing can be reported with it either
+            log.warning("turn %s: the app did not accept the sign-in (%s)", body.turn_id, exc.status_code)
+            return None
+        # the app did not answer, or answered with an error (a restart, a dropped connection): say so, so the turn does not wait to be stopped
+        log.warning("turn %s: the sign-in could not be checked (%s)", body.turn_id, type(exc).__name__)
+        try:
+            app_api.fail(body.token, body.turn_id, f"The Copilot could not reach the app to check who is signed in ({type(exc).__name__}). Send the message again.")
+        except Exception:
+            log.warning("turn %s: the app could not be told that it failed", body.turn_id)
         return None
     return Asker(body.token, handler, body.conversation_id, body.turn_id)
 

@@ -76,8 +76,9 @@ export default function Sidebar() {
     if (!asked || sending || working || waiting) return
     setSending(true)
     setProblem(null)
+    let id = activeId
     try {
-      const id = activeId ?? (await createConversation()).conversation_id
+      id = id ?? (await createConversation()).conversation_id
       if (id !== activeId) choose(id)
       await sendMessage(id, asked)
       setText('')
@@ -85,6 +86,7 @@ export default function Sidebar() {
       loadEarlier()
     } catch (e) {
       setProblem(e instanceof ApiError || e instanceof Error ? e.message : 'The message was not sent.')
+      await reload(id) // the call may have gone through (a 504): show what is true
     } finally {
       setSending(false)
     }
@@ -99,6 +101,7 @@ export default function Sidebar() {
       await reload()
     } catch (e) {
       setProblem(e instanceof Error ? e.message : 'The answer was not sent.')
+      await reload(activeId)
     } finally {
       setSending(false)
     }

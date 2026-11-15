@@ -172,9 +172,8 @@ The claim pages were read back through a browser driven by a script, with screen
 
 ### Checks (2026-11-15)
 
-- Backend: 738 passed and 1 skipped in one run (two Copilot test files were left out of that run and pass on their own: 72 Copilot tests together), the isolated imports of the server, the runtime (`runtime.main` and `runtime.copilot`) and the context layer, and the Copilot's health check through `runtime/copilot.py` with only the `runtime` group.
-- Front end: 181 tests, `tsc -b`, `oxlint --deny-warnings`. End to end: 20 of 20.
-- **`npm run check` as one command was not completed**: the system stopped it for memory in the backend step, and it was not started again. Each of its steps was run on its own, as above. It was also not run in a clean `git worktree`; `.env` was moved aside for the part that ran.
+- Earlier runs, kept for the record: the backend suite 738 passed, the isolated imports one by one, front end 180, end to end 19 of 20 before the Marcus fix.
+- **`npm run check` as one command passed** (with `.env` moved aside, in the working tree, not in a clean `git worktree`): backend 807 passed and 1 skipped, the four isolated imports (server, runtime, the Copilot's health check through `runtime/copilot.py`, context layer), front end 181, type check, lint, and end to end 20 of 20. The review fixes below came after it and were checked by the Copilot-related backend tests (207), the whole front-end suite (183), and the end-to-end suite again (20 of 20); the whole backend suite was not rerun after them.
 
 ### Live checks (2026-11-15, after one `npm run seed`, `npm run dev` on the default model, direct route, memory off)
 
@@ -190,6 +189,15 @@ Signed in as Dana Whitfield through `e2e/live_copilot.mjs` (the password is read
 - Signed in as Marcus Oyelaran, "Sign off CLM-1011" was refused in code ("only a handler who can sign off payouts over the limit can sign off a payout"), with no confirmation card.
 - The sidebar in light and dark mode was checked from screenshots (`e2e/shots/copilot/`, not committed), which found one defect, fixed: a table in an answer was wider than the sidebar and was cut off; it now wraps.
 - **What the runs spent** (OpenRouter): the dispatch $0.0604, the evaluation $0.0493 and its judge $0.0008, and the Copilot's own turns about $0.003 (a turn is 2 to 4 calls of $0.0002 to $0.0007). About $0.11 in all. Nothing was created on AWS.
+
+### The independent review (2026-11-15)
+
+A fresh reviewer (Opus, read only) went through the Copilot's code. It found no way for the sign-in to leak or for one handler to reach another's conversation. It found two Important and four Minor defects; all six are fixed, each with a test that failed first (`backend/tests/test_copilot_review.py`, `Markdown.test.tsx`, `Sidebar.test.tsx`):
+
+- **Important: a long turn that is still alive could be shown as stopped** after 20 minutes, and a second run could then start on the same conversation. The 20 minutes now count from the Copilot's last word (a step begun or finished, or the handler's answer).
+- **Important: an old confirmation card could pay a different amount** than it showed, if the claim had been sent back and held again. A sign-off from a card now needs the same payout (same payment, same amount) to still be held; otherwise it is refused with a 409 and the handler can cancel the card.
+- Minor, fixed: a backend that is down when the Copilot checks the sign-in now fails the turn with a message, instead of leaving it working for 20 minutes (a refused sign-in still ends quietly); an image written by the model is no longer loaded by the browser; a long first argument no longer makes a card's input too long for the app; after a failed send (a 504) the sidebar reads the conversation again.
+- Left as they are: the over-limit count compares payouts with the limit in force now (as the plan specifies, so a changed limit can show criterion 3 as not met for payouts that followed the rules of their day); the Approvals page does not poll; a Copilot on Runtime with no `UNDERCOVER_GATEWAY_URL` falls back to the direct context address and fails its first turn.
 
 ### What did not go as the course's notebook wrote it
 

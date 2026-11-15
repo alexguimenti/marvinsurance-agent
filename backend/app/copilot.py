@@ -5,7 +5,7 @@ treats another handler's as an unknown one (a LookupError). A conversation has o
 is taken by one conditional UPDATE, as the work lock is, so two messages at the same moment start one turn. A turn is `working`,
 `waiting` for the handler's answer to a confirmation, `done`, `failed` or `stopped`. A working turn the Copilot has not ended 20
 minutes after it started (or after the handler's answer) is shown as stopped, and a new message may go ahead; a waiting turn is never
-stopped, since nothing is working. Nothing here holds the handler's sign-in.
+stopped, since nothing is working. The 20 minutes count from the Copilot's last word (a step begun or finished, or the handler's answer). Nothing here holds the handler's sign-in.
 
 Every statement commits by itself (see `db.make_engine`), and a request uses one connection at a time."""
 import json
@@ -30,6 +30,11 @@ class TurnOpen(Exception):
 
 class NotWaiting(Exception):
     """No turn of the conversation is waiting for an answer to a confirmation (or it was answered a moment ago)."""
+
+
+class CardChanged(Exception):
+    """The payout the confirmation card showed is no longer the one held (sent back and decided again, or gone): it cannot be signed off from
+    this card."""
 
 
 class TurnEnded(Exception):
@@ -178,12 +183,27 @@ def answer_confirmation(engine: Engine, conversation_id: str, handler_id: str, a
     turn_id = conversation["open_turn_id"]
     if turn_id is None:
         raise NotWaiting("there is no confirmation waiting")
+    if answer == "sign_off":
+        _card_still_holds(engine, turn_id)
     with engine.connect() as conn:
         taken = conn.execute(update(turns).where(turns.c.turn_id == turn_id, turns.c.status == "waiting")
                              .values(status="working", confirmation_answer=answer, resumed_at=now)).rowcount
     if not taken:
         raise NotWaiting("there is no confirmation waiting")
     return turn_id
+
+
+def _card_still_holds(engine: Engine, turn_id: int) -> None:
+    """A card never expires, so before a sign-off is taken from it the payout it showed must still be held, for the same amount. Raises
+    CardChanged otherwise; the card stays, and the handler can cancel it."""
+    turn = _turn(engine, turn_id)
+    if turn is None or turn["status"] != "waiting" or not turn["confirmation"]:
+        return  # not a waiting card: answer_confirmation says so
+    card = json.loads(turn["confirmation"])
+    with engine.connect() as conn:
+        held = conn.execute(select(payments.c.amount).where(payments.c.payment_id == card["payment_id"], payments.c.status == "held")).scalar()
+    if held is None or abs(held - card["amount"]) > 0.005:
+        raise CardChanged("the payout changed since this card was shown: cancel it and ask the Copilot again")
 
 
 def undo_answer(engine: Engine, turn_id: int, answer: str) -> None:
@@ -193,19 +213,29 @@ def undo_answer(engine: Engine, turn_id: int, answer: str) -> None:
                      .values(status="waiting", confirmation_answer=None, resumed_at=None))
 
 
+def _heard(conn, turn_id, now: datetime) -> None:
+    """A step begun or finished is the Copilot's word that the turn is still working: the 20 minutes count from it."""
+    conn.execute(update(turns).where(turns.c.turn_id == turn_id, turns.c.status == "working").values(resumed_at=now))
+
+
 def record_step(engine: Engine, turn_id: int, conversation_id: str, kind: str, tool: str, main_input: str | None, input: dict | None,
                 now: datetime | None = None) -> int:
+    now = now or datetime.now(timezone.utc)
     with engine.connect() as conn:
-        return conn.execute(insert(steps).values(
+        step_id = conn.execute(insert(steps).values(
             turn_id=turn_id, conversation_id=conversation_id, kind=kind, tool=tool, main_input=main_input, status="working",
-            input=json.dumps(input) if input is not None else None, started_at=now or datetime.now(timezone.utc))).inserted_primary_key[0]
+            input=json.dumps(input) if input is not None else None, started_at=now)).inserted_primary_key[0]
+        _heard(conn, turn_id, now)
+    return step_id
 
 
 def finish_step(engine: Engine, step_id: int, status: str, output: str | None, sources: list | None, reason: str | None,
                 now: datetime | None = None) -> None:
+    now = now or datetime.now(timezone.utc)
     with engine.connect() as conn:
         conn.execute(update(steps).where(steps.c.step_id == step_id).values(
-            status=status, output=output, sources=json.dumps(sources) if sources else None, reason=reason, ended_at=now or datetime.now(timezone.utc)))
+            status=status, output=output, sources=json.dumps(sources) if sources else None, reason=reason, ended_at=now))
+        _heard(conn, conn.execute(select(steps.c.turn_id).where(steps.c.step_id == step_id)).scalar(), now)
 
 
 def pause_turn(engine: Engine, ref: Reference, turn_id: int, claim_id: str) -> dict:

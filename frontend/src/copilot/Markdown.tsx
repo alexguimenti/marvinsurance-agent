@@ -18,6 +18,7 @@ export default function Markdown({ text }: { text: string }) {
             ) : (
               <a href={href} target="_blank" rel="noreferrer noopener">{children}</a>
             ),
+          img: () => null, // an image is fetched by the browser from any address: nothing the model writes may reach outside
           table: ({ children }) => <div className="cp-table"><table>{children}</table></div>,
         }}
       >

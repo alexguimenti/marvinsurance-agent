@@ -23,6 +23,12 @@ describe('the Copilot\'s markdown', () => {
     expect(linkClaims('NOT-CLM-1012 and CLM-10123')).toBe('NOT-CLM-1012 and CLM-10123')
   })
 
+  it('never loads an image from an address the model wrote', () => {
+    const { container } = show('Look: ![secret](https://example.com/?claim=CLM-1012&amount=2000)')
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.innerHTML).not.toContain('example.com')
+  })
+
   it('opens other links in a new tab', () => {
     show('[the manual](https://example.com/manual)')
     expect(screen.getByRole('link', { name: 'the manual' })).toHaveAttribute('target', '_blank')

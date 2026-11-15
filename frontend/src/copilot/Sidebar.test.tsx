@@ -61,6 +61,24 @@ describe('the Copilot sidebar', () => {
     expect(screen.getByRole('status', { name: 'The Copilot is working' })).toBeInTheDocument()
   })
 
+  it('reads the conversation again when sending fails, since the message may have gone through (a 504)', async () => {
+    localStorage.setItem('copilot.conversation', 'c-1')
+    let working = false
+    mockApi({
+      '/api/copilot/conversations': [],
+      [READ]: () => conversation(working ? [turn({ status: 'working', answer: null, message: 'hello' })] : [turn()]),
+      'POST /api/copilot/conversations/c-1/messages': () => {
+        working = true // the Copilot took it, but the answer never got back
+        return { status: 504, body: { detail: 'The Copilot did not answer in time. Reload the page to see whether it went through.' } }
+      },
+    })
+    show()
+    await userEvent.type(await screen.findByLabelText('Ask the Copilot'), 'hello{Enter}')
+    expect(await screen.findByText(/did not answer in time/)).toBeInTheDocument()
+    expect(await screen.findByRole('status', { name: 'The Copilot is working' })).toBeInTheDocument() // what is true, not what was shown before
+    expect(screen.getByLabelText('Ask the Copilot')).toBeDisabled()
+  })
+
   it('sends on Enter, adds a line on Shift+Enter, and is disabled while the Copilot works', async () => {
     const { calls } = mockApi({
       '/api/copilot/conversations': [],
