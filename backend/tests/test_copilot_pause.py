@@ -134,12 +134,13 @@ class Boom(BaseChatModel):
         raise RuntimeError("the model is down, and echoed tok-dana in its error")
 
 
-def test_a_failed_turn_reports_why_without_the_token_and_the_next_message_works(tmp_path):
+def test_a_failed_turn_reports_why_without_the_token_and_the_next_message_works(tmp_path, caplog):
     app = the_app()
     with open_env(settings(tmp_path), model=Boom(), context_tools=[]) as env, with_app(app):
         run_turn(env, turn("What needs me?"))
     failed = app.sent("POST", "/api/copilot/turns/7/fail")[0]["reason"]
     assert failed.startswith("RuntimeError: the model is down") and "tok-dana" not in failed and len(failed) <= 300
+    assert "the model is down" in caplog.text and "tok-dana" not in caplog.text  # the log says why too, and never with the sign-in
     with open_env(settings(tmp_path), model=script(AIMessage("Two payouts.")), context_tools=[]) as again, with_app(app):
         run_turn(again, turn("What needs me now?"))
     assert app.sent("POST", "/api/copilot/turns/7/end")[0]["answer"] == "Two payouts."

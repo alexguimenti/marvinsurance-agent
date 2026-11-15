@@ -105,7 +105,7 @@ def _drive(env: CopilotEnv, asker: Asker, graph_input) -> None:
         else:
             app_api.end(asker.token, asker.turn_id, answer_of(out["messages"]), out.get("model_calls", 0), out.get("cost_usd"))
     except Exception as exc:  # the turn fails with why; the next message starts a new one
-        log.exception("turn %s failed", asker.turn_id)
+        log.error("turn %s failed: %s", asker.turn_id, _reason(exc, asker.token))  # the reason is scrubbed: a log never holds the sign-in
         try:
             app_api.fail(asker.token, asker.turn_id, _reason(exc, asker.token))
         except Exception:
