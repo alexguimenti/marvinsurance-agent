@@ -85,6 +85,7 @@ for (const step of steps) {
     await page.reload()
     await page.getByLabel('Ask the Copilot').waitFor()
   } else if (name === 'shot') {
+    await page.waitForTimeout(2000) // the page and the conversation load first
     await page.screenshot({ path: `${shots}/copilot-${who}-${arg}.png`, fullPage: false })
     log('  saved ' + `${shots}/copilot-${who}-${arg}.png`)
   } else {

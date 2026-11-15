@@ -119,9 +119,10 @@
 .cp-md code { padding: 1px 5px; font: 400 12.5px var(--font-mono); background: var(--bg-subtle); border-radius: var(--radius-sm); }
 .cp-md h1, .cp-md h2, .cp-md h3 { margin: 10px 0 6px; font: 500 14px/1.3 var(--font-sans); letter-spacing: 0; color: var(--text-ink); }
 .cp-table { margin: 0 0 8px; overflow-x: auto; }
-.cp-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.cp-table th, .cp-table td { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
-.cp-table th { font-weight: 500; color: var(--text-secondary); }
+.cp-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: auto; }
+.cp-bubble--copilot:has(table) { align-self: stretch; max-width: 100%; }
+.cp-table th, .cp-table td { padding: 5px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-subtle); overflow-wrap: anywhere; } /* wrap: a table must fit the sidebar */
+.cp-table th { font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
 
 .copilot-foot { padding: 10px 14px 12px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 6px; }
 .copilot-foot textarea {

@@ -1,6 +1,6 @@
 # The UnderCover Copilot: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add an agent for handlers in a sidebar on every signed-in page. It looks things up, starts the agent's work, sends decisions back and signs them off, all as the handler who asked and with their sign-in. It shows each step as it takes it, asks before it pays, keeps every conversation and remembers each handler.
 
@@ -82,10 +82,10 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 
 ## Task 0: Settle the working tree (before Phase 1)
 
-- [ ] Run `git diff HEAD -- agentcore backend scripts .gitignore` and show the owner what is uncommitted.
-- [ ] Put back `runtimes[agent]` and the three `credentials` in `agentcore/agentcore.json` from HEAD, and keep the rest of the working-tree changes.
-- [ ] Run `cd backend; uv run pytest tests/test_entrypoint.py -q`. Expected: PASS.
-- [ ] Commit with `chore: the deploy staging from backend/, and runtime/pyproject.toml prepared before a deploy`.
+- [x] Run `git diff HEAD -- agentcore backend scripts .gitignore` and show the owner what is uncommitted.
+- [x] Put back `runtimes[agent]` and the three `credentials` in `agentcore/agentcore.json` from HEAD, and keep the rest of the working-tree changes.
+- [x] Run `cd backend; uv run pytest tests/test_entrypoint.py -q`. Expected: PASS.
+- [x] Commit with `chore: the deploy staging from backend/, and runtime/pyproject.toml prepared before a deploy`.
 
 ---
 
@@ -106,7 +106,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `paid_over_limit` counts payments with `status='paid'` and `amount > approval_limit` on queue claims (`copy_of IS NULL`);
   - `signed_off` counts those whose `approved_by` is a handler id from `handlers.json`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_find_customers_by_part_of_a_name_or_an_id`.
   - `test_a_customer_with_policies_earlier_claims_and_queue_claims`.
   - `test_a_policy_by_id`.
@@ -114,9 +114,9 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `test_over_limit_counts_with_none_paid` (expects `{…, "paid_over_limit": 0, "signed_off": 0}`).
   - `test_over_limit_counts_a_signed_off_payout_and_leaves_out_copies`.
   - `test_each_read_needs_a_sign_in` (no token gives 401, and `X-API-Key` alone gives 401).
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_reads.py -q`. Expected: FAIL (404s).
-- [ ] **Step 3: Implement the five routes** in `api.py`, with docstrings that follow TECH_STACK's API rules (operation ids as above).
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_reads.py -q`. Expected: FAIL (404s).
+- [x] **Step 3: Implement the five routes** in `api.py`, with docstrings that follow TECH_STACK's API rules (operation ids as above).
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
 
 ### Task 2: Conversations, turns and steps, kept by the app
 
@@ -161,7 +161,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `{"operation": "answer", "conversation_id", "turn_id", "answer", "token"}`;
   - `{"operation": "health"}`.
 
-- [ ] **Step 1: Write the failing tests.** They use a recorder in place of the Copilot client, and `MINT` tokens for HND-01 (Dana) and HND-02 (Marcus).
+- [x] **Step 1: Write the failing tests.** They use a recorder in place of the Copilot client, and `MINT` tokens for HND-01 (Dana) and HND-02 (Marcus).
   - `test_a_message_starts_a_turn_and_sends_the_token_and_the_session`. The payload carries `token` equal to the request's token, and the session is the conversation id.
   - `test_a_second_message_while_working_is_refused`.
   - `test_two_messages_at_once_start_one_turn`, with two threads and a pool of 2.
@@ -174,9 +174,9 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `test_a_copilot_that_was_not_reached_fails_the_turn_and_frees_the_conversation`.
   - `test_reseed_drops_the_conversations`.
   - `test_the_token_is_never_stored`, which scans every column of the three tables for the token.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_routes.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement the tables, `app/copilot.py` and `app/copilot_routes.py`.** `start_turn` claims the conversation with `UPDATE copilot_conversations SET open_turn_id=:new WHERE conversation_id=:id AND (open_turn_id IS NULL OR open_turn_id=:stale)`, where `:stale` is the open turn only when it shows `stopped`. A stale turn is marked `stopped` in the same transaction.
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_routes.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement the tables, `app/copilot.py` and `app/copilot_routes.py`.** `start_turn` claims the conversation with `UPDATE copilot_conversations SET open_turn_id=:new WHERE conversation_id=:id AND (open_turn_id IS NULL OR open_turn_id=:stale)`, where `:stale` is the open turn only when it shows `stopped`. A stale turn is marked `stopped` in the same transaction.
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
 
 ### Task 3: The app's client for the Copilot
 
@@ -191,17 +191,17 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - Over Runtime it calls `invoke_agent_runtime(agentRuntimeArn=copilot_runtime_arn, runtimeSessionId=session_id, …)`, retrying `ConflictException` up to 4 times, 1 s apart (`sleep` can be injected).
 - `Settings.copilot_model -> tuple[str, str]` returns `(MODEL_NAME, "default")` when `MODEL_NAME` is set, otherwise `COPILOT_MODEL`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_over_http_with_no_key`.
   - `test_over_runtime_with_the_conversation_as_session`.
   - `test_a_conflict_is_retried_then_goes_through`.
   - `test_four_conflicts_are_not_reached`.
   - `test_another_client_error_is_not_retried`.
   - `test_copilot_model_is_luna_low_or_model_name`.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_client.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it**, reusing `agent_client._answer` and its exception classes. Wire the routes from Task 2 to it through `hand_over`'s pattern: a refusal or not-reached calls `undo_turn`, and `AgentMaybe` changes nothing.
-- [ ] **Step 4: Run the tests again.** Run `cd backend; uv run pytest tests/test_copilot_client.py tests/test_copilot_routes.py -q`. Expected: PASS.
-- [ ] **Step 5: Run the backend suite and commit.** Run `cd backend; uv run pytest -q`. Expected: all pass. Commit with `feat: the app keeps the Copilot's conversations, turns and steps, and the reads it needs`.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_client.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it**, reusing `agent_client._answer` and its exception classes. Wire the routes from Task 2 to it through `hand_over`'s pattern: a refusal or not-reached calls `undo_turn`, and `AgentMaybe` changes nothing.
+- [x] **Step 4: Run the tests again.** Run `cd backend; uv run pytest tests/test_copilot_client.py tests/test_copilot_routes.py -q`. Expected: PASS.
+- [x] **Step 5: Run the backend suite and commit.** Run `cd backend; uv run pytest -q`. Expected: all pass. Commit with `feat: the app keeps the Copilot's conversations, turns and steps, and the reads it needs`.
 
 ---
 
@@ -227,13 +227,13 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `end(token, turn_id, answer, model_calls, cost_usd)`;
   - `fail(token, turn_id, reason)`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_a_call_with_a_token_never_sends_the_key`, with `UNDERCOVER_API_KEY` set in the environment and an httpx `MockTransport` asserting the headers.
   - `test_the_asker_repr_hides_the_token`.
   - `test_who_returns_the_handler_and_a_refusal_raises`.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_app_api.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it.**
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_app_api.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it.**
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
 
 ### Task 5: The tools and their cards
 
@@ -272,7 +272,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `trim(value, limit=2000) -> str`.
   - `carded(request, execute)` is the `ToolNode(wrap_tool_call=...)` hook. It calls `record_step` before and `finish_step` after, with the context layer's `sources` (file and owner) from a context tool's answer.
 
-- [ ] **Step 1: Write the failing tests.** They run with a fake app (an httpx `MockTransport` recording each request) and a fake MCP client.
+- [x] **Step 1: Write the failing tests.** They run with a fake app (an httpx `MockTransport` recording each request) and a fake MCP client.
   - `test_every_tool_call_carries_the_handlers_token_and_never_the_key`.
   - `test_a_lookup_records_a_working_card_then_done_with_its_seconds`.
   - `test_a_refusal_is_told_to_the_model_and_carded_refused`, for example a 409 on `start_dispatch` saying "a dispatch is already running".
@@ -280,9 +280,9 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `test_get_evaluation_never_returns_the_handlers_decisions`.
   - `test_context_tools_on_the_gateway_keep_only_the_context_target_and_show_own_names`.
   - `test_a_context_card_carries_its_file_and_owner`.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_tools.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it.** Run `uv add langchain-mcp-adapters` and `uv add --group runtime langchain-mcp-adapters`.
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_tools.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it.** Run `uv add langchain-mcp-adapters` and `uv add --group runtime langchain-mcp-adapters`.
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
 
 ### Task 6: The graph, its instructions and the model
 
@@ -303,15 +303,15 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - Any other message gives `list_claims`, `start_dispatch(workers=2)`, then `get_claim("CLM-0000")` (a refusal), then a markdown answer with a list and a small table.
   - After a tool result naming a confirmation it answers in plain text.
 
-- [ ] **Step 1: Write the failing tests.** They use a stub model that returns scripted `AIMessage`s, a SQLite saver, and a fake app.
+- [x] **Step 1: Write the failing tests.** They use a stub model that returns scripted `AIMessage`s, a SQLite saver, and a fake app.
   - `test_the_loop_calls_tools_until_the_model_answers`.
   - `test_more_than_25_model_calls_fail_the_turn`.
   - `test_the_token_is_in_no_checkpoint`, which reads every checkpoint and write of the thread and checks that `"tok-"` is in none of them.
   - `test_the_system_prompt_names_the_handler_and_is_not_saved`.
   - `test_the_scripted_model_plays_the_e2e_turn`.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_graph.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it.**
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_graph.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it.**
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
 
 ### Task 7: The sign-off pauses, and a fresh Copilot carries on
 
@@ -340,17 +340,17 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
     - **Finished:** it calls `app_api.end(token, turn_id, last AI text, model_calls, cost)`.
     - **On an exception:** it calls `app_api.fail(token, turn_id, "<Type>: <message>")`, trimmed to 300 characters.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_a_sign_off_pauses_and_reports_the_card_from_the_records`.
   - `test_a_fresh_copilot_on_the_same_saver_answers_and_pays_once`. It builds a second env and graph and resumes with `"sign_off"`. The app saw exactly one approve, and `list_claims` was not called again.
   - `test_cancel_pays_nothing_and_the_model_is_told`.
   - `test_marcus_over_the_limit_is_refused_without_a_pause`.
   - `test_a_refused_sign_in_ends_the_turn_before_any_model_call`.
   - `test_a_failed_turn_reports_why_and_the_next_message_works`.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_pause.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it.**
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
-- [ ] **Step 5: Run the suite and commit.** Run `cd backend; uv run pytest -q`. Expected: all pass. Commit with `feat: the Copilot's loop works as the handler and asks before it pays`.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_pause.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it.**
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 5: Run the suite and commit.** Run `cd backend; uv run pytest -q`. Expected: all pass. Commit with `feat: the Copilot's loop works as the handler and asks before it pays`.
 
 ---
 
@@ -378,7 +378,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - When the evaluation was refused, failed, stopped or is still going, the first two rows have `figure: None, met: None` and `all_met` is `None`. The third row is always given.
 - **The tool `check_success_criteria()`** wraps `check_criteria`, and the instructions tell the model to set out its rows as the table.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - Waits:
     - `test_the_wait_polls_every_3s_and_returns_when_finished`, with a fake clock and sleep, counting the reads and the model calls (none);
     - `test_after_15_minutes_it_is_still_going_with_where_to_follow`;
@@ -390,9 +390,9 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
     - `test_criteria_after_a_failed_evaluation_give_only_the_third`;
     - `test_criteria_after_a_refused_start_give_only_the_third`;
     - `test_criteria_start_the_whole_held_out_set_with_agents_at_once`.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_waits.py tests/test_copilot_criteria.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it.**
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_waits.py tests/test_copilot_criteria.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it.**
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
 
 ### Task 9: The Copilot's memory of each handler
 
@@ -408,15 +408,15 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 - The `recall` node records a card of kind `memory` (`search_memory`, with the handler's message as its main input) with what it found, and puts the found notes in the system prompt. It is skipped silently, with no card, when the store is None.
 - The handler id always comes from `who(token)`, never from the model or the message.
 
-- [ ] **Step 1: Write the failing tests**, using `FakeMemoryStore` from `tests/fakes.py`.
+- [x] **Step 1: Write the failing tests**, using `FakeMemoryStore` from `tests/fakes.py`.
   - `test_recall_searches_only_the_signed_in_handlers_namespace`.
   - `test_a_turn_saves_the_message_and_the_answer_and_nothing_else`. No tool output and no token appear in any saved value.
   - `test_danas_notes_are_never_used_for_marcus`.
   - `test_with_memory_off_there_is_no_memory_card_and_the_turn_works`.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_memory.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it.**
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
-- [ ] **Step 5: Run the suite and commit.** Run `cd backend; uv run pytest -q`. Expected: all pass. Commit with `feat: the Copilot waits in code, checks the success criteria and remembers each handler`.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_memory.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it.**
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 5: Run the suite and commit.** Run `cd backend; uv run pytest -q`. Expected: all pass. Commit with `feat: the Copilot waits in code, checks the success criteria and remembers each handler`.
 
 ---
 
@@ -444,18 +444,18 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 - **`agentcore.json`** gains a second runtime, beside `agent`: `{"name": "copilot", "build": "CodeZip", "entrypoint": "copilot.py", "codeLocation": "runtime", "runtimeVersion": "PYTHON_3_12", "protocol": "HTTP", "lifecycleConfiguration": {"idleRuntimeSessionTimeout": 300}, "instrumentation": {"enableOtel": false}, "additionalPolicies": ["policy.json"]}`.
 - **`policy.json`'s `UseTheMemory`** also allows `memory/undercover_copilot_memory-*`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_health_answers_healthy`.
   - `test_a_turn_is_accepted_at_once_and_worked_as_an_async_task`, inline and with a stub model.
   - `test_on_runtime_it_fetches_only_two_credentials`, with `CREDENTIAL_UNDERCOVER_API_KEY_NAME` set too and `requires_api_key` patched. The key is never fetched.
   - `test_a_bad_payload_is_400_and_never_echoes_the_token`.
   - `test_importing_the_module_opens_nothing`.
   - `test_the_claim_agent_still_fetches_all_three`, which moves an existing test.
-- [ ] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_entrypoint.py tests/test_entrypoint.py -q`. Expected: FAIL.
-- [ ] **Step 3: Implement it**, then edit the scripts and the platform files above. Make only the changes the second runtime needs.
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
-- [ ] **Step 5: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green. The staged runtime check prints both health answers.
-- [ ] **Step 6: Commit** with `feat: the Copilot is an AgentCore app of its own, on the laptop and as a second runtime`.
+- [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_entrypoint.py tests/test_entrypoint.py -q`. Expected: FAIL.
+- [x] **Step 3: Implement it**, then edit the scripts and the platform files above. Make only the changes the second runtime needs.
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
+- [ ] **Step 5: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green. The staged runtime check prints both health answers. (Run in parts: see `docs/STATUS.md`.)
+- [x] **Step 6: Commit** with `feat: the Copilot is an AgentCore app of its own, on the laptop and as a second runtime`.
 
 ---
 
@@ -475,13 +475,13 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `sendMessage(id, text)` and `answerConfirmation(id, answer)`, both of which call `getFreshToken()` first;
   - the types `Turn`, `Step` and `ConfirmationCard`, matching Task 2.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `renews a session with less than 20 minutes left before sending`.
   - `does not renew a fresh session`.
   - `a 409 surfaces its reason`.
-- [ ] **Step 2: Run them.** Run `cd frontend; npx vitest run src/copilot src/auth`. Expected: FAIL.
-- [ ] **Step 3: Implement it.**
-- [ ] **Step 4: Run them again.** Same command. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd frontend; npx vitest run src/copilot src/auth`. Expected: FAIL.
+- [x] **Step 3: Implement it.**
+- [x] **Step 4: Run them again.** Same command. Expected: PASS.
 
 ### Task 12: The sidebar
 
@@ -505,7 +505,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 - **The foot** has the "Ask the Copilot" box (Enter sends, Shift+Enter starts a new line, disabled while a turn works) and "Signed in as <name>".
 - **A failed turn** shows its error in a short message. A stopped turn shows "This turn stopped". Either way a new message can be sent.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `opens on first sign-in and remembers it was collapsed`.
   - `polls every second while working and not when idle` (fake timers).
   - `shows a working card with seconds and a done card with its time`.
@@ -517,9 +517,9 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `markdown renders a table and links CLM-1012`.
   - `greets by first name with suggestions`.
   - `a failed and a stopped turn let a new message through`.
-- [ ] **Step 2: Run them.** Run `cd frontend; npx vitest run src/copilot`. Expected: FAIL.
-- [ ] **Step 3: Implement it.**
-- [ ] **Step 4: Run them again.** Same command, then `npm --prefix frontend run lint` and `npx --prefix frontend tsc -b`. Expected: PASS.
+- [x] **Step 2: Run them.** Run `cd frontend; npx vitest run src/copilot`. Expected: FAIL.
+- [x] **Step 3: Implement it.**
+- [x] **Step 4: Run them again.** Same command, then `npm --prefix frontend run lint` and `npx --prefix frontend tsc -b`. Expected: PASS.
 
 ### Task 13: End-to-end tests with the stand-in Copilot
 
@@ -529,15 +529,15 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 
 **Interfaces (Consumes):** `ScriptedCopilotModel` (Task 6), the routes (Task 2), and the sidebar (Task 12).
 
-- [ ] **Step 1: Write the failing e2e tests.**
+- [x] **Step 1: Write the failing e2e tests.**
   - `the sidebar is open on every page, collapses to a tab and stays collapsed after a reload`.
   - `a scripted turn shows a lookup, an action, a refusal and a formatted answer with a claim link`.
   - `a sign-off shows the confirmation card, pays on "Sign off and pay", and the Approvals page shows it paid`.
   - `a narrow window shows the sidebar over the page`.
-- [ ] **Step 2: Run them.** Run `npm run check`. Expected: the new tests FAIL, and the existing e2e tests still pass with the sidebar open.
-- [ ] **Step 3: Implement the stand-in and the config.**
-- [ ] **Step 4: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green.
-- [ ] **Step 5: Commit** with `feat: the Copilot's sidebar on every page, with its cards and the confirmation before a payout`.
+- [x] **Step 2: Run them.** Run `npm run check`. Expected: the new tests FAIL, and the existing e2e tests still pass with the sidebar open.
+- [x] **Step 3: Implement the stand-in and the config.**
+- [ ] **Step 4: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green. (Run in parts: see `docs/STATUS.md`.)
+- [x] **Step 5: Commit** with `feat: the Copilot's sidebar on every page, with its cards and the confirmation before a payout`.
 
 ---
 
@@ -547,9 +547,9 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 
 **Files:** `docs/SPEC.md` (the three success criteria, and the Copilot), `docs/TECH_STACK.md` (the Copilot part, the new routes, Deployment: the second runtime, its settings, `undercover_copilot_memory` with its two strategies, and `UNDERCOVER_COPILOT` / `UNDERCOVER_COPILOT_RUNTIME`), `docs/CODE_STANDARDS.md` (the Copilot as a part of its own, under the same rules), `docs/PROCESS.md` (five parts in `npm run dev`; the Copilot on 8081; its health check through `runtime/copilot.py`), `docs/STATUS.md`.
 
-- [ ] **Step 1: Update the docs.** Then run `npm run check` in a clean `git worktree`, where `.env` does not exist. Expected: green.
-- [ ] **Step 2: Run the health check through the Runtime file.** Run `$env:PYTHONPATH = "backend"; uv run --directory . --project backend --env-file .env --isolated --only-group runtime python -m runtime.copilot`, then post `{"operation":"health"}` to `http://127.0.0.1:8081/invocations`. Expected: `{"healthy": true}`.
-- [ ] **Step 3: Reseed once and start the parts.** Run `npm run seed`, then `npm run dev` on the default model, on the direct route, with memory off. Sign in as Dana Whitfield through `e2e/live_security.mjs` (new steps `copilot:<message>` and `confirm:sign_off`), and ask, in one conversation:
+- [ ] **Step 1: Update the docs.** Then run `npm run check` in a clean `git worktree`, where `.env` does not exist. Expected: green. (Docs done; the check was run in parts with `.env` moved aside: see `docs/STATUS.md`.)
+- [x] **Step 2: Run the health check through the Runtime file.** Run `$env:PYTHONPATH = "backend"; uv run --directory . --project backend --env-file .env --isolated --only-group runtime python -m runtime.copilot`, then post `{"operation":"health"}` to `http://127.0.0.1:8081/invocations`. Expected: `{"healthy": true}`.
+- [x] **Step 3: Reseed once and start the parts.** Run `npm run seed`, then `npm run dev` on the default model, on the direct route, with memory off. Sign in as Dana Whitfield through `e2e/live_security.mjs` (new steps `copilot:<message>` and `confirm:sign_off`), and ask, in one conversation:
   1. "Work the queue with 10 agents and tell me what needs me."
   2. "Why does CLM-… need me?", about one of the payouts held for sign-off.
   3. "Send it back with a note …"
@@ -557,7 +557,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   5. "Are we meeting the success criteria we agreed?"
 
   Check every figure in answer 5 against the Scoreboard and the claims' pages.
-- [ ] **Step 4: Pick the conversation up after a restart.** Restart `npm run dev`, reopen the conversation, and send one more message. Expected: it has all of the conversation.
-- [ ] **Step 5: Check Marcus's refusal.** Signed in as Marcus Oyelaran, ask "Sign off CLM-…" for a payout over the limit. Expected: it is declined with the reason, and no card appears.
-- [ ] **Step 6: Check the sidebar's look.** Check the sidebar in light and dark mode through the Playwright MCP server. Take screenshots and read them back.
-- [ ] **Step 7: Record the results and finish.** Write the results and what the runs spent in `docs/STATUS.md`. Move this plan to `docs/plans/`. Commit with `docs: the Copilot's live checks; the plan is done`.
+- [x] **Step 4: Pick the conversation up after a restart.** Restart `npm run dev`, reopen the conversation, and send one more message. Expected: it has all of the conversation.
+- [x] **Step 5: Check Marcus's refusal.** Signed in as Marcus Oyelaran, ask "Sign off CLM-…" for a payout over the limit. Expected: it is declined with the reason, and no card appears.
+- [x] **Step 6: Check the sidebar's look.** Check the sidebar in light and dark mode through the Playwright MCP server. Take screenshots and read them back.
+- [x] **Step 7: Record the results and finish.** Write the results and what the runs spent in `docs/STATUS.md`. Move this plan to `docs/plans/`. Commit with `docs: the Copilot's live checks; the plan is done`.

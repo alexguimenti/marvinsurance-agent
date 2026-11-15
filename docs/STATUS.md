@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-09, after the improver and sign-in (`docs/PLAN_IMPROVE.md`). Its live verification is only partly done: see "Live verification of the improver (2026-11-09)" below.
+Last updated 2026-11-15, after the Copilot (`docs/plans/PLAN_COPILOT.md`). Earlier sections below are as they were.
 
 ## What works
 
@@ -158,3 +158,47 @@ The claim pages were read back through a browser driven by a script, with screen
 - A sign-off or a send back the agent never heard of stands, but the claim's thread stays paused; a signed-off claim is not saved to memory, and a sent-back one waits for the next dispatch, which resumes it with the note.
 - The send back's resume and an old claim's saved progress: if a thread has ended with no decision on record, carrying on it fails the attempt instead of crashing; the next attempt starts afresh.
 
+## The Copilot (2026-11-15)
+
+### What works
+
+- **The Copilot**, the handlers' assistant, in a sidebar on every signed-in page (`backend/agent/copilot/`, `frontend/src/copilot/`). A LangGraph graph written by hand (recall, model, `ToolNode`, confirm, save), checkpointed per conversation, an AgentCore app of its own (`agent/copilot/entrypoint.py`, `runtime/copilot.py`) served on 127.0.0.1:8081 by `npm run dev` and as the second runtime `copilot` in `agentcore/`.
+- **It acts as the handler.** Every call it makes carries the handler's sign-in and never the agent's key; the app refuses any Copilot request that carries the key; the sign-in is in no checkpoint, step, memory write or log line (tests look for it, and found one leak in a log line, fixed).
+- **It asks before it pays.** The sign-off pauses in a node of its own; the card is built by the app from its records; a freshly built Copilot resumes the same saved state and pays once.
+- **It waits in code** (every 3 s, 15 minutes at most) and **the success criteria are worked out in code** from the evaluation's measures, the accuracy objective and the app's count of payouts over the limit (`GET /api/payouts/over-limit`).
+- **Conversations are kept** in three tables (`copilot_conversations`, `copilot_turns`, `copilot_steps`), one turn at a time, a turn working 20 minutes shown as stopped, a waiting turn never stopped. `npm run seed` drops them.
+- **Memory per handler** with `AgentCoreMemoryStore` (`("handlers", <id>)`), on only when `UNDERCOVER_COPILOT_MEMORY_ID` is set.
+- The three success criteria are in `docs/SPEC.md` section 15; `TECH_STACK.md`, `CODE_STANDARDS.md` and `PROCESS.md` describe the Copilot.
+
+### Checks (2026-11-15)
+
+- Backend: 738 passed and 1 skipped in one run (two Copilot test files were left out of that run and pass on their own: 72 Copilot tests together), the isolated imports of the server, the runtime (`runtime.main` and `runtime.copilot`) and the context layer, and the Copilot's health check through `runtime/copilot.py` with only the `runtime` group.
+- Front end: 181 tests, `tsc -b`, `oxlint --deny-warnings`. End to end: 20 of 20.
+- **`npm run check` as one command was not completed**: the system stopped it for memory in the backend step, and it was not started again. Each of its steps was run on its own, as above. It was also not run in a clean `git worktree`; `.env` was moved aside for the part that ran.
+
+### Live checks (2026-11-15, after one `npm run seed`, `npm run dev` on the default model, direct route, memory off)
+
+Signed in as Dana Whitfield through `e2e/live_copilot.mjs` (the password is read from `.env` in that process only), in one conversation:
+
+1. "Work the queue with 10 agents and tell me what needs me." The Copilot started the dispatch, waited for it in code (520 s, one `wait_for_run` card) and answered: 15 approved, 5 declined, 6 referred; four payouts held for sign-off (CLM-1003, 1008, 1011, 1021) and six claims referred.
+2. "Why does CLM-1003 need me?" Answered from `get_claim`: a $3,750 payout over the limit, the agent's reason.
+3. "Send it back with a note…" The Copilot sent CLM-1003 back with the note; the claim went back to the agent.
+4. "Sign off on another one." It listed the held payouts, picked CLM-1008, paused, and showed the card ($2,240.00, Dorothy Gale, the agent's reason). Pressing Sign off and pay paid it: the payment is paid and signed off by Dana Whitfield.
+5. "Are we meeting the success criteria we agreed?" It evaluated the whole held-out set (25 claims, 474 s) and answered: straight through 84.0% (target 70%), accuracy 84.0% (target 60%, the objective in Settings), over the limit 1 of 1 signed off: all three met. **Every figure matches the records**: `e2e/live_copilot_figures.mjs` read the evaluation's measures (straight_through 0.84, accuracy 0.84), the settings (objective 0.6) and the claims' payments (CLM-1008, paid, signed off by Dana Whitfield, the only claim paid over the limit).
+
+- After `npm run dev` was stopped and started again, the conversation opened from its saved state (5 turns) and the Copilot answered a follow-up about it correctly (signed off CLM-1008, sent back CLM-1003).
+- Signed in as Marcus Oyelaran, "Sign off CLM-1011" was refused in code ("only a handler who can sign off payouts over the limit can sign off a payout"), with no confirmation card.
+- The sidebar in light and dark mode was checked from screenshots (`e2e/shots/copilot/`, not committed), which found one defect, fixed: a table in an answer was wider than the sidebar and was cut off; it now wraps.
+- **What the runs spent** (OpenRouter): the dispatch $0.0604, the evaluation $0.0493 and its judge $0.0008, and the Copilot's own turns about $0.003 (a turn is 2 to 4 calls of $0.0002 to $0.0007). About $0.11 in all. Nothing was created on AWS.
+
+### What did not go as the course's notebook wrote it
+
+- The Playwright MCP server did not connect (a timeout), so the sidebar was checked with a script that signs in as the handler and takes screenshots, as the last three changes did.
+- Memory and the Gateway route were not exercised live: the spec asks for the direct route with memory off here, and the deployment notebook checks the rest on the deployed product.
+
+### Known limits of this change
+
+- **Nothing was deployed.** The second runtime is in `agentcore/agentcore.json` and the stack settings and policy are changed (`UNDERCOVER_COPILOT_MEMORY_ID`, the Copilot's Memory in `runtime/policy.json`), but `agentcore deploy` was not run. The uncommitted work before this change restored `agentcore/agentcore.json`'s `agent` runtime and its three credentials, which a CLI step had emptied; check that file before a deploy.
+- The Approvals page does not poll, so a payout the Copilot signs off shows there on the next visit (the nav's count updates at once).
+- A sign-in that expires partway through a turn leaves the turn working until it shows as stopped after 20 minutes; the dashboard sends a sign-in with at least 20 minutes left, so this takes a turn longer than that.
+- The live database holds this run's state: CLM-1008 paid, CLM-1003 sent back (the agent's rework was not followed up), other payouts held, and the evaluation of the whole held-out set.
