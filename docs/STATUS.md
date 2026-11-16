@@ -213,7 +213,7 @@ A fresh reviewer (Opus, read only) went through the Copilot's code. It found no 
 
 ## Reorganizing the repository (2026-11-16)
 
-The course is finished, so the repository was reorganized to be read from outside, as a portfolio, and to be mined for ideas by the next project. The plan is `docs/plans/PLAN_REORG.md`. A light reorganization: the code stays where it was, so the build, the tests and the deploy read the same paths.
+The course is finished, so the repository was reorganized to be read from outside, as a portfolio, and to be mined for ideas by the next project. The plan is `PLAN_REORG.md`. A light reorganization: the code stays where it was, so the build, the tests and the deploy read the same paths.
 
 - **Labs** are in `labs/weekN/dayN/`, each notebook with the paths it reads fixed, and `labs/README.md` says what each teaches and where it ended up. The Week 3 Day 4 lab project (`undercoverlab`, which was a repository of its own inside this one) is a folder in `labs/week3/day4/`.
 - **Docs** are split into `docs/specs/` (what and why) and `docs/plans/` (how), with `docs/README.md` reading them in the order the project was built, and `docs/DECISIONS.md` for the choices and their reasons.
