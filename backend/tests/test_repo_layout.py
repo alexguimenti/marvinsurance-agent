@@ -1,5 +1,7 @@
 """The repository's layout, pinned so it cannot quietly rot: no account data in any tracked file, the labs where the index says."""
 import importlib.util
+import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -52,3 +54,51 @@ def test_no_tracked_file_holds_account_data():
         text = path.read_text(encoding="utf-8", errors="ignore").replace("123456789012", "")
         found += [f"{path.relative_to(REPO).as_posix()}: {p.pattern}" for p in patterns if p.search(text)]
     assert found == []
+
+
+# ---- the labs ----
+
+GENERATED = ("memory_data", "qdrant_data", "build", "dashboard/dist", ".env", "agentcore/.env.local")  # made by running the lab, or secrets
+NOT_A_PATH = {"../x"}  # a path-traversal input a lab's security check feeds to its tool
+
+
+def lab_notebooks() -> list[Path]:
+    return sorted((REPO / "labs").rglob("*.ipynb"))
+
+
+def relative_paths(notebook: Path) -> list[str]:
+    """Every string literal in a code cell that is ".." or starts with "../": a folder the lab reads, relative to where it lives."""
+    cells = json.loads(notebook.read_text(encoding="utf-8"))["cells"]
+    source = "\n".join("".join(c["source"]) for c in cells if c["cell_type"] == "code")
+    return [m.group(2) for m in re.finditer(r"""(["'])(\.\.(?:/[^"'\n]*)?)\1""", source) if m.group(2) not in NOT_A_PATH]
+
+
+def test_every_relative_path_in_a_lab_notebook_exists():
+    missing = []
+    for notebook in lab_notebooks():
+        for literal in relative_paths(notebook):
+            target = (notebook.parent / literal).resolve().as_posix()
+            if not Path(target).exists() and not any(target.endswith(g) for g in GENERATED):
+                missing.append(f"{notebook.relative_to(REPO).as_posix()}: {literal}")
+    assert missing == []
+
+
+def test_the_labs_live_by_week_and_day():
+    assert lab_notebooks() and all(re.fullmatch(r"week\d/day\d", n.parent.relative_to(REPO / "labs").as_posix()) for n in lab_notebooks())
+    assert not (REPO / "undercoverlab").exists()
+    assert not (REPO / "labs/week3/day4/undercoverlab/.git").exists() and (REPO / "labs/week3/day4/undercoverlab/app/agent/main.py").is_file()
+
+
+def test_the_lab_desks_and_the_helpers_are_with_their_labs():
+    for path in ("labs/week1/day5/lab1_desk", "labs/week1/day5/lab2_desk", "labs/week2/day2/knowledge_mcp.py", "labs/week3/monitor.py", "labs/week3/week3day4_aws.py"):
+        assert (REPO / path).exists(), path
+    assert not (REPO / "lab1_desk").exists() and not (REPO / "lab2_desk").exists() and not (REPO / "monitor.py").exists()
+
+
+def test_the_lab_scripts_find_the_repository_root_from_where_they_now_live():
+    for name, pattern in (("labs/week3/week3day4_aws.py", r"REPO = Path\(__file__\)\.resolve\(\)\.parents\[(\d)\]"),
+                          ("labs/week2/day2/knowledge_mcp.py", r"Path\(__file__\)\.resolve\(\)\.parents\[(\d)\] / \"qdrant_data\"")):
+        script = REPO / name
+        match = re.search(pattern, script.read_text(encoding="utf-8"))
+        assert match, f"{name} does not climb to the repository root with parents[N]"
+        assert script.resolve().parents[int(match.group(1))] == REPO, name

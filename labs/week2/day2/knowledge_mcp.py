@@ -8,7 +8,7 @@ from qdrant_client import QdrantClient, models
 COLLECTION = "knowledge"
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 
-client = QdrantClient(path=str(Path(__file__).resolve().parent.parent / "qdrant_data"))
+client = QdrantClient(path=str(Path(__file__).resolve().parents[3] / "qdrant_data"))
 client_lock = threading.Lock()  # FastMCP runs tool calls in threads, and the client's embedder is not thread safe
 mcp = FastMCP("knowledge")
 

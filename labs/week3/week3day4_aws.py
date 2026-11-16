@@ -18,7 +18,7 @@ import boto3
 import requests
 from dotenv import load_dotenv
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parents[2]
 BUILD = REPO / "build"
 
 APP_FUNCTION = "undercover-app"
