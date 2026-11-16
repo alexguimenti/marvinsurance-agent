@@ -210,3 +210,13 @@ A fresh reviewer (Opus, read only) went through the Copilot's code. It found no 
 - The Approvals page does not poll, so a payout the Copilot signs off shows there on the next visit (the nav's count updates at once).
 - A sign-in that expires partway through a turn leaves the turn working until it shows as stopped after 20 minutes; the dashboard sends a sign-in with at least 20 minutes left, so this takes a turn longer than that.
 - The live database holds this run's state: CLM-1008 paid, CLM-1003 sent back (the agent's rework was not followed up), other payouts held, and the evaluation of the whole held-out set.
+
+## Reorganizing the repository (2026-11-16)
+
+The course is finished, so the repository was reorganized to be read from outside, as a portfolio, and to be mined for ideas by the next project. The plan is `docs/plans/PLAN_REORG.md`. A light reorganization: the code stays where it was, so the build, the tests and the deploy read the same paths.
+
+- **Labs** are in `labs/weekN/dayN/`, each notebook with the paths it reads fixed, and `labs/README.md` says what each teaches and where it ended up. The Week 3 Day 4 lab project (`undercoverlab`, which was a repository of its own inside this one) is a folder in `labs/week3/day4/`.
+- **Docs** are split into `docs/specs/` (what and why) and `docs/plans/` (how), with `docs/README.md` reading them in the order the project was built, and `docs/DECISIONS.md` for the choices and their reasons.
+- **The root** holds only the project. `lab1_desk/`, `lab2_desk/` and `monitor.py` went to the labs; the generated folders (`build/`, `dashboard/`, local databases, caches) were deleted, and the AgentCore CLI's cache and state are ignored.
+- **No account data in any file.** `scripts/scrub_notebooks.py` replaces the account id, the Supabase, Lambda and CloudFront hosts, keys and the work e-mail with examples in the labs. `backend/tests/test_repo_layout.py` fails if any file git would track holds one, and also pins the layout: where the labs are, that every path a lab reads exists, that every doc path the repository names exists, and what the root may hold.
+- **The README** is rewritten for a reader from outside, with a map of "to see how I did X, open Y". Setup, the tests and reseeding moved to `COMMANDS.md`.

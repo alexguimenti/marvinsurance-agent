@@ -79,3 +79,79 @@ cd e2e;      npm install; npx playwright install chromium
 ```
 
 The model is chosen in `agent.toml`, or with `MODEL_NAME` in the environment. `.env` holds `OPENROUTER_API_KEY`, `DATABASE_URL`, the `LANGFUSE_*` keys, `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (for sign-in) and `HANDLER_PASSWORD`.
+
+---
+
+# First-time setup, tests, reseeding and scoring
+
+(Moved here from the README.)
+
+## Setup
+
+```bash
+# backend (Python 3.11+)
+cd backend && uv sync --extra dev
+
+# frontend and e2e
+cd ../frontend && npm install
+cd ../e2e && npm install && npx playwright install chromium
+```
+
+Create a `.env` in the repo root (git-ignored):
+
+```
+OPENROUTER_API_KEY=...
+DATABASE_URL=...            # Supabase session pooler; leave out to use a local SQLite file
+VITE_SUPABASE_URL=...       # sign-in: the same values as SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+HANDLER_PASSWORD=...        # the demo handlers' password, for the live checks
+LANGFUSE_PUBLIC_KEY=...     # all three optional: no keys, no tracing
+LANGFUSE_SECRET_KEY=...
+LANGFUSE_BASE_URL=...
+```
+
+The model and how it thinks are set in **`agent.toml`** at the repo root (committed, no secrets):
+
+```toml
+[agent]
+model = "deepseek/deepseek-v4.1-flash"   # any OpenRouter model id
+temperature = 0
+max_attempts = 2                         # failed attempts before a claim is left for a handler
+# step_retries = 2                       # retries of one model call (timeout, provider error)
+# claim_timeout_s = 300                  # time limit for one attempt at one claim
+# max_model_calls = 30                   # model calls for one claim
+```
+
+The default model runs with low reasoning effort. `MODEL_NAME` in the environment chooses another model, which runs with no reasoning effort set. `AGENT_TEMPERATURE` overrides the temperature. `AGENT_PROVIDER=scripted` swaps the model for a deterministic fake (used by the tests). `DB_PATH` and `DATA_DIR` are optional.
+
+## Test
+
+```bash
+npm run check                                          # everything below, in order, from the repo root
+cd backend && ./.venv/Scripts/python -m pytest        # unit tests (the real-model smoke test runs only with RUN_LIVE_SMOKE=1)
+cd frontend && npm test -- --run                       # component tests
+cd e2e && npm test                                     # end-to-end, scripted agent, throwaway database
+```
+
+No test calls a model. `npm run check` needs no `.env`. A scripted model stands in, and fails on purpose on two claims so recovery can be tested: CLM-1013 always fails and is left for a handler, and CLM-1017 fails once and is then decided.
+
+## Reseed and test again
+
+To forget every analysis and evaluation and put all 25 claims back in the queue, on the database in `.env`. Do this once before live runs with the real model:
+
+```powershell
+npm run seed
+```
+
+## Score the agent
+
+On the Scoreboard. Seeding is the only code that reads `data/evals/`, into tables the agent never reads; the backend scores each evaluation from them.
+
+### Earlier results (queue, 25 claims, 2026-10-29, with the old `scripts/score.py`)
+
+| Model | Decision accuracy | Payout accuracy |
+|---|---|---|
+| `openai/gpt-4o-mini` | 52% | 28% |
+| `openai/gpt-4o` | 60% | 52% |
+
+Both models approve claims the handlers declined or referred. Of the 6 expected referrals, 3 need the claims manual or the customer history, which the pilot left out on purpose, so some misses were expected. The harness now gives the agent the manual; it has not been scored yet. The held-out set has not been scored yet.

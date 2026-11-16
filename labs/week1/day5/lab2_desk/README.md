@@ -1,7 +1,7 @@
 # lab2_desk: claims handler com LangChain e OpenRouter
 
 O mesmo trabalho da `lab1_desk`, mas o agente é um `create_agent` do LangChain e o modelo vem do OpenRouter.
-O código está no notebook `labs/week1day5_mex_2.ipynb`.
+O código está no notebook `labs/week1/day5/week1day5_mex_2.ipynb`.
 
 ```
 claims/queue/      as claims da fila (um arquivo por claim)

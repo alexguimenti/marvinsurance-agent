@@ -160,3 +160,30 @@ def test_the_docs_index_links_every_spec_and_plan():
     index = (REPO / "docs" / "README.md").read_text(encoding="utf-8")
     listed = [p.relative_to(REPO / "docs").as_posix() for folder in ("specs", "plans") for p in sorted((REPO / "docs" / folder).glob("*.md"))]
     assert listed and [name for name in listed if f"]({name})" not in index] == []
+
+
+def test_every_lab_path_the_repo_mentions_exists():
+    named = re.compile(r"\blabs/[A-Za-z0-9_/.-]+\.(?:ipynb|py)\b")
+    history = ("docs/specs/", "docs/plans/")  # the specs and plans name the course's own notebooks, as the course gave them
+    missing = [f"{p.relative_to(REPO).as_posix()}: {m}" for p in tracked_files()
+               if p.suffix in TEXT_SUFFIXES and p.name not in ABOUT_ITSELF and not p.relative_to(REPO).as_posix().startswith(history)
+               for m in named.findall(p.read_text(encoding="utf-8", errors="ignore")) if not (REPO / m).exists()]
+    assert missing == []
+
+
+def test_the_readme_maps_what_to_borrow_and_every_path_it_names_exists():
+    text = (REPO / "README.md").read_text(encoding="utf-8")
+    paths = set(re.findall(r"`((?:backend|frontend|e2e|agentcore|scripts|labs|docs|data|runtime)/[^`\s]+)`", text))
+    assert len(paths) >= 12, len(paths)
+    assert [p for p in sorted(paths) if not (REPO / p.rstrip("/")).exists()] == []
+    assert "labs/README.md" in text and "docs/README.md" in text
+
+
+def test_the_decisions_record_names_where_each_decision_lives():
+    text = (REPO / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    entries = re.split(r"^## ", text, flags=re.M)[1:]
+    assert 10 <= len(entries) <= 14, len(entries)
+    for entry in entries:
+        assert "**Why:**" in entry and "**Where:**" in entry, entry.splitlines()[0]
+        for path in re.findall(r"`((?:backend|frontend|e2e|agentcore|scripts|docs|data|runtime)/[^`\s]+)`", entry):
+            assert (REPO / path.rstrip("/")).exists(), path
