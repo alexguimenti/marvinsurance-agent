@@ -173,7 +173,7 @@ The claim pages were read back through a browser driven by a script, with screen
 ### Checks (2026-11-15)
 
 - Earlier runs, kept for the record: the backend suite 738 passed, the isolated imports one by one, front end 180, end to end 19 of 20 before the Marcus fix.
-- **`npm run check` as one command passed** (with `.env` moved aside, in the working tree, not in a clean `git worktree`): backend 807 passed and 1 skipped, the four isolated imports (server, runtime, the Copilot's health check through `runtime/copilot.py`, context layer), front end 181, type check, lint, and end to end 20 of 20. The review fixes below came after it and were checked by the Copilot-related backend tests (207), the whole front-end suite (183), and the end-to-end suite again (20 of 20); the whole backend suite was not rerun after them.
+- **`npm run check` as one command passed in a clean `git worktree`** (no `.env`, `node_modules` or `.venv`; `uv sync --all-groups --all-extras`, `npm ci` in `frontend/` and `e2e/`), on the commit that holds the review fixes: backend 813 passed and 1 skipped, the four isolated imports (server, runtime, the Copilot's health check through `runtime/copilot.py`, context layer), front end 183, type check, lint, and end to end 20 of 20. An earlier run in the working tree, before the review fixes, passed too (backend 807, front end 181, end to end 20 of 20).
 
 ### Live checks (2026-11-15, after one `npm run seed`, `npm run dev` on the default model, direct route, memory off)
 
@@ -206,7 +206,7 @@ A fresh reviewer (Opus, read only) went through the Copilot's code. It found no 
 
 ### Known limits of this change
 
-- **Nothing was deployed.** The second runtime is in `agentcore/agentcore.json` and the stack settings and policy are changed (`UNDERCOVER_COPILOT_MEMORY_ID`, the Copilot's Memory in `runtime/policy.json`), but `agentcore deploy` was not run. The uncommitted work before this change restored `agentcore/agentcore.json`'s `agent` runtime and its three credentials, which a CLI step had emptied; check that file before a deploy.
+- **Nothing was deployed** (this change creates nothing on AWS; the deployment notebook does). The second runtime is in `agentcore/agentcore.json` and the stack settings and policy are changed (`UNDERCOVER_COPILOT_MEMORY_ID`, the Copilot's Memory in `runtime/policy.json`), but `agentcore deploy` was not run. The uncommitted work before this change restored `agentcore/agentcore.json`'s `agent` runtime and its three credentials, which a CLI step had emptied; check that file before a deploy.
 - The Approvals page does not poll, so a payout the Copilot signs off shows there on the next visit (the nav's count updates at once).
 - A sign-in that expires partway through a turn leaves the turn working until it shows as stopped after 20 minutes; the dashboard sends a sign-in with at least 20 minutes left, so this takes a turn longer than that.
 - The live database holds this run's state: CLM-1008 paid, CLM-1003 sent back (the agent's rework was not followed up), other payouts held, and the evaluation of the whole held-out set.

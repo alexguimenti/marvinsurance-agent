@@ -454,7 +454,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 - [x] **Step 2: Run them.** Run `cd backend; uv run pytest tests/test_copilot_entrypoint.py tests/test_entrypoint.py -q`. Expected: FAIL.
 - [x] **Step 3: Implement it**, then edit the scripts and the platform files above. Make only the changes the second runtime needs.
 - [x] **Step 4: Run them again.** Same command. Expected: PASS.
-- [ ] **Step 5: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green. The staged runtime check prints both health answers. (Run in parts: see `docs/STATUS.md`.)
+- [x] **Step 5: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green. The staged runtime check prints both health answers.
 - [x] **Step 6: Commit** with `feat: the Copilot is an AgentCore app of its own, on the laptop and as a second runtime`.
 
 ---
@@ -536,7 +536,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
   - `a narrow window shows the sidebar over the page`.
 - [x] **Step 2: Run them.** Run `npm run check`. Expected: the new tests FAIL, and the existing e2e tests still pass with the sidebar open.
 - [x] **Step 3: Implement the stand-in and the config.**
-- [ ] **Step 4: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green. (Run in parts: see `docs/STATUS.md`.)
+- [x] **Step 4: Run the full check.** Run `npm run check` with `.env` moved away. Expected: green.
 - [x] **Step 5: Commit** with `feat: the Copilot's sidebar on every page, with its cards and the confirmation before a payout`.
 
 ---
@@ -547,7 +547,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 
 **Files:** `docs/SPEC.md` (the three success criteria, and the Copilot), `docs/TECH_STACK.md` (the Copilot part, the new routes, Deployment: the second runtime, its settings, `undercover_copilot_memory` with its two strategies, and `UNDERCOVER_COPILOT` / `UNDERCOVER_COPILOT_RUNTIME`), `docs/CODE_STANDARDS.md` (the Copilot as a part of its own, under the same rules), `docs/PROCESS.md` (five parts in `npm run dev`; the Copilot on 8081; its health check through `runtime/copilot.py`), `docs/STATUS.md`.
 
-- [ ] **Step 1: Update the docs.** Then run `npm run check` in a clean `git worktree`, where `.env` does not exist. Expected: green. (Docs done; the check was run in parts with `.env` moved aside: see `docs/STATUS.md`.)
+- [x] **Step 1: Update the docs.** Then run `npm run check` in a clean `git worktree`, where `.env` does not exist. Expected: green.
 - [x] **Step 2: Run the health check through the Runtime file.** Run `$env:PYTHONPATH = "backend"; uv run --directory . --project backend --env-file .env --isolated --only-group runtime python -m runtime.copilot`, then post `{"operation":"health"}` to `http://127.0.0.1:8081/invocations`. Expected: `{"healthy": true}`.
 - [x] **Step 3: Reseed once and start the parts.** Run `npm run seed`, then `npm run dev` on the default model, on the direct route, with memory off. Sign in as Dana Whitfield through `e2e/live_security.mjs` (new steps `copilot:<message>` and `confirm:sign_off`), and ask, in one conversation:
   1. "Work the queue with 10 agents and tell me what needs me."
