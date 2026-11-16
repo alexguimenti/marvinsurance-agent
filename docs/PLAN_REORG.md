@@ -26,7 +26,7 @@
 
 1. **A lab that no longer opens its files after the move.** A notebook that read `../data` from `labs/` must read the same folder from `labs/weekN/dayN/`. Pinned by `test_every_relative_path_in_a_lab_notebook_exists` (Task 2).
 2. **Account data that survives in an output cell, or in the history.** Pinned by `test_no_tracked_file_holds_account_data` (Task 1) for the files, and by the history checks in Task 7.
-3. **A link in a doc or a code comment that points at a doc that moved.** `e2e/live_security.mjs` already points at `docs/PLAN_SECURE.md`, which is in `docs/plans/`. Pinned by `test_every_docs_path_the_repo_mentions_exists` (Task 4).
+3. **A link in a doc or a code comment that points at a doc that moved.** `e2e/live_security.mjs` already points at `docs/plans/PLAN_SECURE.md`, which is in `docs/plans/`. Pinned by `test_every_docs_path_the_repo_mentions_exists` (Task 4).
 4. **Something the build or the deploy reads that a cleanup deleted.** `agent.toml`, `data/`, `runtime/`, `agentcore/agentcore.json` and `agentcore/cdk/` stay. Pinned by `test_the_root_holds_only_the_project` (Task 3) and by `npm run check` in a clean worktree (Task 6).
 5. **The next commits still made with the old e-mail.** Task 7 sets this repository's `user.email` and checks it.
 
@@ -263,7 +263,7 @@ Relative links inside `docs/` (such as `[...](diagrams/copilot_graph.html)`) are
 - [ ] **Step 2: Run it to watch it fail**
 
 Run: `cd backend; uv run pytest tests/test_repo_layout.py -q -k docs`
-Expected: FAIL, naming at least `e2e/live_security.mjs: docs/PLAN_SECURE.md` (already stale today).
+Expected: FAIL, naming at least `e2e/live_security.mjs: docs/plans/PLAN_SECURE.md` (already stale today).
 
 - [ ] **Step 3: Move the docs** with `git mv` as listed, and write `docs/README.md`.
 

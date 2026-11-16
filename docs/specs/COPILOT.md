@@ -103,7 +103,7 @@ To answer "Are we meeting the success criteria we agreed?", the Copilot starts a
 
 * **Every figure in that answer comes from our records, worked out in code, never by the model.** The first two come from that evaluation's own measures, and the accuracy target from Settings. For the third, our app counts the claims in our queue paid over the approval limit and how many of those carry a handler's sign-off, and gives the Copilot both numbers in one read. The model writes the answer around these figures.
 * If the evaluation fails, stops partway, or is still going after 15 minutes, the Copilot says so and gives no figures for the first two criteria. If our app refuses to start it, the Copilot passes on the reason. In either case it still reports the third.
-* Add the three criteria to `docs/SPEC.md`.
+* Add the three criteria to `docs/specs/SPEC.md`.
 
 ## The handover conversation
 
@@ -138,7 +138,7 @@ Each question gets its answer in one turn, with every figure taken from our reco
 
 ## What stays the same
 
-* The rules in `docs/SPEC.md`: the approval limit, the sign-off that pays, the Gateway's Policy and the security check.
+* The rules in `docs/specs/SPEC.md`: the approval limit, the sign-off that pays, the Gateway's Policy and the security check.
 * The API rules in `docs/TECH_STACK.md`. Every route the Copilot calls takes the handler's sign-in, as the dashboard's routes do, and the claim agent's API document for the Gateway keeps its six operations.
 * The claim agent, the dispatcher and the improver.
 * Tests never call a model, AWS, Supabase Auth or the Gateway, `npm run check` never reads `.env`, and the code follows `docs/CODE_STANDARDS.md`.
@@ -151,7 +151,7 @@ Each question gets its answer in one turn, with every figure taken from our reco
 * `npm run check` is green with `.env` moved out of the way. Tests with a stub model and stand-ins cover the loop, the pause answered by a freshly built Copilot on the same saved state, the sign-in passed through and never saved, a refusal passed on, the wait for a dispatch, the success criteria answered from an evaluation's measures, Settings and our app's count of payouts over the limit (with none paid yet, and with an evaluation that failed), the memory lookup and saves, one turn at a time, a failed turn and a message after it, a stopped turn, a Cancel, the agent's key never sent, and another handler refused a conversation. End-to-end tests drive the sidebar against a stand-in Copilot, which plays a scripted turn through our app with the handler's sign-in: a lookup, an action, a refusal, a confirmation and a formatted answer.
 * The Copilot's AgentCore app answers its health check through the file Runtime starts, with only the `runtime` dependency group installed.
 * After one `npm run seed`, with `npm run dev` running on the default model, on the direct route and with memory off: the five questions of the handover conversation, signed in as Dana Whitfield, with every figure in the last answer checked against the Scoreboard and the claims' pages, then the same conversation picked up after restarting `npm run dev`. Our deployment notebook checks the memory on the deployed product. Signed in as Marcus Oyelaran, a request to sign off is declined with the reason. Check the sidebar in light and dark mode through the Playwright MCP server, and report what the runs spent.
-* `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/CODE_STANDARDS.md`, `docs/PROCESS.md` and `docs/STATUS.md` describe the product as it now is.
+* `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/CODE_STANDARDS.md`, `docs/PROCESS.md` and `docs/STATUS.md` describe the product as it now is.
 
 ## Not for now
 
@@ -171,4 +171,4 @@ Each question gets its answer in one turn, with every figure taken from our reco
 
 ## Planning
 
-Follow `docs/PROCESS.md`, but write this plan to `docs/PLAN_COPILOT.md` and tick it off there. Plan five or six phases and commit at the end of each. Do the live checks last, after reseeding once.
+Follow `docs/PROCESS.md`, but write this plan to `docs/plans/PLAN_COPILOT.md` and tick it off there. Plan five or six phases and commit at the end of each. Do the live checks last, after reseeding once.

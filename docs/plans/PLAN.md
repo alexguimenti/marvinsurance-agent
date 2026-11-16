@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python, FastAPI, SQLite (`sqlite3`), LangChain, OpenRouter, pytest, React (Vite, TypeScript), Vitest, Playwright. See `docs/TECH_STACK.md`.
 
-**Spec:** `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/DESIGN.md`
+**Spec:** `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/DESIGN.md`
 
 ## Global Constraints
 
@@ -64,7 +64,7 @@ e2e/                 Playwright
 
 **Files:**
 - Create: `.gitignore`
-- Modify: `docs/SPEC.md` (section 3.1 inputs)
+- Modify: `docs/specs/SPEC.md` (section 3.1 inputs)
 
 - [ ] **Step 1:** Create `.gitignore` with `.env`, `*.db`, `*.db-wal`, `*.db-shm`, `__pycache__/`, `.venv/`, `node_modules/`, `frontend/dist/`, `e2e/test-results/`, `e2e/playwright-report/`.
 - [ ] **Step 2:** Untrack the env file without deleting it: `git rm --cached .env`. Check `git status` shows `.env` as deleted from the index and the file still exists on disk. If it ever held a real key, rotate the key.
@@ -271,7 +271,7 @@ Config starts the backend on a temp SQLite file with `agent_provider=scripted` a
 ### Task 12: Run on the real queue and document
 
 **Files:**
-- Modify: `docs/SPEC.md` (resolve open questions)
+- Modify: `docs/specs/SPEC.md` (resolve open questions)
 - Create: `README.md` (setup, env vars, run, test, score)
 
 - [ ] **Step 1:** Run the queue with a real model, then `python scripts/score.py --split queue`; record accuracy and the model ID in the README.

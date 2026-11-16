@@ -96,7 +96,7 @@ Done when:
 
 ## What stays the same
 
-- The rules in `docs/SPEC.md`, with the changes above. Update SPEC.md for the key, the check and the sign-off that pays.
+- The rules in `docs/specs/SPEC.md`, with the changes above. Update SPEC.md for the key, the check and the sign-off that pays.
 - The claim agent's instructions, tools and versioned configuration, apart from the check before its first model call.
 - The approval limit is still a setting, and the payment's limit reads it from there.
 - The API rules in `docs/TECH_STACK.md`: every operation has an `operation_id`, a one-line docstring and no optional inputs.
@@ -110,7 +110,7 @@ Done when:
 
 - `npm run check` is green with `.env` moved out of the way, with the tests from each step.
 - The live checks from each step pass after one `npm run seed`, with the default model. Report what they spent.
-- `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/STATUS.md` and `data/README.md` describe the product as it now is.
+- `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/STATUS.md` and `data/README.md` describe the product as it now is.
 
 ## Notes from our last build
 
@@ -131,4 +131,4 @@ These notes come from our own build of the improver, on the `week2day5-end` bran
 
 ## Planning
 
-Follow `docs/PROCESS.md`, but write this plan to `docs/PLAN_SECURE.md` and tick it off there. Take the four steps in order, one phase each, and commit at the end of each phase. Do the live checks last, after reseeding once.
+Follow `docs/PROCESS.md`, but write this plan to `docs/plans/PLAN_SECURE.md` and tick it off there. Take the four steps in order, one phase each, and commit at the end of each phase. Do the live checks last, after reseeding once.

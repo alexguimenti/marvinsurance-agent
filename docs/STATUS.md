@@ -48,7 +48,7 @@ Each claim does dozens of short statements: its trace events (302 in that run), 
 
 ## Live verification of the improver (2026-11-09)
 
-Partly done. The owner stopped it to start `docs/PLAN_SECURE.md`. On Supabase and the default model, signed in as Dana Whitfield and Marcus Oyelaran. About $0.25 on OpenRouter in all (round 1's evaluations $0.13 and round 2's $0.09, with the improver's and judge's calls). This is an estimate from the round totals.
+Partly done. The owner stopped it to start `docs/plans/PLAN_SECURE.md`. On Supabase and the default model, signed in as Dana Whitfield and Marcus Oyelaran. About $0.25 on OpenRouter in all (round 1's evaluations $0.13 and round 2's $0.09, with the improver's and judge's calls). This is an estimate from the round totals.
 
 | Check | Result |
 |---|---|
@@ -64,7 +64,7 @@ Partly done. The owner stopped it to start `docs/PLAN_SECURE.md`. On Supabase an
 
 ## Security changes before AWS (2026-11-10)
 
-Built, from `docs/PLAN_SECURE.md`: every route under `/api` with the agent's API key (`X-API-Key`, constant-time compare) on everything the agent's side calls; the agent reaches the backend only over HTTP (`agent/connection.py`, `api.py`, `improver_api.py`), keeping one database link, LangGraph's checkpoints; a second model (GPT-6 Luna at `none`, or `MODEL_NAME`) screens each claim before the claim agent's first model call, outside the versioned configuration, with CLM-1901 seeded into the queue (26 claims); `GET /api/agent/openapi.json` with the eight operations; a payment limit checked first (403 naming it); a sign-off that pays in the backend; `npm run build`, `backend.main` (`app` and a Mangum `handler`), the dashboard served at `/`, `NullPool` and schema-qualified statements on Lambda, and the `server` dependency group with its check.
+Built, from `docs/plans/PLAN_SECURE.md`: every route under `/api` with the agent's API key (`X-API-Key`, constant-time compare) on everything the agent's side calls; the agent reaches the backend only over HTTP (`agent/connection.py`, `api.py`, `improver_api.py`), keeping one database link, LangGraph's checkpoints; a second model (GPT-6 Luna at `none`, or `MODEL_NAME`) screens each claim before the claim agent's first model call, outside the versioned configuration, with CLM-1901 seeded into the queue (26 claims); `GET /api/agent/openapi.json` with the eight operations; a payment limit checked first (403 naming it); a sign-off that pays in the backend; `npm run build`, `backend.main` (`app` and a Mangum `handler`), the dashboard served at `/`, `NullPool` and schema-qualified statements on Lambda, and the `server` dependency group with its check.
 
 `npm run check` passed on 2026-11-10 in a clean `git worktree` with no `.env`, in pieces because the system stopped the one-command run twice for memory: backend 480 passed and 1 skipped (16 minutes), the server-group import, the front end (131 tests, types, lint) and the 14 end-to-end tests. A quoting error in the server-group step of `scripts/check.mjs` was fixed on the way.
 
@@ -168,7 +168,7 @@ The claim pages were read back through a browser driven by a script, with screen
 - **It waits in code** (every 3 s, 15 minutes at most) and **the success criteria are worked out in code** from the evaluation's measures, the accuracy objective and the app's count of payouts over the limit (`GET /api/payouts/over-limit`).
 - **Conversations are kept** in three tables (`copilot_conversations`, `copilot_turns`, `copilot_steps`), one turn at a time, a turn working 20 minutes shown as stopped, a waiting turn never stopped. `npm run seed` drops them.
 - **Memory per handler** with `AgentCoreMemoryStore` (`("handlers", <id>)`), on only when `UNDERCOVER_COPILOT_MEMORY_ID` is set.
-- The three success criteria are in `docs/SPEC.md` section 15; `TECH_STACK.md`, `CODE_STANDARDS.md` and `PROCESS.md` describe the Copilot.
+- The three success criteria are in `docs/specs/SPEC.md` section 15; `TECH_STACK.md`, `CODE_STANDARDS.md` and `PROCESS.md` describe the Copilot.
 
 ### Checks (2026-11-15)
 

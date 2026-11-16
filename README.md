@@ -2,15 +2,15 @@
 
 A course project (nothing here is real). The Marvin Agent works a travel-insurance claims queue like a human analyst. A dispatcher, which is code and no model, hands every claim to a claim agent of its own, up to 25 at once, and sums up the run from the records. The claim agent reads the claim, the policy and the customer's history, looks up the sections of the policy wording and the claims manual it needs, then approves, declines or refers. Payouts above $1,000 wait for a handler.
 
-See `docs/SPEC.md` for what we build, `docs/TECH_STACK.md` for the stack, `docs/STATUS.md` for where it stands, `docs/plans/HARNESS.md` for the harness requirements, and `docs/plans/` for the finished implementation plans.
+See `docs/specs/SPEC.md` for what we build, `docs/TECH_STACK.md` for the stack, `docs/STATUS.md` for where it stands, `docs/specs/HARNESS.md` for the harness requirements, and `docs/plans/` for the finished implementation plans.
 
 ## Status
 
 - **Pilot** (`docs/plans/PLAN.md`): done. Queue, claim detail, live activity and approvals; the $1,000 limit enforced by the payment code.
 - **Harness** (`docs/plans/PLAN_HARNESS.md`): done. One run works the whole queue, or a capped part of it, through a to-do list shown on the queue page. Each claim gets a fresh claim agent. The agent looks up sections of the policy wording and the claims manual, and the claim page shows what it read. A claim that fails goes back in the queue; one that fails twice is left for a handler ("Needs a handler"). Default model: DeepSeek V4.1 Flash, low reasoning effort.
-- **Durable agent** (`docs/PLAN_DURABLE.md`): done. See `docs/STATUS.md`. The claim agent waits for a sign-off and then pays, carries on after a restart, and never decides or pays twice. Records on Supabase, traces in Langfuse.
-- **Swarm and scoreboard** (`docs/PLAN_SWARM.md`): done. A dispatch works the queue with N claim agents at once; evaluations on copies of the labelled sets show on the Scoreboard with the labs' measures; every claim's cost and time are recorded with its run.
-- **Improver and sign-in** (`docs/PLAN_IMPROVE.md`): done. Handlers sign in with Supabase Auth and may do what their rights allow; the approval limit and the improver's limits are settings; the claim agent's configuration is kept in versions; a judge grades every explanation; an improver agent proposes changes in rounds, a handler approves them and code keeps or rolls back each version on the held-out claims.
+- **Durable agent** (`docs/plans/PLAN_DURABLE.md`): done. See `docs/STATUS.md`. The claim agent waits for a sign-off and then pays, carries on after a restart, and never decides or pays twice. Records on Supabase, traces in Langfuse.
+- **Swarm and scoreboard** (`docs/plans/PLAN_SWARM.md`): done. A dispatch works the queue with N claim agents at once; evaluations on copies of the labelled sets show on the Scoreboard with the labs' measures; every claim's cost and time are recorded with its run.
+- **Improver and sign-in** (`docs/plans/PLAN_IMPROVE.md`): done. Handlers sign in with Supabase Auth and may do what their rights allow; the approval limit and the improver's limits are settings; the claim agent's configuration is kept in versions; a judge grades every explanation; an improver agent proposes changes in rounds, a handler approves them and code keeps or rolls back each version on the held-out claims.
 - Not built: real payments, messages to customers, rejecting a held payout.
 
 ## Setup

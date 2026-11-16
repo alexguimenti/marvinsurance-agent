@@ -49,7 +49,7 @@ Our team's experiment in `labs/week2day4.ipynb` worked the harder claims with up
 
 ## What stays the same
 
-- The rules in `docs/SPEC.md`, including the sign-off for payouts over $1,000. Update its sections on working the queue and on what the team needs to see, and leave its Rules alone.
+- The rules in `docs/specs/SPEC.md`, including the sign-off for payouts over $1,000. Update its sections on working the queue and on what the team needs to see, and leave its Rules alone.
 - The claim agent's graph, tools and instructions, apart from recording cost and time and the default model.
 - The API rules in `docs/TECH_STACK.md`: every operation has an `operation_id`, a one-line docstring and no optional inputs.
 - Tests never call a model, and the code follows `docs/CODE_STANDARDS.md`.
@@ -62,8 +62,8 @@ Our team's experiment in `labs/week2day4.ipynb` worked the harder claims with up
   - Start a dispatch at N=3 and stop it partway with `kill -9` on every process listening on port 8002 (uvicorn's reloader and its worker, from `lsof -ti tcp:8002`, or the Windows equivalent on a Windows machine), which makes `npm run dev` stop the others, then start `npm run dev` again. A dispatch at N=25 then carries on the claims left in progress as the same attempts, and works the rest with 25 at once, which the claims' start times show. Its run takes well under the sum of its claims' times. Comparing claims worked from the start, each takes about as long as the claims did at N=3; if they are slower, report where the time goes, keeping to 4 connections. Claims held for sign-off wait, and a sign-off still pays within five seconds. No claim fails for want of a database connection, and during the dispatch Supabase shows no more than 12 connections whose user is postgres in `pg_stat_activity`, through the Supabase MCP server.
   - An evaluation of the evaluation set at N=25, and one of the held-out set's five `tiny` claims at N=5, appear on the scoreboard with every measure, and the queue page's counts are the same before and after them.
   - Through Langfuse's API, the claims of the N=25 dispatch are found together by its tag.
-- `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md` (where these runs replace the five-claim cap), `docs/CODE_STANDARDS.md` (rules 10 and 13) and `docs/STATUS.md` describe the product as it now is.
+- `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md` (where these runs replace the five-claim cap), `docs/CODE_STANDARDS.md` (rules 10 and 13) and `docs/STATUS.md` describe the product as it now is.
 
 ## Planning
 
-Follow `docs/PROCESS.md`, but write this plan to `docs/PLAN_SWARM.md` and tick it off there. Start with the default model and the cost and time, then the dispatcher in place of the queue agent, then starting it from the dashboard, then the evaluations and the scoreboard. For the live runs with the real model, reseed once first and keep to the runs above.
+Follow `docs/PROCESS.md`, but write this plan to `docs/plans/PLAN_SWARM.md` and tick it off there. Start with the default model and the cost and time, then the dispatcher in place of the queue agent, then starting it from the dashboard, then the evaluations and the scoreboard. For the live runs with the real model, reseed once first and keep to the runs above.

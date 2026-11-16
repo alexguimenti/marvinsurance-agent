@@ -3,7 +3,7 @@
     python scripts/scrub_notebooks.py PATH...      rewrites each file in place and prints "PATH: N replaced"
 
 It counts what it replaces and never prints a value it found. A notebook is JSON, so replacing text keeps it valid. `SENSITIVE` is
-also what the history rewrite (docs/PLAN_REORG.md, Task 7) looks for in old versions of files."""
+also what the history rewrite (the reorganization plan, Task 7) looks for in old versions of files."""
 import re
 import sys
 from pathlib import Path

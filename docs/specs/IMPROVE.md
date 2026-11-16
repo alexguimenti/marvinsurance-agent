@@ -87,7 +87,7 @@ These notes come from our own build of the swarm, on the `week2day4-end` branch.
 
 ## What stays the same
 
-- The rules in `docs/SPEC.md`, with two changes. The approval limit is now a setting. The improver reads our handlers' decisions and reasons on the evaluation set, while the claim agent still never sees them, nothing in the agent reads the held-out set's, and the dashboard shows both sets' decisions as it does today. Update SPEC.md for these, the sign-in, the improver and what the team needs to see.
+- The rules in `docs/specs/SPEC.md`, with two changes. The approval limit is now a setting. The improver reads our handlers' decisions and reasons on the evaluation set, while the claim agent still never sees them, nothing in the agent reads the held-out set's, and the dashboard shows both sets' decisions as it does today. Update SPEC.md for these, the sign-in, the improver and what the team needs to see.
 - The policy wording and the claims manual stay as written, though the manual mentions the $1,000 limit.
 - The claim agent's graph and tools.
 - The API rules in `docs/TECH_STACK.md`: every operation has an `operation_id`, a one-line docstring and no optional inputs.
@@ -115,8 +115,8 @@ These notes come from our own build of the swarm, on the `week2day4-end` branch.
   - Then start a dispatch at N=25 on the current version. Signed in as Marcus Oyelaran, a payout waiting for sign-off can't be signed off and the settings can't be changed. Signed in as Dana Whitfield, the same payout is signed off and paid.
   - Take screenshots of every page in light and dark mode. A fresh subagent reviews them once, as a senior product designer would, against `docs/BRAND.md` and point 8 above, and you fix what it finds.
   - Report what the live checks spent. On GPT-6 Luna they should come to under $1.
-- `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md` (rules 7 and 13 for the improver and its client and the dashboard's Supabase client), `docs/STATUS.md` and `data/README.md` describe the product as it now is.
+- `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md` (rules 7 and 13 for the improver and its client and the dashboard's Supabase client), `docs/STATUS.md` and `data/README.md` describe the product as it now is.
 
 ## Planning
 
-Follow `docs/PROCESS.md`, but write this plan to `docs/PLAN_IMPROVE.md` and tick it off there. Start with the sign-in, so every later page is built signed in. Then the configuration's versions and the Settings page, then the judge, then the improver and its page, and last the look of the whole dashboard and the live runs. For the live runs with the real model, reseed once first and keep to the runs above.
+Follow `docs/PROCESS.md`, but write this plan to `docs/plans/PLAN_IMPROVE.md` and tick it off there. Start with the sign-in, so every later page is built signed in. Then the configuration's versions and the Settings page, then the judge, then the improver and its page, and last the look of the whole dashboard and the live runs. For the live runs with the real model, reseed once first and keep to the runs above.

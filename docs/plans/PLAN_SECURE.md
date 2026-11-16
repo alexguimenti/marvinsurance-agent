@@ -8,11 +8,11 @@
 
 **Tech Stack:** FastAPI, httpx, SQLAlchemy Core (`NullPool` on Lambda), psycopg, LangGraph, LangChain Structured Outputs, Mangum, Vite, uv dependency groups, Playwright.
 
-**Spec:** `docs/SECURE.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
+**Spec:** `docs/specs/SECURE.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
 
 **Sidenote from the brief:** For consistency with the course, please read `labs/week3day2_lab1.ipynb` and build the check in step 2 in the same style as the lab, and read `labs/week3day2_lab2.ipynb`, which deploys the app, without running it. Where the lab and this document differ, follow this document. In this repo the two labs are in the course's copy, `../undercover/labs/`; `labs/week3day2_mex.ipynb` is our earlier exercise, with a different screener.
 
-**Before this plan starts:** `docs/PLAN_IMPROVE.md` Task 10 and its final review are finished and recorded in `docs/STATUS.md`, by the owner's decision, because the `npm run seed` in Phase 5 deletes the rounds.
+**Before this plan starts:** `docs/plans/PLAN_IMPROVE.md` Task 10 and its final review are finished and recorded in `docs/STATUS.md`, by the owner's decision, because the `npm run seed` in Phase 5 deletes the rounds.
 
 ## Decisions
 
@@ -187,7 +187,7 @@ def test_the_service_refuses_to_start_without_the_key(settings, monkeypatch): ..
 
 ### Task 5: End-to-end tests, docs and the phase's commit
 
-**Files:** Modify `e2e/playwright.config.ts`, `e2e/stand_in_agent.py`, `e2e/tests/fixtures.ts`, `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/CODE_STANDARDS.md`.
+**Files:** Modify `e2e/playwright.config.ts`, `e2e/stand_in_agent.py`, `e2e/tests/fixtures.ts`, `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/CODE_STANDARDS.md`.
 
 - [x] **Step 1:** Give the test backend and service the same fixed key, the service `UNDERCOVER_BACKEND`, and the backend the judge's stand-in. Start the backend first.
 - [x] **Step 2:** Run `npm run check`. Expected: "All checks passed."
@@ -201,7 +201,7 @@ def test_the_service_refuses_to_start_without_the_key(settings, monkeypatch): ..
 
 ### Task 6: The check, CLM-1901 and the claim's page
 
-**Files:** Create `backend/agent/screening.py`. Modify `backend/app/config.py`, `backend/agent/graph.py`, `worker.py`, `scripted.py`, `backend/app/reference.py`, `seed.py`, `frontend/src/pages/ClaimDetail.tsx`, `backend/tests/fakes.py`, tests that count 25 queue claims, `docs/SPEC.md`, `data/README.md`. Test: `backend/tests/test_screening.py`, `frontend/src/pages/ClaimDetail.test.tsx`.
+**Files:** Create `backend/agent/screening.py`. Modify `backend/app/config.py`, `backend/agent/graph.py`, `worker.py`, `scripted.py`, `backend/app/reference.py`, `seed.py`, `frontend/src/pages/ClaimDetail.tsx`, `backend/tests/fakes.py`, tests that count 25 queue claims, `docs/specs/SPEC.md`, `data/README.md`. Test: `backend/tests/test_screening.py`, `frontend/src/pages/ClaimDetail.test.tsx`.
 
 **Interfaces:**
 
@@ -239,7 +239,7 @@ def test_clm_1901_is_in_the_queue_and_in_neither_evaluation_set(...): ...       
 
 ### Task 7: The document, the limit and the sign-off that pays
 
-**Files:** Modify `backend/app/api.py`, `payments.py`, `backend/agent/graph.py`, `backend/agent/worker.py`, `service.py`, `backend/app/agent_client.py`, `e2e/stand_in_agent.py`, `e2e/tests/02-approval.spec.ts`, `frontend/src/api.ts` (remove `signed_off`), `backend/tests/test_round_trips.py`, `docs/SPEC.md`. Test: `backend/tests/test_agent_openapi.py`, `test_payments.py`, `test_graph.py`.
+**Files:** Modify `backend/app/api.py`, `payments.py`, `backend/agent/graph.py`, `backend/agent/worker.py`, `service.py`, `backend/app/agent_client.py`, `e2e/stand_in_agent.py`, `e2e/tests/02-approval.spec.ts`, `frontend/src/api.ts` (remove `signed_off`), `backend/tests/test_round_trips.py`, `docs/specs/SPEC.md`. Test: `backend/tests/test_agent_openapi.py`, `test_payments.py`, `test_graph.py`.
 
 **Interfaces:**
 

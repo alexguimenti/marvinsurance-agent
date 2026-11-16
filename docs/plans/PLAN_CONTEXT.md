@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, FastAPI, SQLAlchemy Core, LangGraph, `mcp` 1.x (FastMCP server and client), `langgraph-checkpoint-aws` (AgentCore Memory), boto3/botocore (SigV4), Mangum, PyYAML; React + Vite + Vitest; Playwright.
 
-**Spec:** `docs/CONTEXT.md`
+**Spec:** `docs/specs/CONTEXT.md`
 
 SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, which deploys the app and the context layer, creates the Gateway and the memory, and runs the agent against them, without running it. Where the notebook and this document differ, follow this document. Include this sidenote in your plan too. (In this repo the notebook is at `../undercover/labs/week3day3.ipynb`.)
 
@@ -446,7 +446,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day3.ipynb`, w
 
 **Files:**
 - Modify:
-  - `docs/SPEC.md`: the context layer, the memory and the complete record.
+  - `docs/specs/SPEC.md`: the context layer, the memory and the complete record.
   - `docs/TECH_STACK.md`, Deployment section:
     - The context package is `backend/context/` zipped as `context/`, without tests, with the `context` group for Linux and py3.12; its handler is `context.server.handler`; it sits behind a Function URL with `AWS_IAM` auth and has no env vars.
     - The app's package leaves out `backend/context/`.

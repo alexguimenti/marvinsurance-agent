@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, FastAPI, SQLAlchemy Core, LangGraph, `bedrock-agentcore` (`BedrockAgentCoreApp`, `requires_api_key`), boto3/botocore, Starlette `TestClient`; React + Vitest; Playwright.
 
-**Spec:** `docs/RUNTIME.md`
+**Spec:** `docs/specs/RUNTIME.md`
 
 SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipynb`, which deploys the agent on AgentCore Runtime and points the app at it, without running it. Where the notebook and this document differ, follow this document. The pause in step 1 was in the course's build for self-improvement, before the security build took it out: `git show week2day5-end:agent/harness.py` has its `wait_for_sign_off` node, and `git show week2day5-end:agent/service.py` its `resume_claim` route. Lab 1's `agentcore dev` also serves on port 8080, so stop it before `npm run dev`. Include this sidenote in your plan too. (In this repo the notebook is at `../undercover/labs/week3day4_lab2.ipynb`, and the `git show` refs are branches of `../undercover`.)
 
@@ -403,7 +403,7 @@ SIDENOTE: For consistency with the course, please read `labs/week3day4_lab2.ipyn
 
 **Files:**
 - Modify:
-  - `docs/SPEC.md`: the send-back, the sent-back status, and the agent's operations.
+  - `docs/specs/SPEC.md`: the send-back, the sent-back status, and the agent's operations.
   - `docs/TECH_STACK.md`: the Deployment section gets the agent on Runtime, as the spec lists it, plus the packaging mismatch from the rulings.
   - `docs/PROCESS.md`: `npm run dev` serves the agent on 8080; how to stop Lab 1's `agentcore dev` first; the health check through `runtime/main.py`.
   - `docs/CODE_STANDARDS.md`: the agent imports nothing from `app`; the entrypoint; the app keeps one piece of work at a time.

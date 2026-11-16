@@ -12,7 +12,7 @@
 
 **Tech Stack:** Python 3.12, FastAPI, SQLAlchemy Core, LangGraph 1.2 (`StateGraph`, `ToolNode`, `interrupt`, `Command`, `context_schema`), LangChain 1.4 (`ToolRuntime`), `langchain-mcp-adapters` (`MultiServerMCPClient`, new), `langgraph-checkpoint-aws` (`AgentCoreMemoryStore`), `bedrock-agentcore` 1.26 (`BedrockAgentCoreApp`), boto3. React 19 with Vitest; `react-markdown` and `remark-gfm` (new); Playwright.
 
-**Spec:** `docs/COPILOT.md`
+**Spec:** `docs/specs/COPILOT.md`
 
 SIDENOTE: For consistency with the course, please build the Copilot the way the course has built its agents.
 - **The agent loop** is a LangGraph `StateGraph` written by hand: a node that calls the model, LangGraph's `ToolNode`, and the loop between them, with a `PostgresSaver` checkpointer, as in `labs/week2day3.ipynb` and the claim agent's graph. Please don't use LangChain's `create_agent` for it.
@@ -545,7 +545,7 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 
 ### Task 14: Docs, the clean check, then the live runs
 
-**Files:** `docs/SPEC.md` (the three success criteria, and the Copilot), `docs/TECH_STACK.md` (the Copilot part, the new routes, Deployment: the second runtime, its settings, `undercover_copilot_memory` with its two strategies, and `UNDERCOVER_COPILOT` / `UNDERCOVER_COPILOT_RUNTIME`), `docs/CODE_STANDARDS.md` (the Copilot as a part of its own, under the same rules), `docs/PROCESS.md` (five parts in `npm run dev`; the Copilot on 8081; its health check through `runtime/copilot.py`), `docs/STATUS.md`.
+**Files:** `docs/specs/SPEC.md` (the three success criteria, and the Copilot), `docs/TECH_STACK.md` (the Copilot part, the new routes, Deployment: the second runtime, its settings, `undercover_copilot_memory` with its two strategies, and `UNDERCOVER_COPILOT` / `UNDERCOVER_COPILOT_RUNTIME`), `docs/CODE_STANDARDS.md` (the Copilot as a part of its own, under the same rules), `docs/PROCESS.md` (five parts in `npm run dev`; the Copilot on 8081; its health check through `runtime/copilot.py`), `docs/STATUS.md`.
 
 - [x] **Step 1: Update the docs.** Then run `npm run check` in a clean `git worktree`, where `.env` does not exist. Expected: green.
 - [x] **Step 2: Run the health check through the Runtime file.** Run `$env:PYTHONPATH = "backend"; uv run --directory . --project backend --env-file .env --isolated --only-group runtime python -m runtime.copilot`, then post `{"operation":"health"}` to `http://127.0.0.1:8081/invocations`. Expected: `{"healthy": true}`.

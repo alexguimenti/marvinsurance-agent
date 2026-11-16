@@ -149,7 +149,7 @@ Done when:
 
 ## What stays the same
 
-- The rules in `docs/SPEC.md`, with the changes above. Update SPEC.md for the context layer, the memory and the complete record.
+- The rules in `docs/specs/SPEC.md`, with the changes above. Update SPEC.md for the context layer, the memory and the complete record.
 - The check for hidden instructions, the approval limit as a setting, the sign-off that pays, and the screening model.
 - The API rules in `docs/TECH_STACK.md`: every operation has an `operation_id`, a one-line docstring and no optional inputs. The context layer's tools follow the same rules.
 - Langfuse tracing as it is. Nothing in this change depends on it, and the agent works the same without the Langfuse keys.
@@ -165,7 +165,7 @@ Done when:
 
 - `npm run check` is green with `.env` moved out of the way, with the tests from each step.
 - After one `npm run seed`, with `npm run dev` running on the default model, on the direct route and with memory off: `uv run -m agent CLM-1005`, then `uv run -m agent CLM-1006`, then a dispatch at N=25 that works the rest of the queue as before, and an evaluation of the evaluation set's five tiny claims. Check the claim pages through the Playwright MCP server, and report what the runs spent.
-- `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md` and `data/README.md` describe the product as it now is.
+- `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md` and `data/README.md` describe the product as it now is.
 
 ## Not for now
 
@@ -190,4 +190,4 @@ These notes come from our own build of the security changes, on the `week3day2-e
 
 ## Planning
 
-Follow `docs/PROCESS.md`, but write this plan to `docs/PLAN_CONTEXT.md` and tick it off there. Take the five steps in order, one phase each, and commit at the end of each phase. Do the live checks last, after reseeding once.
+Follow `docs/PROCESS.md`, but write this plan to `docs/plans/PLAN_CONTEXT.md` and tick it off there. Take the five steps in order, one phase each, and commit at the end of each phase. Do the live checks last, after reseeding once.

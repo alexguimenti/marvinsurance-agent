@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI, SQLAlchemy Core, Supabase Postgres and Auth, PyJWT, the `openrouter` package (Jev's Decisions endpoint), LangGraph and LangChain (`create_agent`, `HumanInTheLoopMiddleware`, `ModelCallLimitMiddleware`), Langfuse, React with `@supabase/supabase-js`, Vitest, Playwright.
 
-**Spec:** `docs/IMPROVE.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
+**Spec:** `docs/specs/IMPROVE.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
 
 **Sidenote from the brief:** For consistency with the course, please read `labs/week2day5.ipynb` and build the judge, the configuration's versions and the improver in the same style as the lab. Where the lab and this brief differ, follow the brief. In this repo the lab is `labs/week2day5.ipynb` (the course's own copy); `labs/week2day5_mex.ipynb` is our earlier exercise.
 
@@ -328,7 +328,7 @@ def test_round_actions_need_a_sign_in(client, path): ...             # 401, and 
 
 ### Task 9: The documents
 
-**Files:** Modify `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md`, `data/README.md`, `COMMANDS.md`, `README.md`.
+**Files:** Modify `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md`, `data/README.md`, `COMMANDS.md`, `README.md`.
 
 - `SPEC.md`: the approval limit is a setting; the improver reads the evaluation set's decisions and reasons, the claim agent never does and nothing in the agent reads the held-out set's; sign-in and who may do what; the Configuration, Settings and Improvement pages; the judge's grade. The Rules otherwise unchanged.
 - `TECH_STACK.md`: Supabase Auth and PyJWT, the `openrouter` package and Jev, the improver, the new environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `HANDLER_PASSWORD`, `OPENROUTER_DECISIONS_URL`), the new routes.
@@ -357,4 +357,4 @@ Needs the owner's `.env` from Task 1. It spends on OpenRouter (the claim agent, 
 
 ## Done means
 
-Each line under "What done looks like" in `docs/IMPROVE.md` has its evidence: tests in Tasks 1 to 8, documents in Task 9, live checks in Task 10.
+Each line under "What done looks like" in `docs/specs/IMPROVE.md` has its evidence: tests in Tasks 1 to 8, documents in Task 9, live checks in Task 10.

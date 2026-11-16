@@ -118,3 +118,45 @@ def test_the_labs_index_names_every_notebook_and_links_to_it():
 
 def test_the_root_holds_only_the_project():
     assert {p.relative_to(REPO).parts[0] for p in tracked_files()} == ROOT
+
+
+# ---- the docs ----
+
+REFERENCE_DOCS = {"README.md", "TECH_STACK.md", "CODE_STANDARDS.md", "PROCESS.md", "DESIGN.md", "STATUS.md", "DECISIONS.md", "PLAN_REORG.md"}
+SPECS = {"SPEC.md", "HARNESS.md", "DURABLE.md", "SWARM.md", "IMPROVE.md", "SECURE.md", "CONTEXT.md", "RUNTIME.md", "COPILOT.md"}
+TEXT_SUFFIXES = {".md", ".py", ".ts", ".tsx", ".mjs", ".css", ".json", ".toml", ".yaml"}
+ALIASES = {"docs/BRAND.md"}  # the course's specs call our docs/DESIGN.md "BRAND.md"; the plans say so
+ABOUT_ITSELF = {"PLAN_REORG.md"}  # the reorganization plan (wherever it is) names the paths it is about to make
+
+
+def test_the_docs_are_split_into_specs_and_plans():
+    top = {p.name for p in (REPO / "docs").glob("*.md")}
+    assert top <= REFERENCE_DOCS, sorted(top - REFERENCE_DOCS)
+    assert {p.name for p in (REPO / "docs/specs").glob("*.md")} == SPECS
+    assert not [p.name for p in (REPO / "docs/plans").glob("*.md") if not (p.name.startswith("PLAN") or p.name == "CLEANUP.md")]
+
+
+def test_every_docs_path_the_repo_mentions_exists():
+    named = re.compile(r"docs/[A-Za-z0-9_/.-]+\.(?:md|html)")
+    missing = [f"{p.relative_to(REPO).as_posix()}: {m}" for p in tracked_files() if p.suffix in TEXT_SUFFIXES
+               for m in named.findall(p.read_text(encoding="utf-8", errors="ignore")) if not (REPO / m).exists() and m not in ALIASES
+               and p.name != "PLAN_REORG.md"]
+    assert missing == []
+
+
+def test_every_relative_link_in_the_docs_exists():
+    link = re.compile(r"\]\(([^)\s]+)\)")
+    missing = []
+    for doc in (d for d in (REPO / "docs").rglob("*.md") if d.name not in ABOUT_ITSELF):
+        for target in link.findall(doc.read_text(encoding="utf-8")):
+            if target.startswith(("http:", "https:", "mailto:", "#")):
+                continue
+            if not (doc.parent / target.split("#")[0]).exists():
+                missing.append(f"{doc.relative_to(REPO).as_posix()}: {target}")
+    assert missing == []
+
+
+def test_the_docs_index_links_every_spec_and_plan():
+    index = (REPO / "docs" / "README.md").read_text(encoding="utf-8")
+    listed = [p.relative_to(REPO / "docs").as_posix() for folder in ("specs", "plans") for p in sorted((REPO / "docs" / folder).glob("*.md"))]
+    assert listed and [name for name in listed if f"]({name})" not in index] == []

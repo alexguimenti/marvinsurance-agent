@@ -67,7 +67,7 @@ Posting `{"operation": "health"}` to `http://127.0.0.1:8080/invocations` answers
 A run with the real model spends money and writes to Supabase and Langfuse. Before any of them:
 
 1. Reseed once: `npm run seed`.
-2. Keep to the runs the brief names, for this change those in `docs/CONTEXT.md` (two claims, a dispatch at N=25 and an evaluation of the five tiny claims, on the direct route with memory off); for the improver those in `docs/IMPROVE.md`: two rounds of the improver, signed in as a handler, and one dispatch at N=25 on the version they leave current. Evaluations work copies and need no reseed. Earlier changes' runs are in `docs/SWARM.md`.
+2. Keep to the runs the brief names, for this change those in `docs/specs/CONTEXT.md` (two claims, a dispatch at N=25 and an evaluation of the five tiny claims, on the direct route with memory off); for the improver those in `docs/specs/IMPROVE.md`: two rounds of the improver, signed in as a handler, and one dispatch at N=25 on the version they leave current. Evaluations work copies and need no reseed. Earlier changes' runs are in `docs/specs/SWARM.md`.
 3. Check the credit limit on the OpenRouter key first: a round's evaluations, the improver and the judge all spend on it. Each round has a spending limit of its own (50 cents to start with), and the dashboard says what a round may spend before it starts.
 
 The free plan allows 15 connections at once through the session pooler, across every process. Each of our processes uses at most 4. A notebook left open with a pool from the labs counts too, so close the labs before measuring.
@@ -82,4 +82,4 @@ The Copilot, the handlers' assistant in the dashboard's sidebar, is an AgentCore
 $env:PYTHONPATH = "backend"; $env:PORT = "8081"; uv run --directory . --project backend --env-file .env --isolated --only-group runtime python -m runtime.copilot
 ```
 
-Posting `{"operation": "health"}` to `http://127.0.0.1:8081/invocations` answers `{"healthy": true}`. `npm run check` proves the same through the staged package (`runtime/` with `agent/` beside it, only the `runtime` group installed). The live checks for the Copilot are those in `docs/COPILOT.md`: one `npm run seed`, `npm run dev` on the default model, on the direct route with memory off, signed in as Dana Whitfield through `e2e/live_security.mjs` (`copilot:<message>` and `confirm:sign_off`), so the password never passes through a tool call.
+Posting `{"operation": "health"}` to `http://127.0.0.1:8081/invocations` answers `{"healthy": true}`. `npm run check` proves the same through the staged package (`runtime/` with `agent/` beside it, only the `runtime` group installed). The live checks for the Copilot are those in `docs/specs/COPILOT.md`: one `npm run seed`, `npm run dev` on the default model, on the direct route with memory off, signed in as Dana Whitfield through `e2e/live_security.mjs` (`copilot:<message>` and `confirm:sign_off`), so the password never passes through a tool call.

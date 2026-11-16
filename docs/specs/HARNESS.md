@@ -2,7 +2,7 @@
 
 Status: draft, to be agreed before `docs/plans/PLAN_HARNESS.md` is written. Items marked **Proposed** are my choices where the brief is silent. Change them freely.
 
-Source: the head of claims operations' brief "Getting ready for harder claims". This file turns it into requirements we can plan, build and test against. Where it conflicts with `docs/SPEC.md`, this file wins once agreed, and `SPEC.md` is updated (section 11).
+Source: the head of claims operations' brief "Getting ready for harder claims". This file turns it into requirements we can plan, build and test against. Where it conflicts with `docs/specs/SPEC.md`, this file wins once agreed, and `SPEC.md` is updated (section 11).
 
 ## 1. Why
 
@@ -34,7 +34,7 @@ The brief was written against a different checkout. Settle these before planning
 
 ## 3. What does not change
 
-- Every rule in `docs/SPEC.md`, including sign-off on payouts over **$1,000**, enforced by the system and not by the agent (`payments.request_payment`).
+- Every rule in `docs/specs/SPEC.md`, including sign-off on payouts over **$1,000**, enforced by the system and not by the agent (`payments.request_payment`).
 - `data/evals/` and `data/security/` are never read by the agent, its tools, its prompts, the screens or any unit test. Only `scripts/score.py` reads `data/evals/`. The existing isolation test keeps passing and grows to cover the new files.
 - Customer text is data, not instructions. `<claim_data>` wrapping and the CLM-1901 test stay.
 - Stack: FastAPI, SQLite, LangChain with OpenRouter, React.
@@ -96,7 +96,7 @@ Tests (stub model): a subagent for each claim starts with empty history; the orc
 - **Manual version.** Manual section 13 and 14 require the manual's version on every decision. Store `manual_version` (`2026.2`, read from the manual's first lines) and the wording version on the decision, and show them on the claim page.
 - **Instructions must send the agent to the manual.** The claim instructions say to follow the manual's working order (manual section 4), to check the customer's claim history before deciding (manual section 9), and to read the sections that apply rather than guess.
 - The manual changes some decisions the pilot made from the wording alone: third claim in 12 months goes to `refer`, wild animals are covered as accidental loss, meals without receipts pay a flat $35 per traveler per 24 hours, pre-existing conditions look back 60 days, a missing document is a `refer` and not a decline. Check each of these against the data once the agent runs.
-- Update `docs/SPEC.md`: section 3.1 inputs, section 8 "Out of scope" (remove the manual), section 10 "Open questions".
+- Update `docs/specs/SPEC.md`: section 3.1 inputs, section 8 "Out of scope" (remove the manual), section 10 "Open questions".
 
 Tests: the section loader splits both documents into the right number of sections and titles; `read_section` on an unknown section returns a clear error, not an exception; `search_documents` finds "wild animals" in manual section 7; lookups are traced with document and section but not the text; the claim endpoint returns the "read" list; no tool can open any other file; `data/evals` strings are still absent from `backend/app` and `frontend/src`.
 
@@ -211,7 +211,7 @@ Done looks like: after reseeding, a 5-claim run on the default model works five 
 
 ## 10. Documents to update
 
-- `docs/SPEC.md`: sections 3 (inputs, behavior), 5 (new status), 8 (manual no longer out of scope), 9 (failures, trigger), 10.
+- `docs/specs/SPEC.md`: sections 3 (inputs, behavior), 5 (new status), 8 (manual no longer out of scope), 9 (failures, trigger), 10.
 - `docs/TECH_STACK.md`: orchestrator and subagents on LangChain, run and to-do storage, default model.
 - `docs/STATUS.md` or `README.md`: what the product is now (D8).
 - `README.md`, `COMMANDS.md`: model default, new commands, `agent.toml` settings.

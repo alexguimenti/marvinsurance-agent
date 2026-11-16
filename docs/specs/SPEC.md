@@ -1,6 +1,6 @@
 # SPEC: Marvin Agent for MarvInsurance
 
-Status: pilot plus the harness (`docs/plans/HARNESS.md`). This is a course project. Nothing here is a real company, customer or payment.
+Status: pilot plus the harness (`docs/specs/HARNESS.md`). This is a course project. Nothing here is a real company, customer or payment.
 
 ## 1. Overview
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI, SQLAlchemy Core, SQLite (tests, e2e) and Supabase Postgres, LangGraph (`Send`, `RetryPolicy`, `error_handler`, `PostgresSaver`, `SqliteSaver`), LangChain, OpenRouter, Langfuse, React, Vitest, Playwright.
 
-**Spec:** `docs/SWARM.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
+**Spec:** `docs/specs/SWARM.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
 
 **Sidenote from the brief:** For consistency with the course, please read `labs/week2day4.ipynb` and build the dispatcher in the same style as the lab. Where the lab and this brief differ, follow the brief. In this repo the lab is `labs/week2day4_mex.ipynb`.
 
@@ -494,7 +494,7 @@ test('an evaluation played out through the API appears on the scoreboard', async
 
 ### Task 10: The documents
 
-**Files:** Modify `docs/SPEC.md` (sections 5, 6 and 7), `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md`, `COMMANDS.md`, `README.md`.
+**Files:** Modify `docs/specs/SPEC.md` (sections 5, 6 and 7), `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md`, `COMMANDS.md`, `README.md`.
 
 - `SPEC.md`: working the queue by dispatch, N, the summary; the Scoreboard; cost and time. `git diff` over sections 3.3 and 4 must be empty.
 - `TECH_STACK.md`: the dispatcher, `RetryPolicy` and `error_handler`, a saver per claim run, `MODEL_NAME`, the default model, the new routes.
@@ -523,7 +523,7 @@ Needs the owner. This spends money on OpenRouter and writes to Supabase and Lang
 
 ## Done means
 
-Each line under "What done looks like" in `docs/SWARM.md` has its evidence: tests in Tasks 1 to 9, documents in Task 10, measurements in Task 11.
+Each line under "What done looks like" in `docs/specs/SWARM.md` has its evidence: tests in Tasks 1 to 9, documents in Task 10, measurements in Task 11.
 
 ## Results
 

@@ -92,7 +92,7 @@ Done when:
 
 ## What stays the same
 
-- The rules in `docs/SPEC.md`, with the changes above. Update SPEC.md for the send back.
+- The rules in `docs/specs/SPEC.md`, with the changes above. Update SPEC.md for the send back.
 - The approval limit as a setting, the sign-off that pays, the Gateway's Policy, the check for hidden instructions and the screening model.
 - The API rules in `docs/TECH_STACK.md` for the app: every operation has an `operation_id`, a one-line docstring and no optional inputs. The agent's operations are the payloads in steps 3 and 4, with no optional inputs either. The claim agent's API document keeps its six operations, since neither the send back nor taking a sent-back claim is the model's.
 - The dispatcher, with up to 25 claim agents in one process, each with a saver of its own on one pool of four connections.
@@ -108,7 +108,7 @@ Done when:
 - `npm run check` is green with `.env` moved out of the way, with the tests from each step.
 - After one `npm run seed`, with `npm run dev` running on the default model, on the direct route and with memory off: a dispatch at N=25 that works the queue; signed in as Dana Whitfield, one claim over the limit sent back with a note and decided again, and another signed off; and an evaluation of the evaluation set's five tiny claims. Check the claim pages through the Playwright MCP server, and report what the runs spent.
 - The agent answers its health check through `runtime/main.py` on the laptop (step 3).
-- `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md` and `docs/STATUS.md` describe the product as it now is.
+- `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md` and `docs/STATUS.md` describe the product as it now is.
 
 ## Not for now
 
@@ -134,4 +134,4 @@ These notes come from our own build of the context layer, on the `week3day3-end`
 
 ## Planning
 
-Follow `docs/PROCESS.md`, but write this plan to `docs/PLAN_RUNTIME.md` and tick it off there. Take the four steps in order, one phase each, and commit at the end of each phase. Step 4 is the largest. Do the live checks last, after reseeding once.
+Follow `docs/PROCESS.md`, but write this plan to `docs/plans/PLAN_RUNTIME.md` and tick it off there. Take the four steps in order, one phase each, and commit at the end of each phase. Step 4 is the largest. Do the live checks last, after reseeding once.

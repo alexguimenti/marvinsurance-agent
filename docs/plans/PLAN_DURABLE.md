@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI, SQLAlchemy Core, SQLite (tests, e2e) and Supabase Postgres (`psycopg`), LangGraph with `PostgresSaver` and `SqliteSaver`, LangChain, OpenRouter, Langfuse, React, Vitest, Playwright.
 
-**Spec:** `docs/DURABLE.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
+**Spec:** `docs/specs/DURABLE.md`. Read it alongside this plan. Where they disagree, the spec wins unless a line under "Decisions" says otherwise.
 
 **Sidenote from the brief:** For consistency with the course, please read `labs/week2day3.ipynb` and build the solution in the same style as the lab. Where the lab and this brief differ, follow the brief. In this repo the lab is `labs/week2day3_mex.ipynb`.
 
@@ -393,7 +393,7 @@ test('a sign-off on the dashboard reaches the agent service', async ({ page, req
 
 ### Task 12: The documents
 
-**Files:** Create `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md`. Modify `docs/SPEC.md`, `docs/TECH_STACK.md`, `COMMANDS.md`, `README.md`.
+**Files:** Create `docs/PROCESS.md`, `docs/CODE_STANDARDS.md`, `docs/STATUS.md`. Modify `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `COMMANDS.md`, `README.md`.
 
 - `PROCESS.md`: how we plan and tick off, TDD, `npm run check`, `npm run dev`, Windows, the reseed-and-cap rule for live runs.
 - `CODE_STANDARDS.md`: rules the repo already follows, and the agent's parts: prompts, tools, the run loop (the graph's nodes in the claim agent), and the service as the fourth.
@@ -423,7 +423,7 @@ Found in this task: a sign-off first took 21 s to show as paid, because a query 
 
 ## Done means
 
-Each line under "What done looks like" in `docs/DURABLE.md` has its evidence: tests in Tasks 1 to 11, measurements in Task 13, documents in Task 12.
+Each line under "What done looks like" in `docs/specs/DURABLE.md` has its evidence: tests in Tasks 1 to 11, measurements in Task 13, documents in Task 12.
 
 ## Results
 

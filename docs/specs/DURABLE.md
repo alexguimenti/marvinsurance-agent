@@ -39,7 +39,7 @@ Today, when the agent approves a payout over $1,000, its work on the claim ends.
 
 ## What stays the same
 
-- The rules in `docs/SPEC.md`, including the sign-off for payouts over $1,000. Update its section on working the queue to match this change, and leave its Rules alone.
+- The rules in `docs/specs/SPEC.md`, including the sign-off for payouts over $1,000. Update its section on working the queue to match this change, and leave its Rules alone.
 - The API rules in `docs/TECH_STACK.md`: every operation has an `operation_id`, a one-line docstring and no optional inputs.
 - Tests never call a model, and the code follows `docs/CODE_STANDARDS.md`.
 - The dashboard works as it does today, apart from what this change needs.
@@ -51,8 +51,8 @@ Today, when the agent approves a payout over $1,000, its work on the claim ends.
 - A run killed after a claim's first steps carries on with the same thread the next time, with the attempts unchanged and one decision.
 - During the live run, Supabase shows no more than 12 connections, counting the connections in `pg_stat_activity` whose user is postgres, through the Supabase MCP server.
 - Through Langfuse's API, the held claim's session has traces from before and after the sign-off.
-- `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md` and `docs/STATUS.md` describe the product as it now is.
+- `docs/specs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md` and `docs/STATUS.md` describe the product as it now is.
 
 ## Planning
 
-Follow `docs/PROCESS.md`, but write this plan to `docs/PLAN_DURABLE.md` and tick it off there. Bring in the payout rules and the tracing first. For any live run with the real model, reseed first and cap the run at five claims.
+Follow `docs/PROCESS.md`, but write this plan to `docs/plans/PLAN_DURABLE.md` and tick it off there. Bring in the payout rules and the tracing first. For any live run with the real model, reseed first and cap the run at five claims.

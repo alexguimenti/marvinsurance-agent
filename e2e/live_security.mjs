@@ -1,4 +1,4 @@
-// The live checks of docs/PLAN_SECURE.md, as Dana Whitfield through the dashboard on 5173. Reads the password from .env in
+// The live checks of docs/plans/PLAN_SECURE.md, as Dana Whitfield through the dashboard on 5173. Reads the password from .env in
 // this process only.   node live_security.mjs <dispatch|refuse|evaluate|signoff|queue|show:CLAIM|signoff:CLAIM|sendback:CLAIM> [screens dir]
 // NOTE is the send back's note (sendback:CLAIM).
 // WORKERS sets the dispatch's claim agents at once (5 by default); DASHBOARD the address (http://127.0.0.1:5173).

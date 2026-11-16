@@ -1,4 +1,4 @@
-// The live checks of docs/COPILOT.md, as a handler through the dashboard on 5173, and the Copilot's sidebar in it. Reads the password from .env in
+// The live checks of docs/specs/COPILOT.md, as a handler through the dashboard on 5173, and the Copilot's sidebar in it. Reads the password from .env in
 // this process only, so it never passes through a tool call.
 //   node live_copilot.mjs <dana|marcus> <step> [<step> ...]        (SHOTS sets the screens folder, DASHBOARD the address)
 // Steps, run in order in one browser:
