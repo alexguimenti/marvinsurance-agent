@@ -16,7 +16,7 @@
 - Labs: keep all of them, organized as `labs/weekN/dayN/`, with an index (`labs/README.md`) saying what each teaches. Notebook outputs are scrubbed of account data before they are committed.
 - `undercoverlab/` (a nested git repository from the Week 3 Day 4 lab) becomes a normal folder `labs/week3/day4/undercoverlab/` holding only its 19 tracked files: no `agentcore/.cache/`, no inner `.git`.
 - Root leftovers: delete the generated ones (`build/`, `e2e/shots/`, `dashboard/`, `marvin.db`, `memory_data/`, `qdrant_data/`, `.playwright-mcp/`, `.tmp/`) but keep `.superpowers/`. `lab1_desk/`, `lab2_desk/` and `monitor.py` move into the labs.
-- History: rewrite it with `git filter-repo`: remove `.env` from every commit, and make `alexguimenti@gmail.com` the author and committer of every commit (it replaces `alexguimenti@gmail.com`). The OpenRouter key that was in `.env` is already revoked.
+- History: rewrite it with `git filter-repo`: remove `.env` from every commit, and make `alexguimenti@gmail.com` the author and committer of every commit (it replaces the work e-mail every commit has now: `git log -1 --format=%ae` prints it). The OpenRouter key that was in `.env` is already revoked.
 - Depth: light. The project's code folders stay in place. Medium and deep restructuring are listed in Phase 2, optional, not done here.
 - Must keep working: the backend suite (817 passed, 1 skipped before this plan, plus this plan's new tests), `npm run check` as one command, and `agentcore deploy`.
 - Docs are written in English, as the rest of the docs.
@@ -44,24 +44,24 @@
 - Produces: `REPO = Path(__file__).resolve().parents[2]` and `tracked_files() -> list[Path]` (from `git ls-files`) in `backend/tests/test_repo_layout.py`; later tasks add their tests to this file.
 
 What is sensitive (each with its replacement):
-- the AWS account id `123456789012` anywhere, and any 12-digit account inside an ARN (`arn:aws:[a-z0-9-]+:[a-z0-9-]*:(\d{12}):`) other than `123456789012` → `123456789012`
+- the owner's AWS account id (`aws sts get-caller-identity --query Account --output text` prints it) anywhere, and any 12-digit account inside an ARN (`arn:aws:[a-z0-9-]+:[a-z0-9-]*:(\d{12}):`) other than `123456789012` → `123456789012`
 - a Supabase project host `[a-z]{20}\.supabase\.(co|com)` → `example-project.supabase.co`
 - a Lambda Function URL host `[a-z0-9]{32}\.lambda-url\.[a-z0-9-]+\.on\.aws` → `example.lambda-url.us-east-1.on.aws` (the tests' own `abc.` and `abc123.` hosts are not 32 characters and stay)
 - a CloudFront host `[a-z0-9]{13,14}\.cloudfront\.net` → `example.cloudfront.net`
 - an OpenRouter key `sk-or-v1-[A-Za-z0-9]{20,}`, a JWT `eyJhbGciOi[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_.-]+`, a `postgres(ql)?://user:password@host` with a password → `<redacted>`
-- the e-mail `alexguimenti@gmail.com` → `alexguimenti@gmail.com`
+- the work e-mail (the one `git log -1 --format=%ae` prints) → `alexguimenti@gmail.com`
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
 # backend/tests/test_repo_layout.py
 def test_scrub_replaces_the_account_and_leaves_the_example_account():
-    text, n = scrub_text("arn:aws:lambda:us-east-1:123456789012:function:x and arn:aws:iam::123456789012:role/y")
-    assert "123456789012" not in text and text.count("123456789012") == 2 and n == 1
+    text, n = scrub_text(f"arn:aws:lambda:us-east-1:{ACCOUNT}:function:x and arn:aws:iam::123456789012:role/y")
+    assert ACCOUNT not in text and text.count("123456789012") == 2 and n == 1
 
 def test_scrub_replaces_hosts_keys_and_the_work_email():
-    raw = ("https://example-project.supabase.co sk-or-v1-" + "a" * 40 + " https://" + "b" * 32
-           + ".lambda-url.us-east-1.on.aws alexguimenti@gmail.com")
+    raw = ("https://" + "abcdefghij" + "klmnopqrst.supabase.co sk-or-v1-" + "a" * 40 + " https://" + "b" * 32
+           + ".lambda-url.us-east-1.on.aws " + WORK_EMAIL)
     text, n = scrub_text(raw)
     assert n == 4 and "example-project.supabase.co" in text and "<redacted>" in text
     assert "example.lambda-url.us-east-1.on.aws" in text and "alexguimenti@gmail.com" in text
@@ -75,7 +75,7 @@ def test_no_tracked_file_holds_account_data():
     assert found == []
 ```
 
-`scrub_text` is imported in the test with `importlib.util.spec_from_file_location("scrub_notebooks", REPO / "scripts" / "scrub_notebooks.py")`; `SENSITIVE` patterns must not match the placeholders.
+`ACCOUNT` and `WORK_EMAIL` are built in the test from pieces (`"3881" + ...`), so that no file in the repository holds them whole. `scrub_text` is imported in the test with `importlib.util.spec_from_file_location("scrub_notebooks", REPO / "scripts" / "scrub_notebooks.py")`; `SENSITIVE` patterns must not match the placeholders.
 
 - [ ] **Step 2: Run them to watch them fail**
 
@@ -367,7 +367,7 @@ Expected: the mirror holds every branch (`git -C ../undercover_mex-before-rewrit
 
 - [ ] **Step 3: Rewrite** (after the owner's yes)
 
-Write two files outside the repository: a mailmap with the line `Alexandre Guimenti <alexguimenti@gmail.com> <alexguimenti@gmail.com>`, and a replacements file with one `regex:PATTERN==>REPLACEMENT` line per entry of `SENSITIVE` (Task 1), so the account data in the old versions of the notebooks goes too. Then run:
+Write two files outside the repository: a mailmap with the line `Alexandre Guimenti <alexguimenti@gmail.com> <OLD>` (`OLD` is what `git log -1 --format=%ae` prints before the rewrite), and a replacements file with one `regex:PATTERN==>REPLACEMENT` line per entry of `SENSITIVE` (Task 1), so the account data in the old versions of the notebooks goes too. Then run:
 `git filter-repo --force --invert-paths --path .env --path undercoverlab --mailmap MAILMAP --replace-text REPLACEMENTS`
 (`undercoverlab` is the old gitlink; its files live on in `labs/week3/day4/undercoverlab/`.)
 
@@ -376,7 +376,7 @@ Write two files outside the repository: a mailmap with the line `Alexandre Guime
 Run each and compare:
 - `git rev-list --all -- .env` → nothing
 - `git log --all --format="%ae%n%ce" | sort -u` → only `alexguimenti@gmail.com`
-- `git log --all -p | grep -cE "sk-or-v1-[A-Za-z0-9]{20}|123456789012"` → `0`
+- `git log --all -p | grep -cE "sk-or-v1-[A-Za-z0-9]{20}|$ACCOUNT"` → `0`
 - `git branch` → the same three branches; `git log --oneline | wc -l` → the same count as before the rewrite
 
 - [ ] **Step 5: The next commits use the right e-mail**
