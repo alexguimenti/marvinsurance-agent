@@ -102,3 +102,19 @@ def test_the_lab_scripts_find_the_repository_root_from_where_they_now_live():
         match = re.search(pattern, script.read_text(encoding="utf-8"))
         assert match, f"{name} does not climb to the repository root with parents[N]"
         assert script.resolve().parents[int(match.group(1))] == REPO, name
+
+
+# ---- the index and the root ----
+
+ROOT = {".gitignore", ".mcp.json", ".vscode", "README.md", "COMMANDS.md", "package.json", "agent.toml",
+        "agentcore", "backend", "data", "docs", "e2e", "frontend", "labs", "runtime", "scripts"}
+
+
+def test_the_labs_index_names_every_notebook_and_links_to_it():
+    index = (REPO / "labs" / "README.md").read_text(encoding="utf-8")
+    missing = [n.name for n in lab_notebooks() if f"]({n.relative_to(REPO / 'labs').as_posix()})" not in index]
+    assert missing == []
+
+
+def test_the_root_holds_only_the_project():
+    assert {p.relative_to(REPO).parts[0] for p in tracked_files()} == ROOT

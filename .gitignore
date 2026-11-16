@@ -9,6 +9,7 @@ node_modules/
 frontend/dist/
 dashboard/
 e2e/test-results/
+e2e/shots/
 e2e/playwright-report/
 .superpowers/
 e2e/.tmp/
