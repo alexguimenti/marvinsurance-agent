@@ -82,7 +82,7 @@ export default function RunPanel({ data }: { data: LatestDispatch }) {
           )}
           {summary.in_progress.length > 0 && (
             <div>
-              <h4>Still in progress, for the next dispatch</h4>
+              <h4>Waiting, left for the next dispatch</h4>
               <ul>
                 {summary.in_progress.map((id) => (
                   <li key={id}>

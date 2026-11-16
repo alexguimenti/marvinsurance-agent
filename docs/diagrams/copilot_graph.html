@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Copilot's graph (graph.py)</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fafaf9; --fg:#1c1917; --muted:#6b645d; --card:#fff; --line:#d6d3d1; --accent:#d97706; --soft:#f1efec; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161412; --fg:#ecE8e3; --muted:#a39b92; --card:#1f1c19; --line:#3a3530; --accent:#f59e0b; --soft:#262220; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 20px 56px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 36px 0 10px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 4px; font-size: 14px; }
+  .card p { margin: 0; font-size: 13.5px; color: var(--muted); }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .note { border-left: 3px solid var(--accent); padding: 4px 12px; margin: 14px 0; color: var(--muted); }
+  svg text { fill: currentColor; font-family: system-ui, sans-serif; }
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .scroll svg { min-width: 680px; }
+  .scroll table { min-width: 640px; }
+  .hint { display: none; color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+  @media (max-width: 700px) { .hint { display: block; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>The Copilot's graph</h1>
+  <p class="lead">How <code>backend/agent/copilot/graph.py</code> runs a turn: five nodes, two decisions, and a pause for the handler to confirm a payout.</p>
+
+  <figure>
+    <p class="hint">Scroll sideways to see the whole diagram.</p>
+    <div class="scroll">
+    <svg viewBox="0 0 760 370" role="img" aria-label="The graph: START, recall, model; model goes to tools or save; tools goes back to model or on to confirm; confirm goes back to model; save ends at END.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arrowA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#d97706"/>
+        </marker>
+      </defs>
+
+      <!-- terminals -->
+      <ellipse cx="380" cy="22" rx="40" ry="14" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="380" y="26" text-anchor="middle" font-size="12">START</text>
+      <ellipse cx="660" cy="76" rx="32" ry="14" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="660" y="80" text-anchor="middle" font-size="12">END</text>
+
+      <!-- nodes -->
+      <g stroke="currentColor" stroke-width="1.5" fill="none">
+        <rect x="270" y="56" width="220" height="50" rx="8"/>
+        <rect x="270" y="150" width="220" height="56" rx="8"/>
+        <rect x="270" y="280" width="220" height="56" rx="8"/>
+        <rect x="580" y="150" width="160" height="56" rx="8"/>
+        <rect x="10" y="280" width="180" height="56" rx="8" stroke="#d97706" stroke-width="2.2"/>
+      </g>
+      <g text-anchor="middle">
+        <text x="380" y="77" font-size="13" font-weight="700">recall</text>
+        <text x="380" y="94" font-size="11" opacity=".75">reads notes from the handler's memory</text>
+
+        <text x="380" y="172" font-size="13" font-weight="700">model</text>
+        <text x="380" y="188" font-size="11" opacity=".75">calls the LLM with the tools</text>
+        <text x="380" y="201" font-size="11" opacity=".75">at most 25 calls a turn</text>
+
+        <text x="380" y="302" font-size="13" font-weight="700">tools</text>
+        <text x="380" y="318" font-size="11" opacity=".75">ToolNode + carded (makes the card)</text>
+        <text x="380" y="331" font-size="11" opacity=".75">runs the tool asked for</text>
+
+        <text x="660" y="172" font-size="13" font-weight="700">save</text>
+        <text x="660" y="188" font-size="11" opacity=".75">saves question + answer</text>
+        <text x="660" y="201" font-size="11" opacity=".75">to memory</text>
+
+        <text x="100" y="302" font-size="13" font-weight="700">confirm</text>
+        <text x="100" y="318" font-size="11" opacity=".75">interrupt(): waits for the handler</text>
+        <text x="100" y="331" font-size="11" opacity=".75">Sign off and pay / Cancel</text>
+      </g>
+
+      <!-- edges -->
+      <g stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
+        <line x1="380" y1="36" x2="380" y2="55"/>
+        <line x1="380" y1="106" x2="380" y2="149"/>
+        <line x1="380" y1="206" x2="380" y2="279"/>
+        <polyline points="490,164 579,164"/>
+        <polyline points="490,308 540,308 540,192 491,192"/>
+        <line x1="660" y1="149" x2="660" y2="91"/>
+      </g>
+      <g stroke="#d97706" stroke-width="1.8" fill="none" marker-end="url(#arrowA)">
+        <line x1="270" y1="308" x2="191" y2="308"/>
+        <polyline points="100,279 100,178 269,178"/>
+      </g>
+
+      <!-- edge labels -->
+      <g font-size="11" opacity=".85">
+        <text x="388" y="248">has tool_calls</text>
+        <text x="497" y="157">no tool_calls</text>
+        <text x="546" y="262">no sign_off</text>
+        <text x="546" y="275">(back to model)</text>
+        <text x="230" y="300" text-anchor="middle" fill="#d97706">sign_off</text>
+        <text x="230" y="326" text-anchor="middle" fill="#d97706">is set</text>
+        <text x="106" y="170">Command(resume=…)</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>Orange: the sign-off path. The two decisions are <code>after_model</code> (tools or save) and <code>after_tools</code> (confirm or model).</figcaption>
+  </figure>
+
+  <h2>How a turn runs</h2>
+  <div class="grid">
+    <div class="card"><h3>1. Plain</h3><p><code>recall → model → tools → model → … → save → END</code>. The <code>model ↔ tools</code> loop repeats until the model answers without asking for a tool.</p></div>
+    <div class="card"><h3>2. With a sign-off</h3><p>When a tool sets <code>state.sign_off</code>, the graph goes to <code>confirm</code>. The turn is <code>waiting</code> until the handler presses a button.</p></div>
+    <div class="card"><h3>3. Resuming</h3><p>The app sends <code>Command(resume="sign_off" | "cancel")</code>. Only <code>sign_off</code> pays; the outcome goes back to the model as a <code>confirmation</code> message.</p></div>
+  </div>
+  <p class="note">Every tool goes through <code>carded</code>: it records a step in the app before the tool runs and closes it as <code>done</code>, <code>refused</code> or <code>failed</code>. Each step is a card in the sidebar. There are 18 tools of its own (reads, actions and waiting) plus the context layer's tools over MCP, and the model may call only one at a time.</p>
+  <p class="note"><code>confirm</code> does nothing before <code>interrupt()</code>: LangGraph runs the whole node again when it resumes, so anything before it would happen twice.</p>
+
+  <h2>A sign-off, end to end</h2>
+  <figure>
+    <p class="hint">Scroll sideways to see the whole diagram.</p>
+    <div class="scroll">
+    <svg viewBox="0 0 780 470" role="img" aria-label="A sign-off between the handler, the app and the Copilot: the tool checks the request, the graph pauses, the app makes the card, the handler answers, the app checks the card and resumes the graph, and only then is the payout made.">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <!-- lanes -->
+      <g stroke="currentColor" stroke-width="1.5" fill="none">
+        <rect x="20" y="14" width="140" height="34" rx="8"/>
+        <rect x="310" y="14" width="140" height="34" rx="8"/>
+        <rect x="610" y="14" width="140" height="34" rx="8"/>
+      </g>
+      <g text-anchor="middle" font-size="13" font-weight="700">
+        <text x="90" y="36">Handler (sidebar)</text>
+        <text x="380" y="36">App (backend)</text>
+        <text x="680" y="36">Copilot (graph)</text>
+      </g>
+      <g stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" opacity=".45">
+        <line x1="90" y1="48" x2="90" y2="460"/>
+        <line x1="380" y1="48" x2="380" y2="460"/>
+        <line x1="680" y1="48" x2="680" y2="460"/>
+      </g>
+
+      <!-- self actions: dot on the lifeline, text beside it -->
+      <g font-size="11.5">
+        <circle cx="680" cy="80" r="4" fill="currentColor"/><text x="668" y="84" text-anchor="end">model asks for sign_off(CLM-…)</text>
+        <circle cx="680" cy="116" r="4" fill="currentColor"/><text x="668" y="120" text-anchor="end">tool: may they sign off? is a payout held?</text>
+        <text x="668" y="134" text-anchor="end" font-size="10.5" opacity=".7">if not: a refusal back to the model, no card</text>
+        <circle cx="680" cy="152" r="5" fill="#d97706"/><text x="668" y="156" text-anchor="end" fill="#d97706" font-weight="600">confirm: interrupt()</text>
+        <circle cx="380" cy="224" r="4" fill="currentColor"/><text x="392" y="228">makes the card; the turn is waiting</text>
+        <circle cx="380" cy="332" r="4" fill="currentColor"/><text x="392" y="336">same payment and amount? else 409</text>
+        <circle cx="680" cy="440" r="4" fill="currentColor"/><text x="668" y="444" text-anchor="end">confirmation message → model answers → POST /end</text>
+      </g>
+
+      <!-- messages between lanes -->
+      <g stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr2)">
+        <line x1="680" y1="188" x2="382" y2="188"/>
+        <line x1="380" y1="260" x2="92" y2="260"/>
+        <line x1="90" y1="296" x2="378" y2="296"/>
+        <line x1="380" y1="368" x2="678" y2="368"/>
+        <line x1="680" y1="404" x2="382" y2="404"/>
+      </g>
+      <g font-size="11.5" text-anchor="middle">
+        <text x="530" y="182">POST /pause (claim_id)</text>
+        <text x="235" y="254">confirmation card (polled every 1 s)</text>
+        <text x="235" y="290">Sign off and pay  |  Cancel</text>
+        <text x="530" y="362">Command(resume=answer)</text>
+        <text x="530" y="398">only on sign_off: POST /payments/PAY-…/approve</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>A payout is made only after two checks: the tool's (permission and a held payout, before the card) and the app's (the card still holds, after the click). <code>turns.py</code> calls <code>/pause</code> when it sees the graph interrupted.</figcaption>
+  </figure>
+
+  <h2>What each node reads and writes</h2>
+  <div class="scroll">
+  <table>
+    <tr><th>Node</th><th>Reads</th><th>Writes</th><th>Calls</th></tr>
+    <tr><td><code>recall</code></td><td>messages, context (handler)</td><td>notes</td><td><code>memory.recall</code> (skipped with no store)</td></tr>
+    <tr><td><code>model</code></td><td>messages, notes, model_calls, cost_usd, context (handler)</td><td>messages, model_calls, cost_usd</td><td>the LLM with tools (<code>parallel_tool_calls=False</code>), <code>call_usage</code></td></tr>
+    <tr><td><code>tools</code></td><td>messages (tool_calls)</td><td>messages, sign_off</td><td>the tools, wrapped by <code>carded</code></td></tr>
+    <tr><td><code>confirm</code></td><td>sign_off, context (token, turn_id)</td><td>clears sign_off, messages</td><td><code>app_api.record_step</code>, <code>POST /api/payments/PAY-&lt;claim&gt;/approve</code>, <code>finish_step</code></td></tr>
+    <tr><td><code>save</code></td><td>messages</td><td>nothing</td><td><code>memory.save_turn</code></td></tr>
+  </table>
+  </div>
+
+  <h2>State and context</h2>
+  <div class="grid">
+    <div class="card"><h3>CopilotState (saved in each checkpoint)</h3><p><code>messages</code>, <code>model_calls</code> (reset each turn), <code>cost_usd</code>, <code>notes</code>, <code>sign_off</code>.</p></div>
+    <div class="card"><h3>Asker (context_schema)</h3><p>The handler's sign-in, who they are, and <code>turn_id</code>. It comes in the graph's context, never the state or the config, so it is never saved in a checkpoint.</p></div>
+    <div class="card"><h3>Limit</h3><p>A 26th model call in one turn raises <code>TooManyModelCalls</code>.</p></div>
+  </div>
+</main>
+</body>
+</html>

@@ -71,6 +71,8 @@ Each recorded decision stores the model ID that produced it, so results can be c
 
 ## The Copilot
 
+A diagram of the graph and of the sign-off from end to end: [`docs/diagrams/copilot_graph.html`](diagrams/copilot_graph.html) (open it in a browser).
+
 - **The agent loop** is a LangGraph graph written by hand in `backend/agent/copilot/graph.py`: a `recall` node, a `model` node, LangGraph's `ToolNode` (with a hook that records each call as a card), a `confirm` node that holds the `interrupt()` before a sign-off, and a `save` node, with a Postgres (or SQLite) checkpointer. A turn makes at most 25 model calls. It does not use `create_agent`.
 - **The handler's sign-in** reaches the graph and its tools in the graph's context (`context_schema=Asker`, read through `ToolRuntime`), never in the config, whose values LangGraph saves with each checkpoint.
 - **The model** is `openai/gpt-6-luna` at low reasoning effort through OpenRouter, or the model in `MODEL_NAME` when it is set. The app names the Copilot's model (`Settings.copilot_model`), as it names the security check's.

@@ -2,7 +2,9 @@
 the improver and the agent's service make goes through `call`. The key and the backend's address are read from the
 environment as each request is sent, so a process that loads `.env` after it imported this module still sends the key."""
 import os
+import random
 import threading
+import time
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -13,6 +15,14 @@ DEFAULT_BACKEND = "http://127.0.0.1:8000"
 # share the backend's 4 connections, and a claim agent waits for one rather than fail. The backend also grades an evaluation
 # before it answers that the run is over.
 TIMEOUT_S = 300
+
+# "Rate Exceeded": the account allows only so many Lambda invocations at once (10 on a new account) and the claim agents, the
+# Copilot and the dashboard share them. Such a request was refused before it ran, so it is sent again: 6 tries, waiting 0.5, 1, 2, 4
+# and 8 s (each a little random, so the agents do not all come back together).
+RATE_TRIES = 6
+RATE_FIRST_WAIT_S = 0.5
+RATE_LONGEST_WAIT_S = 8
+_sleep = time.sleep
 
 _lock = threading.Lock()
 _client: httpx.Client | None = None
@@ -60,7 +70,11 @@ def call(method: str, path: str, json: dict | None = None, params: dict | None =
     else:
         key = os.environ.get("UNDERCOVER_API_KEY")
         headers = {"X-API-Key": key} if key else {}
-    answer = _http().request(method, f"{backend_url()}{path}", json=json, params=params, headers=headers)
+    for attempt in range(RATE_TRIES):
+        answer = _http().request(method, f"{backend_url()}{path}", json=json, params=params, headers=headers)
+        if not _rate_exceeded(answer) or attempt == RATE_TRIES - 1:
+            break
+        _sleep(min(RATE_FIRST_WAIT_S * 2**attempt, RATE_LONGEST_WAIT_S) * random.uniform(0.75, 1.25))  # the request never ran: wait, then send it again
     if answer.status_code == 404:
         raise LookupError(_detail(answer))
     if answer.status_code >= 400:
@@ -68,6 +82,11 @@ def call(method: str, path: str, json: dict | None = None, params: dict | None =
         code = detail.get("code") if isinstance(detail, dict) else None
         raise Refused(answer.status_code, detail.get("message", detail) if isinstance(detail, dict) else detail, code)
     return answer.json() if answer.content else None
+
+
+def _rate_exceeded(answer: httpx.Response) -> bool:
+    """The platform refused the request for too many concurrent invocations (our app on Lambda), before it ran."""
+    return answer.status_code == 429 or (answer.status_code >= 400 and "Rate Exceeded" in answer.text)
 
 
 def _detail(answer: httpx.Response, raw: bool = False) -> Any:

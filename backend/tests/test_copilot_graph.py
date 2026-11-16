@@ -88,6 +88,12 @@ def test_the_instructions_exist_and_say_who_the_copilot_is():
     assert "UnderCover Copilot" in text and "70%" in text and "US dollars" in text
 
 
+def test_the_instructions_tell_the_copilot_to_offer_a_held_sign_off_and_to_use_the_queue_status_words():
+    text = load_instructions()
+    assert "offer" in text and "Do you want me to sign it off" in text  # a held payout is offered, never signed off unasked
+    assert "waiting" in text and "in progress" in text  # the statuses are the queue's, so claims still waiting are not called in progress
+
+
 def test_the_scripted_model_plays_the_e2e_turn():
     app = App({("GET", "/api/claims"): (200, []), ("POST", "/api/dispatches"): (202, {"status": "started", "run_id": 3}),
                ("GET", "/api/claims/CLM-0000"): (404, {"detail": "unknown claim CLM-0000"})})

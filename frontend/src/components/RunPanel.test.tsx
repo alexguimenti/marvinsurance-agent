@@ -69,6 +69,12 @@ describe('RunPanel', () => {
     expect(summary.getByText('CLM-1020')).toBeInTheDocument()
   })
 
+  it('calls the claims no agent has finished waiting, not in progress', () => {
+    show(report({ run: { ...report().run!, status: 'finished', finished_at: '2026-11-05T10:01:00+00:00' }, summary: { approved: 0, declined: 0, referred: 0, awaiting_sign_off: [], left_for_handler: [], in_progress: ['CLM-1020'] } }))
+    expect(screen.getByRole('heading', { name: /waiting.*next dispatch/i })).toBeInTheDocument()
+    expect(screen.queryByText(/still in progress/i)).not.toBeInTheDocument()
+  })
+
   it('says a stopped dispatch is carried on by the next one', () => {
     show(report({ run: { ...report().run!, status: 'stopped' }, summary: { approved: 0, declined: 0, referred: 0, awaiting_sign_off: [], left_for_handler: [], in_progress: ['CLM-1001'] } }))
     expect(screen.getByText(/stopped.*next dispatch carries on/i)).toBeInTheDocument()
