@@ -16,6 +16,7 @@ Read them in the order the project was built:
 | Context | The context layer over MCP, memory and the Gateway | [CONTEXT.md](specs/CONTEXT.md) | [PLAN_CONTEXT.md](plans/PLAN_CONTEXT.md) |
 | Runtime | Sending claims back, and the agent on AgentCore Runtime | [RUNTIME.md](specs/RUNTIME.md) | [PLAN_RUNTIME.md](plans/PLAN_RUNTIME.md) |
 | Copilot | The handler's assistant in a sidebar, with a confirmation before a payout | [COPILOT.md](specs/COPILOT.md) | [PLAN_COPILOT.md](plans/PLAN_COPILOT.md) |
+| Reorganization | The repository reorganized to be read from outside: labs by week and day, docs split, a new README, the history rewritten | none | [PLAN_REORG.md](plans/PLAN_REORG.md) |
 
 ## Reference
 
