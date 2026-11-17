@@ -122,7 +122,7 @@ def test_the_root_holds_only_the_project():
 
 # ---- the docs ----
 
-REFERENCE_DOCS = {"README.md", "COMMANDS.md", "TECH_STACK.md", "CODE_STANDARDS.md", "PROCESS.md", "DESIGN.md", "STATUS.md", "DECISIONS.md", "PLAN_REORG.md"}
+REFERENCE_DOCS = {"README.md", "COMMANDS.md", "NEXT_PROJECT.md", "TECH_STACK.md", "CODE_STANDARDS.md", "PROCESS.md", "DESIGN.md", "STATUS.md", "DECISIONS.md", "PLAN_REORG.md"}
 SPECS = {"SPEC.md", "HARNESS.md", "DURABLE.md", "SWARM.md", "IMPROVE.md", "SECURE.md", "CONTEXT.md", "RUNTIME.md", "COPILOT.md"}
 TEXT_SUFFIXES = {".md", ".py", ".ts", ".tsx", ".mjs", ".css", ".json", ".toml", ".yaml"}
 ALIASES = {"docs/BRAND.md"}  # the course's specs call our docs/DESIGN.md "BRAND.md"; the plans say so

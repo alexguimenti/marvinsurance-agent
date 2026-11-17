@@ -24,6 +24,7 @@ Read them in the order the project was built:
 - [TECH_STACK.md](TECH_STACK.md): what the project is built with and how it is deployed.
 - [CODE_STANDARDS.md](CODE_STANDARDS.md) and [PROCESS.md](PROCESS.md): the rules the code was written under and how the work was done.
 - [DESIGN.md](DESIGN.md): the visual style (the specs call it `BRAND.md`).
+- [NEXT_PROJECT.md](NEXT_PROJECT.md): what to copy for the next project, and in what order.
 - [DECISIONS.md](DECISIONS.md): the choices that shaped the project, with why and where.
 - [STATUS.md](STATUS.md): what works, what was checked and how, and the known limits.
 - [diagrams/copilot_graph.html](diagrams/copilot_graph.html): the Copilot's graph and a sign-off end to end (open it in a browser).

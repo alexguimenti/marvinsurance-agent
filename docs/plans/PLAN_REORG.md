@@ -391,18 +391,13 @@ Expected: all passed. Then move this plan to `docs/plans/PLAN_REORG.md` (`git mv
 
 ---
 
-## Phase 2 (optional, not part of this plan)
+## Phase 2: what was done (2026-11-17)
 
-Each is its own plan if the owner wants it. They change paths the build, the tests or the deploy read, so each ends with `npm run check` and an `agentcore deploy`.
-
-- **Medium:**
-  - one `infra/` folder for what deploys (`agentcore/`, `runtime/`, `scripts/prepare_runtime.py`, the Lambda build in `scripts/build.mjs`);
-  - `agent.toml` next to the agent (`backend/agent/agent.toml`), with the settings reading it from there;
-  - `COMMANDS.md` into `docs/`;
-  - `PROCESS.md` and `CODE_STANDARDS.md` merged into one guide.
-- **Deep:**
-  - `backend/app` (the API) and `backend/agent` (the agents) as two packages with their own dependencies, so the Copilot's runtime package stops carrying the app's;
-  - the largest modules split by responsibility, with the duplicated HTTP helpers in `backend/agent/api.py` and `backend/agent/copilot/app_api.py` made one;
-  - a template folder distilled from the project (an AgentCore app, a hand-written graph with a confirmation, the deploy) to start the next project from.
-- **Publishing:**
-  - a GitHub remote, a short licence note on the course material, and screenshots for the README.
+- **Done:** `agent.toml` moved to `backend/agent/agent.toml` (the app and the agent both read it there, and it now travels with the agent's package); `COMMANDS.md` moved to `docs/`; `docs/NEXT_PROJECT.md` says what to copy for the next project and in what order (a document, not a copied folder: a template would be a second tree to keep in step with the first).
+- **Not done, on purpose:**
+  - **`infra/` folder.** The AgentCore CLI looks for `agentcore/` at the root of the repository, and `agentcore deploy` is run from there; moving it cannot be checked without a deploy, and a broken deploy is the one thing this plan must not cause.
+  - **`PROCESS.md` and `CODE_STANDARDS.md` merged.** Eleven specs and plans name both files by path; a merge would break those references to save one file.
+  - **Two packages with their own dependencies.** `backend/pyproject.toml` already has the `server`, `context` and `runtime` groups, and `scripts/check.mjs` imports each with only its own group installed, so the Copilot's runtime does not carry the app's packages.
+  - **Duplicated HTTP helpers.** `agent/api.py` and `agent/copilot/app_api.py` already share `agent/connection.py`; what is left in each is the routes' names.
+  - **Splitting the largest modules.** The largest is 674 lines (`backend/app/api.py`); none is large enough to pay for the churn.
+- **Publishing:** the licence note went into the README (the course's notebooks are the course's). The GitHub remote, the push and screenshots are the owner's: they publish the work and need an account and a decision about the repository's name and visibility.

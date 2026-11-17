@@ -2,7 +2,7 @@
 
 A course project from the Forward Deployed Engineer course. Nothing here is real: a made-up travel insurer, its customers and its claims. AI agents work the claims queue like a human analyst would, and a human handler stays in charge of the money.
 
-It is kept here as a portfolio and as a reference for the next project. Nobody is expected to run it; the part worth reading is how it is put together, and the map below says where to look.
+It is kept here as a portfolio and as a reference for the next project. The notebooks in `labs/` marked "the course's" were written by the course's authors, not by me; the rest is mine. Nobody is expected to run it; the part worth reading is how it is put together, and the map below says where to look.
 
 ## What it shows
 
