@@ -12,7 +12,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, InitSettingsSource, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG_FILE = ROOT / "agent.toml"
+CONFIG_FILE = Path(__file__).resolve().with_name("agent.toml")
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_EFFORT = "low"
 SCREENING_MODEL = ("openai/gpt-6-luna", "none")  # the security check: quick and cheap enough to read every claim

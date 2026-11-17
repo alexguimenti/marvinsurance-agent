@@ -20,6 +20,7 @@ Read them in the order the project was built:
 
 ## Reference
 
+- [COMMANDS.md](COMMANDS.md): how to set it up, run it, test it and reseed it.
 - [TECH_STACK.md](TECH_STACK.md): what the project is built with and how it is deployed.
 - [CODE_STANDARDS.md](CODE_STANDARDS.md) and [PROCESS.md](PROCESS.md): the rules the code was written under and how the work was done.
 - [DESIGN.md](DESIGN.md): the visual style (the specs call it `BRAND.md`).

@@ -19,7 +19,7 @@ With `DATABASE_URL` in `.env` the records are on Supabase, which is slower: each
 | You change | What happens |
 |---|---|
 | a `.py` file in `backend/app/` | the backend restarts by itself |
-| a `.py` file in `backend/agent/`, `agent.toml` or `.env` | stop and start `npm run dev` |
+| a `.py` file in `backend/agent/`, `backend/agent/agent.toml` or `.env` | stop and start `npm run dev` |
 | `backend/agent/instructions_claim.md` (version 1 of the claim agent's instructions) | `npm run seed`: it is copied into version 1 when the tables are made. A later version's instructions are in the database, and a handler approves them |
 | files in `frontend/src/` | the page updates by itself |
 
@@ -110,7 +110,7 @@ LANGFUSE_SECRET_KEY=...
 LANGFUSE_BASE_URL=...
 ```
 
-The model and how it thinks are set in **`agent.toml`** at the repo root (committed, no secrets):
+The model and how it thinks are set in **`backend/agent/agent.toml`** (committed, no secrets):
 
 ```toml
 [agent]

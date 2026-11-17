@@ -57,10 +57,10 @@ If you want to see how I did one thing, open the file next to it.
 
 - **`labs/`**: the course's notebooks, by week and day, with what each led to: [labs/README.md](labs/README.md).
 - **`docs/`**: a spec and a plan for each step, in the order the project was built: [docs/README.md](docs/README.md). The decisions and why: [docs/DECISIONS.md](docs/DECISIONS.md). Where it stands: [docs/STATUS.md](docs/STATUS.md).
-- **`COMMANDS.md`**: how to set it up and run it (`npm run dev`), the tests (`npm run check`) and how to reseed the database.
+- **`docs/COMMANDS.md`**: how to set it up and run it (`npm run dev`), the tests (`npm run check`) and how to reseed the database.
 
 ```
-backend/    the app and the records (app/), the agents (agent/), the context layer (context/), tests (tests/)
+backend/    the app and the records (app/), the agents (agent/, with agent.toml: the model and how it thinks), the context layer (context/), tests (tests/)
 frontend/   the React dashboard and the Copilot sidebar (Vite, TypeScript, Vitest)
 e2e/        Playwright tests, and the live checks
 agentcore/  the AgentCore project: the runtimes, the credentials, the CDK stack
@@ -69,5 +69,4 @@ scripts/    dev, check, build, reseed, packaging for the deploy
 data/       the made-up company's data and the labeled claims
 docs/       specs, plans, decisions, status, a diagram
 labs/       the course's notebooks
-agent.toml  the claim agent's model and how it thinks (no secrets)
 ```

@@ -106,7 +106,7 @@ def test_the_lab_scripts_find_the_repository_root_from_where_they_now_live():
 
 # ---- the index and the root ----
 
-ROOT = {".gitignore", ".mcp.json", ".vscode", "README.md", "COMMANDS.md", "package.json", "agent.toml",
+ROOT = {".gitignore", ".mcp.json", ".vscode", "README.md", "package.json",
         "agentcore", "backend", "data", "docs", "e2e", "frontend", "labs", "runtime", "scripts"}
 
 
@@ -122,7 +122,7 @@ def test_the_root_holds_only_the_project():
 
 # ---- the docs ----
 
-REFERENCE_DOCS = {"README.md", "TECH_STACK.md", "CODE_STANDARDS.md", "PROCESS.md", "DESIGN.md", "STATUS.md", "DECISIONS.md", "PLAN_REORG.md"}
+REFERENCE_DOCS = {"README.md", "COMMANDS.md", "TECH_STACK.md", "CODE_STANDARDS.md", "PROCESS.md", "DESIGN.md", "STATUS.md", "DECISIONS.md", "PLAN_REORG.md"}
 SPECS = {"SPEC.md", "HARNESS.md", "DURABLE.md", "SWARM.md", "IMPROVE.md", "SECURE.md", "CONTEXT.md", "RUNTIME.md", "COPILOT.md"}
 TEXT_SUFFIXES = {".md", ".py", ".ts", ".tsx", ".mjs", ".css", ".json", ".toml", ".yaml"}
 ALIASES = {"docs/BRAND.md"}  # the course's specs call our docs/DESIGN.md "BRAND.md"; the plans say so

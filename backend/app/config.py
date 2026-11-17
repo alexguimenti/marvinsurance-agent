@@ -8,7 +8,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, InitSettingsSource, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG_FILE = ROOT / "agent.toml"
+CONFIG_FILE = Path(__file__).resolve().parents[1] / "agent" / "agent.toml"
 DEFAULT_AGENT_URL = "http://127.0.0.1:8080"  # the port AgentCore apps use
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_EFFORT = "low"
